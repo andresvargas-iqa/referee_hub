@@ -56,7 +56,7 @@ const RosterViewModal = forwardRef<RosterViewModalRef>((_props, ref) => {
         `"${entry.jerseyNumber || ""}"`,
         `"${entry.role || ""}"`,
         `"${entry.maxCertification || ""}"`,
-        entry.maxCertification && entry.maxCertificationDate
+        entry.maxCertificationDate
           ? `"${new Date(entry.maxCertificationDate).toLocaleDateString()}"`
           : '""',
       ];
@@ -184,7 +184,7 @@ const RosterViewModal = forwardRef<RosterViewModalRef>((_props, ref) => {
                             {entry.maxCertification || "-"}
                           </td>
                           <td className="px-4 py-3 text-sm text-gray-600">
-                            {entry.maxCertification && entry.maxCertificationDate
+                            {entry.maxCertificationDate
                               ? new Date(entry.maxCertificationDate).toLocaleDateString()
                               : "-"}
                           </td>
