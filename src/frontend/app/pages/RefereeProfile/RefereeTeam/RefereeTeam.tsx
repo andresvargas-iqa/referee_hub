@@ -3,7 +3,7 @@ import { InputActionMeta, MultiValue, ActionMeta } from "react-select";
 
 import Select, { SelectOption } from "../../../components/Select/Select";
 import { RefereeLocationOptions } from "../RefereeLocation/RefereeLocation";
-import { NgbTeamViewModel, NgbViewModel, RefereeViewModel, useGetNgbTeamsQuery, useGetNationalTeamsQuery } from "../../../store/serviceApi";
+import { NgbTeamViewModel, NgbViewModel, RefereeViewModel, useGetNgbTeamsQuery } from "../../../store/serviceApi";
 
 export type RefereeTeamOptions = Pick<RefereeViewModel, "playingTeam" | "coachingTeam" | "nationalTeam">
 
@@ -20,14 +20,11 @@ const RefereeTeam = (props: RefereeTeamProps) => {
   
   const { data: primaryNgbTeams, error: getPrimaryNgbTeamsError } = useGetNgbTeamsQuery({ ngb: locations.primaryNgb, skipPaging: true }, {skip: !locations.primaryNgb});
   const { data: secondaryNgbTeams, error: getSecondaryNgbTeamsError } = useGetNgbTeamsQuery({ ngb: locations.secondaryNgb, skipPaging: true }, {skip: !locations.secondaryNgb});
-  const { data: allNationalTeamsData, error: getNationalTeamsError } = useGetNationalTeamsQuery({ skipPaging: true });
-  
-  const ngbTeams = (primaryNgbTeams?.items ?? []).concat(secondaryNgbTeams?.items ?? []);
-  const allTeams = ngbTeams.concat(allNationalTeamsData?.items ?? []);
+  const allTeams = (primaryNgbTeams?.items ?? []).concat(secondaryNgbTeams?.items ?? []);
   
   // Filter teams by type: regular teams (excluding national) and national teams
-  const regularTeams = ngbTeams.filter(team => team.groupAffiliation !== "national");
-  const nationalTeams = allNationalTeamsData?.items ?? [];
+  const regularTeams = allTeams.filter(team => team.groupAffiliation !== "national");
+  const nationalTeams = allTeams.filter(team => team.groupAffiliation === "national");
   
   const [filteredPlayingTeams, setFilteredPlayingTeams] = useState<NgbTeamViewModel[]>([]);
   const [filteredCoachingTeams, setFilteredCoachingTeams] = useState<NgbTeamViewModel[]>([]);
@@ -36,11 +33,11 @@ const RefereeTeam = (props: RefereeTeamProps) => {
   // update local state after teams are loaded
   useEffect(() => {
     const allRegularTeams = (primaryNgbTeams?.items ?? []).concat(secondaryNgbTeams?.items ?? []).filter(team => team.groupAffiliation !== "national");
-    const allNationalTeamsFromApi = allNationalTeamsData?.items ?? [];
+    const allNationalTeams = (primaryNgbTeams?.items ?? []).concat(secondaryNgbTeams?.items ?? []).filter(team => team.groupAffiliation === "national");
     setFilteredPlayingTeams(allRegularTeams);
     setFilteredCoachingTeams(allRegularTeams);
-    setFilteredNationalTeams(allNationalTeamsFromApi);
-  }, [primaryNgbTeams, secondaryNgbTeams, allNationalTeamsData]);
+    setFilteredNationalTeams(allNationalTeams);
+  }, [primaryNgbTeams, secondaryNgbTeams]);
 
   const hasType = (type: keyof RefereeTeamOptions): boolean => {
     return !!teams[type];
