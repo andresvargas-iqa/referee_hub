@@ -10,6 +10,7 @@ export const addTagTypes = [
   "User",
   "UserInfo",
   "Team",
+  "TeamManagement",
   "Tests",
   "Tournament",
   "UserAvatar",
@@ -242,6 +243,18 @@ const injectedRtkApi = api
         }),
         providesTags: ["Team"],
       }),
+      uploadTeamLogo: build.mutation<UploadTeamLogoApiResponse, UploadTeamLogoApiArg>({
+        query: (queryArg) => ({
+          url: `/api/v2/Teams/${queryArg.teamId}/logo`,
+          method: "PUT",
+          body: queryArg.body,
+        }),
+        invalidatesTags: ["Team"],
+      }),
+      getTeamDetails: build.query<GetTeamDetailsApiResponse, GetTeamDetailsApiArg>({
+        query: (queryArg) => ({ url: `/api/v2/Teams/${queryArg.teamId}` }),
+        providesTags: ["Team"],
+      }),
       getNgbTeams: build.query<GetNgbTeamsApiResponse, GetNgbTeamsApiArg>({
         query: (queryArg) => ({
           url: `/api/v2/Ngbs/${queryArg.ngb}/teams`,
@@ -319,6 +332,24 @@ const injectedRtkApi = api
           url: `/api/v2/Ngbs/${queryArg.ngb}/teams/${queryArg.teamId}/tournamentInvites`,
         }),
         providesTags: ["Team"],
+      }),
+      getTeamManagement: build.query<GetTeamManagementApiResponse, GetTeamManagementApiArg>({
+        query: (queryArg) => ({ url: `/api/v2/Teams/${queryArg.teamId}/management` }),
+        providesTags: ["TeamManagement"],
+      }),
+      makePlayerManager: build.mutation<MakePlayerManagerApiResponse, MakePlayerManagerApiArg>({
+        query: (queryArg) => ({
+          url: `/api/v2/Teams/${queryArg.teamId}/players/${queryArg.playerId}/make-manager`,
+          method: "POST",
+        }),
+        invalidatesTags: ["TeamManagement"],
+      }),
+      removePlayer: build.mutation<RemovePlayerApiResponse, RemovePlayerApiArg>({
+        query: (queryArg) => ({
+          url: `/api/v2/Teams/${queryArg.teamId}/players/${queryArg.playerId}`,
+          method: "DELETE",
+        }),
+        invalidatesTags: ["TeamManagement"],
       }),
       getTestDetails: build.query<GetTestDetailsApiResponse, GetTestDetailsApiArg>({
         query: (queryArg) => ({ url: `/api/v2/referees/me/tests/${queryArg.testId}/details` }),
@@ -586,7 +617,29 @@ const injectedRtkApi = api
     }),
     overrideExisting: false,
   });
-export { injectedRtkApi as serviceApi };
+
+// Custom override for uploadTeamLogo to send FormData instead of JSON
+const enhancedApi = injectedRtkApi.injectEndpoints({
+  endpoints: (build) => ({
+    uploadTeamLogo: build.mutation<string, { teamId: string; logoBlob: File }>({
+      query: ({ teamId, logoBlob }) => {
+        const formData = new FormData();
+        formData.append('logoBlob', logoBlob);
+        return {
+          url: `/api/v2/Teams/${teamId}/logo`,
+          method: 'PUT',
+          body: formData,
+        };
+      },
+      invalidatesTags: ['Team'],
+    }),
+  }),
+  overrideExisting: true,
+});
+
+export { enhancedApi as serviceApi };
+// Re-export all the generated types
+export type { injectedRtkApi };
 export type CreatePaymentSessionApiResponse = /** status 200 Success */ CheckoutSession;
 export type CreatePaymentSessionApiArg = {
   level?: CertificationLevel;
@@ -715,6 +768,19 @@ export type GetNationalTeamsApiArg = {
   pageSize?: number;
   skipPaging?: boolean;
 };
+export type UploadTeamLogoApiResponse = /** status 200 Success */ string;
+export type UploadTeamLogoApiArg = {
+  /** Team identifier */
+  teamId: string;
+  body: {
+    logoBlob?: Blob;
+  };
+};
+export type GetTeamDetailsApiResponse = /** status 200 Success */ TeamDetailViewModel;
+export type GetTeamDetailsApiArg = {
+  /** Team identifier */
+  teamId: string;
+};
 export type GetNgbTeamsApiResponse = /** status 200 Success */ NgbTeamViewModelFiltered;
 export type GetNgbTeamsApiArg = {
   ngb: string;
@@ -770,6 +836,25 @@ export type GetTeamTournamentInvitesApiResponse =
 export type GetTeamTournamentInvitesApiArg = {
   ngb: string;
   teamId: string;
+};
+export type GetTeamManagementApiResponse = /** status 200 Success */ TeamManagementViewModel;
+export type GetTeamManagementApiArg = {
+  /** Team identifier */
+  teamId: string;
+};
+export type MakePlayerManagerApiResponse = unknown;
+export type MakePlayerManagerApiArg = {
+  /** Team identifier */
+  teamId: string;
+  /** Player user identifier */
+  playerId: string;
+};
+export type RemovePlayerApiResponse = unknown;
+export type RemovePlayerApiArg = {
+  /** Team identifier */
+  teamId: string;
+  /** Player user identifier */
+  playerId: string;
 };
 export type GetTestDetailsApiResponse = /** status 200 Success */ RefereeTestDetailsViewModel;
 export type GetTestDetailsApiArg = {
@@ -1258,10 +1343,59 @@ export type NgbTeamViewModel = {
   groupAffiliation?: TeamGroupAffiliation;
   joinedAt?: string;
   socialAccounts?: SocialAccount[] | null;
+  /** URL to the team's logo image. */
+  logoUrl?: string | null;
+  /** Team description. */
+  description?: string | null;
+  /** Team contact email. */
+  contactEmail?: string | null;
 };
 export type NgbTeamViewModelFiltered = {
   metadata?: FilteringMetadata;
   items?: NgbTeamViewModel[] | null;
+};
+export type TeamManagerViewModel = {
+  id?: string;
+  name?: string | null;
+  email?: string | null;
+};
+export type TeamMemberViewModel = {
+  userId?: string;
+  name?: string | null;
+  primaryTeamName?: string | null;
+  primaryTeamId?: string | null;
+};
+export type TeamDetailViewModel = {
+  /** NGB identifier that the team belongs to. */
+  ngbId?: string;
+  /** Team identifier. */
+  teamId?: string;
+  /** Team name. */
+  name?: string | null;
+  /** The city the team is based in. */
+  city?: string | null;
+  /** The state the team is based in. */
+  state?: string | null;
+  /** The country the team is based in. */
+  country?: string | null;
+  status?: TeamStatus;
+  groupAffiliation?: TeamGroupAffiliation;
+  /** Date when the team joined. */
+  joinedAt?: string;
+  /** URL to the team's logo image. */
+  logoUrl?: string | null;
+  /** Team description. */
+  description?: string | null;
+  /** Team contact email. */
+  contactEmail?: string | null;
+  /** Team social media accounts. */
+  socialAccounts?: SocialAccount[] | null;
+  /** Team managers. */
+  managers?: TeamManagerViewModel[] | null;
+  /** Team members (players). */
+  members?: TeamMemberViewModel[] | null;
+  /** Indicates whether the current user is a manager of this team. */
+  isCurrentUserManager?: boolean;
 };
 export type TeamManagerCreationStatus =
   | "InvalidEmail"
@@ -1279,15 +1413,6 @@ export type ProblemDetails = {
   detail?: string | null;
   instance?: string | null;
   [key: string]: any;
-};
-export type TeamManagerViewModel = {
-  id?: string;
-  name?: string | null;
-  email?: string | null;
-};
-export type TeamMemberViewModel = {
-  userId?: string;
-  name?: string | null;
 };
 export type TeamMemberViewModelFiltered = {
   metadata?: FilteringMetadata;
@@ -1309,6 +1434,44 @@ export type TournamentInviteViewModel = {
   createdAt?: string;
   tournamentManagerApproval?: ApprovalStatusViewModel;
   participantApproval?: ApprovalStatusViewModel;
+};
+export type TeamInvitationViewModel = {
+  /** Invitation identifier. */
+  invitationId?: string | null;
+  /** Email address of the invitee. */
+  email?: string | null;
+  /** Date when invitation was created. */
+  createdAt?: string;
+  /** Name of the person who sent the invitation (if available). */
+  invitedByName?: string | null;
+};
+export type TeamManagementViewModel = {
+  /** Team identifier. */
+  teamId?: string;
+  /** Team name. */
+  name?: string | null;
+  /** The city the team is based in. */
+  city?: string | null;
+  /** The state the team is based in. */
+  state?: string | null;
+  /** The country the team is based in. */
+  country?: string | null;
+  status?: TeamStatus;
+  groupAffiliation?: TeamGroupAffiliation;
+  /** URL to the team's logo image. */
+  logoUrl?: string | null;
+  /** Team description. */
+  description?: string | null;
+  /** Team contact email. */
+  contactEmail?: string | null;
+  /** Team social media accounts. */
+  socialAccounts?: SocialAccount[] | null;
+  /** Team managers. */
+  managers?: TeamManagerViewModel[] | null;
+  /** Team members (players). */
+  members?: TeamMemberViewModel[] | null;
+  /** Pending invitations for this team. */
+  pendingInvites?: TeamInvitationViewModel[] | null;
 };
 export type RefereeTestDetailsViewModel = {
   testId?: string;
@@ -1530,6 +1693,8 @@ export const {
   useGetNgbRefereesQuery,
   useGetAvailablePaymentsQuery,
   useGetNationalTeamsQuery,
+  useUploadTeamLogoMutation,
+  useGetTeamDetailsQuery,
   useGetNgbTeamsQuery,
   useCreateNgbTeamMutation,
   useUpdateNgbTeamMutation,
@@ -1539,6 +1704,9 @@ export const {
   useGetTeamManagersQuery,
   useGetTeamMembersQuery,
   useGetTeamTournamentInvitesQuery,
+  useGetTeamManagementQuery,
+  useMakePlayerManagerMutation,
+  useRemovePlayerMutation,
   useGetTestDetailsQuery,
   useCreateNewTestMutation,
   useEditTestMutation,
@@ -1575,4 +1743,4 @@ export const {
   useGetCurrentUserDataQuery,
   useUpdateCurrentUserDataMutation,
   useGetUserDataQuery,
-} = injectedRtkApi;
+} = enhancedApi;
