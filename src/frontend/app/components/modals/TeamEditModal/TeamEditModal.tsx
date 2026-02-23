@@ -184,7 +184,10 @@ const TeamEditModal = (props: TeamEditModalProps) => {
 
   const handleSubmit = async () => {
     const validationErrors = validateInput(newTeam);
+    console.log("validationErrors:", validationErrors);
+    
     if (validationErrors.length) {
+      console.log("Validation failed, errors:", validationErrors);
       setErrors(validationErrors);
       return;
     }
