@@ -3,6 +3,7 @@ using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Json;
+using System.Text.Json;
 using System.Threading.Tasks;
 using FluentAssertions;
 using ManagementHub.IntegrationTests.Helpers;
@@ -71,12 +72,21 @@ public class TeamViewApiIntegrationTests : IClassFixture<TestWebApplicationFacto
 	}
 
 	[Fact]
-	public void GetTeamDetails_AsTeamManager_ShouldHaveIsCurrentUserManagerTrue()
+	public async Task GetTeamDetails_AsTeamManager_ShouldHaveIsCurrentUserManagerTrue()
 	{
-		// This test is skipped because the Yankees team in the seed data is a Community team,
-		// not a National team, and there's no simple endpoint to get all community teams.
-		// The IsCurrentUserManager flag is tested indirectly through other tests.
-		// TODO: Add this test when we have an endpoint to get all teams or community teams
+		// Arrange: Sign in as the seeded team manager (who is a manager of Yankees/TM_1 in the seed data)
+		await AuthenticationHelper.AuthenticateAsAsync(this._client, "team_manager@example.com", "password");
+
+		// Act: Get team details for Yankees (TM_1) - seeded as the team managed by team_manager@example.com
+		var response = await this._client.GetAsync("/api/v2/Teams/TM_1");
+
+		// Assert: Response should indicate user is a manager of this team
+		response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+		var teamDetails = await response.Content.ReadFromJsonAsync<TeamDetailViewModelDto>();
+		teamDetails.Should().NotBeNull();
+		teamDetails!.IsCurrentUserManager.Should().BeTrue(
+			"team_manager@example.com is seeded as a manager of the Yankees team (TM_1)");
 	}
 
 	[Fact]
@@ -109,20 +119,39 @@ public class TeamViewApiIntegrationTests : IClassFixture<TestWebApplicationFacto
 	[Fact]
 	public async Task GetTeamDetails_ForNationalTeam_ShouldIncludePrimaryTeamForMembers()
 	{
-		// Arrange: Sign in as a regular player
+		// Arrange: Sign in as sarah (she is a player on Yankees - her primary team)
 		await AuthenticationHelper.AuthenticateAsAsync(this._client, "sarah.player@example.com", "password");
 
-		// Get a national team
+		// Get Sarah's user ID from her profile to use for member lookup
+		var profileResponse = await this._client.GetAsync("/api/v2/Referees/me");
+		profileResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+		var profileContent = await profileResponse.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>();
+		var sarahUserId = profileContent.GetProperty("userId").GetString();
+		sarahUserId.Should().NotBeNullOrEmpty("Sarah's user ID should be retrievable from the profile");
+
+		// Get all national teams to find one to join
 		var teamsResponse = await this._client.GetAsync("/api/v2/Teams/national?SkipPaging=true");
 		teamsResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 		var teamsResult = await teamsResponse.Content.ReadFromJsonAsync<Filtered<NgbTeamViewModelDto>>();
 		teamsResult.Should().NotBeNull();
-
 		var nationalTeam = teamsResult!.Items!.FirstOrDefault(t => t.GroupAffiliation == "national");
 		nationalTeam.Should().NotBeNull("there should be at least one national team in test data");
 
-		// Act: Get team details
-		var response = await this._client.GetAsync($"/api/v2/Teams/{nationalTeam!.TeamId}");
+		// Add sarah to the national team while preserving her playing team (Yankees/TM_1)
+		var joinRequest = new
+		{
+			primaryNgb = "USA",
+			secondaryNgb = (string?)null,
+			playingTeam = new { id = "TM_1" }, // Preserve Sarah's playing team (Yankees/TM_1)
+			coachingTeam = (object?)null,
+			nationalTeam = new { id = nationalTeam!.TeamId }
+		};
+		var joinResponse = await this._client.PutAsJsonAsync("/api/v2/Referees/me", joinRequest);
+		joinResponse.StatusCode.Should().Be(HttpStatusCode.OK,
+			"sarah should be able to join a national team");
+
+		// Act: Get team details for the national team
+		var response = await this._client.GetAsync($"/api/v2/Teams/{nationalTeam.TeamId}");
 
 		// Assert: Response should be successful
 		response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -132,14 +161,25 @@ public class TeamViewApiIntegrationTests : IClassFixture<TestWebApplicationFacto
 		teamDetails!.GroupAffiliation.Should().Be("national");
 		teamDetails.Members.Should().NotBeNull();
 
-		// Members may or may not have primary teams, but the fields should exist
-		foreach (var member in teamDetails.Members!)
+		// Sarah should appear as a member with her primary (playing) team populated
+		var sarahMember = teamDetails.Members!.FirstOrDefault(m => m.UserId == sarahUserId);
+		sarahMember.Should().NotBeNull("sarah should appear as a member of the national team after joining");
+		sarahMember!.UserId.Should().NotBeNullOrEmpty();
+		sarahMember.PrimaryTeamId.Should().NotBeNullOrEmpty(
+			"sarah's primary team (Yankees) should be included in the national team member view");
+		sarahMember.PrimaryTeamName.Should().NotBeNullOrEmpty(
+			"sarah's primary team name should be included in the national team member view");
+
+		// Clean up: remove sarah's national team assignment while preserving her playing team
+		var cleanupRequest = new
 		{
-			member.Should().NotBeNull();
-			member.UserId.Should().NotBeNullOrEmpty();
-			member.Name.Should().NotBeNullOrEmpty();
-			// PrimaryTeamName and PrimaryTeamId can be null for members without primary teams
-		}
+			primaryNgb = "USA",
+			secondaryNgb = (string?)null,
+			playingTeam = new { id = "TM_1" }, // Preserve Sarah's playing team
+			coachingTeam = (object?)null,
+			nationalTeam = (object?)null
+		};
+		await this._client.PutAsJsonAsync("/api/v2/Referees/me", cleanupRequest);
 	}
 
 	[Fact]
