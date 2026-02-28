@@ -143,10 +143,10 @@ public class TeamsController : ControllerBase
 	/// <returns>Team details with managers and members</returns>
 	[HttpGet("{teamId}")]
 	[Tags("Team")]
-	[Authorize]
+	[Authorize(AuthorizationPolicies.NationalTeamMemberOrAdminPolicy)]
 	public async Task<TeamDetailViewModel> GetTeamDetails([FromRoute] TeamIdentifier teamId)
 	{
-		// Get team details - any authenticated user can view team details
+		// Get team details - accessible to national team members and admins (see NationalTeamMemberOrAdminPolicy)
 		var team = await this.teamContextProvider.GetTeamAsync(teamId, NgbConstraint.Any);
 
 		if (team == null)

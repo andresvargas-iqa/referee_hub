@@ -30,10 +30,10 @@ public class TeamViewApiIntegrationTests : IClassFixture<TestWebApplicationFacto
 	}
 
 	[Fact]
-	public async Task GetTeamDetails_AsAuthenticatedUser_ShouldReturnTeamDetails()
+	public async Task GetTeamDetails_AsNgbAdmin_ShouldReturnTeamDetails()
 	{
-		// Arrange: Sign in as a regular player
-		await AuthenticationHelper.AuthenticateAsAsync(this._client, "sarah.player@example.com", "password");
+		// Arrange: Sign in as NGB admin (has NgbAdminRole - authorized by NationalTeamMemberOrAdminPolicy)
+		await AuthenticationHelper.AuthenticateAsAsync(this._client, "ngb_admin@example.com", "password");
 
 		// First, get a team ID from the national teams list
 		var teamsResponse = await this._client.GetAsync("/api/v2/Teams/national?SkipPaging=true");
@@ -49,7 +49,7 @@ public class TeamViewApiIntegrationTests : IClassFixture<TestWebApplicationFacto
 
 		// Assert: Response should be successful
 		response.StatusCode.Should().Be(HttpStatusCode.OK,
-			"authenticated user should be able to view team details");
+			"NGB admins should be able to view team details");
 
 		var teamDetails = await response.Content.ReadFromJsonAsync<TeamDetailViewModelDto>();
 		teamDetails.Should().NotBeNull();
@@ -58,6 +58,26 @@ public class TeamViewApiIntegrationTests : IClassFixture<TestWebApplicationFacto
 		teamDetails.Managers.Should().NotBeNull();
 		teamDetails.Members.Should().NotBeNull();
 		teamDetails.SocialAccounts.Should().NotBeNull();
+	}
+
+	[Fact]
+	public async Task GetTeamDetails_AsRegularUserWithoutNationalTeam_ShouldReturnForbidden()
+	{
+		// Arrange: Sign in as a regular player with no national team assignment
+		await AuthenticationHelper.AuthenticateAsAsync(this._client, "sarah.player@example.com", "password");
+
+		// Act: Try to get national team details
+		var teamsResponse = await this._client.GetAsync("/api/v2/Teams/national?SkipPaging=true");
+		teamsResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+		var teamsResult = await teamsResponse.Content.ReadFromJsonAsync<Filtered<NgbTeamViewModelDto>>();
+		var firstNationalTeam = teamsResult!.Items!.First();
+
+		var response = await this._client.GetAsync($"/api/v2/Teams/{firstNationalTeam.TeamId}");
+
+		// Assert: Should be forbidden — regular authenticated users without a national team or admin role
+		// cannot view team member details
+		response.StatusCode.Should().Be(HttpStatusCode.Forbidden,
+			"users without national team membership or admin role should not be able to view team details");
 	}
 
 	[Fact]
@@ -92,10 +112,10 @@ public class TeamViewApiIntegrationTests : IClassFixture<TestWebApplicationFacto
 	[Fact]
 	public async Task GetTeamDetails_AsNonManager_ShouldHaveIsCurrentUserManagerFalse()
 	{
-		// Arrange: Sign in as a regular player who is not a manager
-		await AuthenticationHelper.AuthenticateAsAsync(this._client, "sarah.player@example.com", "password");
+		// Arrange: Sign in as NGB admin (authorized by policy but not a team manager of any national team)
+		await AuthenticationHelper.AuthenticateAsAsync(this._client, "ngb_admin@example.com", "password");
 
-		// Get any team
+		// Get a national team (ngb_admin is not a manager of national teams)
 		var teamsResponse = await this._client.GetAsync("/api/v2/Teams/national?SkipPaging=true");
 		teamsResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 		var teamsResult = await teamsResponse.Content.ReadFromJsonAsync<Filtered<NgbTeamViewModelDto>>();
@@ -113,7 +133,7 @@ public class TeamViewApiIntegrationTests : IClassFixture<TestWebApplicationFacto
 		var teamDetails = await response.Content.ReadFromJsonAsync<TeamDetailViewModelDto>();
 		teamDetails.Should().NotBeNull();
 		teamDetails!.IsCurrentUserManager.Should().BeFalse(
-			"the authenticated user should not be identified as a manager of this team");
+			"NGB admin is not a team manager of any national team");
 	}
 
 	[Fact]
