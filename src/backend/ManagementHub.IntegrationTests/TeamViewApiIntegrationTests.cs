@@ -274,7 +274,7 @@ public class TeamViewApiIntegrationTests : IClassFixture<TestWebApplicationFacto
 	}
 
 	[Fact]
-	public async Task UpdateTeam_AsNonTeamManager_ShouldReturnUnauthorized()
+	public async Task UpdateTeam_AsNonTeamManager_ShouldReturnForbidden()
 	{
 		// Arrange: Sign in as a regular player who is NOT a manager
 		await AuthenticationHelper.AuthenticateAsAsync(this._client, "sarah.player@example.com", "password");
@@ -306,8 +306,8 @@ public class TeamViewApiIntegrationTests : IClassFixture<TestWebApplicationFacto
 		// Act: Try to update the team
 		var updateResponse = await this._client.PutAsJsonAsync($"/api/v2/Teams/{firstTeam.TeamId}", updatedTeam);
 
-		// Assert: Should be unauthorized
-		updateResponse.StatusCode.Should().Be(HttpStatusCode.Unauthorized,
+		// Assert: Should be forbidden (authenticated but not a team manager)
+		updateResponse.StatusCode.Should().Be(HttpStatusCode.Forbidden,
 			"non-team-managers should not be able to update teams they don't manage");
 	}
 
