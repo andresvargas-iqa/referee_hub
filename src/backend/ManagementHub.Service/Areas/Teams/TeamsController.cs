@@ -142,10 +142,10 @@ public class TeamsController : ControllerBase
 	/// <returns>Team details with managers and members</returns>
 	[HttpGet("{teamId}")]
 	[Tags("Team")]
-	[Authorize(AuthorizationPolicies.NationalTeamMemberOrAdminPolicy)]
+	[Authorize(AuthorizationPolicies.TeamManagerOrAnyAdminPolicy)]
 	public async Task<TeamDetailViewModel> GetTeamDetails([FromRoute] TeamIdentifier teamId)
 	{
-		// Get team details - accessible to national team members and admins (see NationalTeamMemberOrAdminPolicy)
+		// Get team details - accessible to IQA admins, NGB admins, and team managers
 		var team = await this.teamContextProvider.GetTeamAsync(teamId, NgbConstraint.Any);
 
 		if (team == null)
@@ -189,8 +189,7 @@ public class TeamsController : ControllerBase
 			{
 				Id = m.UserId,
 				Name = m.Name,
-				// Email is intentionally omitted here — this endpoint is accessible to national team members
-				// who should not see manager contact details. Use the team management endpoint for full access.
+				// Email is intentionally omitted here — use the team management endpoint for full access.
 			}),
 			Members = members.Select(m => new TeamMemberViewModel
 			{

@@ -61,9 +61,9 @@ public class TeamViewApiIntegrationTests : IClassFixture<TestWebApplicationFacto
 	}
 
 	[Fact]
-	public async Task GetTeamDetails_AsRegularUserWithoutNationalTeam_ShouldReturnForbidden()
+	public async Task GetTeamDetails_AsRegularUserWithoutAdminRole_ShouldReturnForbidden()
 	{
-		// Arrange: Sign in as a regular player with no national team assignment
+		// Arrange: Sign in as a regular player with no admin or manager role
 		await AuthenticationHelper.AuthenticateAsAsync(this._client, "sarah.player@example.com", "password");
 
 		// Act: Try to get national team details
@@ -74,10 +74,54 @@ public class TeamViewApiIntegrationTests : IClassFixture<TestWebApplicationFacto
 
 		var response = await this._client.GetAsync($"/api/v2/Teams/{firstNationalTeam.TeamId}");
 
-		// Assert: Should be forbidden — regular authenticated users without a national team or admin role
+		// Assert: Should be forbidden — regular authenticated users without an admin or team manager role
 		// cannot view team member details
 		response.StatusCode.Should().Be(HttpStatusCode.Forbidden,
-			"users without national team membership or admin role should not be able to view team details");
+			"users without admin or team manager role should not be able to view team details");
+	}
+
+	[Fact]
+	public async Task GetTeamDetails_AsNationalTeamMember_ShouldReturnForbidden()
+	{
+		// Arrange: Sign in as a regular player and assign them to a national team
+		await AuthenticationHelper.AuthenticateAsAsync(this._client, "sarah.player@example.com", "password");
+
+		// Get all national teams to find one to join
+		var teamsResponse = await this._client.GetAsync("/api/v2/Teams/national?SkipPaging=true");
+		teamsResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+		var teamsResult = await teamsResponse.Content.ReadFromJsonAsync<Filtered<NgbTeamViewModelDto>>();
+		var nationalTeam = teamsResult!.Items!.FirstOrDefault(t => t.GroupAffiliation == "national");
+		nationalTeam.Should().NotBeNull("there should be at least one national team in test data");
+
+		// Add sarah to the national team
+		var joinRequest = new
+		{
+			primaryNgb = "USA",
+			secondaryNgb = (string?)null,
+			playingTeam = new { id = "TM_1" },
+			coachingTeam = (object?)null,
+			nationalTeam = new { id = nationalTeam!.TeamId }
+		};
+		var joinResponse = await this._client.PutAsJsonAsync("/api/v2/Referees/me", joinRequest);
+		joinResponse.StatusCode.Should().Be(HttpStatusCode.OK, "sarah should be able to join a national team");
+
+		// Act: Try to get team details as a national team member
+		var response = await this._client.GetAsync($"/api/v2/Teams/{nationalTeam.TeamId}");
+
+		// Assert: Should be forbidden — national team membership alone does not grant access to team details
+		response.StatusCode.Should().Be(HttpStatusCode.Forbidden,
+			"national team members without an admin or team manager role should not be able to view team details");
+
+		// Clean up: remove sarah's national team assignment
+		var cleanupRequest = new
+		{
+			primaryNgb = "USA",
+			secondaryNgb = (string?)null,
+			playingTeam = new { id = "TM_1" },
+			coachingTeam = (object?)null,
+			nationalTeam = (object?)null
+		};
+		await this._client.PutAsJsonAsync("/api/v2/Referees/me", cleanupRequest);
 	}
 
 	[Fact]
@@ -139,7 +183,7 @@ public class TeamViewApiIntegrationTests : IClassFixture<TestWebApplicationFacto
 	[Fact]
 	public async Task GetTeamDetails_ForNationalTeam_ShouldIncludePrimaryTeamForMembers()
 	{
-		// Arrange: Sign in as sarah (she is a player on Yankees - her primary team)
+		// Arrange: Sign in as sarah to add her to a national team
 		await AuthenticationHelper.AuthenticateAsAsync(this._client, "sarah.player@example.com", "password");
 
 		// Get Sarah's user ID from her profile to use for member lookup
@@ -170,7 +214,8 @@ public class TeamViewApiIntegrationTests : IClassFixture<TestWebApplicationFacto
 		joinResponse.StatusCode.Should().Be(HttpStatusCode.OK,
 			"sarah should be able to join a national team");
 
-		// Act: Get team details for the national team
+		// Act: Sign in as NGB admin to view the national team details (national team members are not authorized)
+		await AuthenticationHelper.AuthenticateAsAsync(this._client, "ngb_admin@example.com", "password");
 		var response = await this._client.GetAsync($"/api/v2/Teams/{nationalTeam.TeamId}");
 
 		// Assert: Response should be successful
@@ -190,7 +235,8 @@ public class TeamViewApiIntegrationTests : IClassFixture<TestWebApplicationFacto
 		sarahMember.PrimaryTeamName.Should().NotBeNullOrEmpty(
 			"sarah's primary team name should be included in the national team member view");
 
-		// Clean up: remove sarah's national team assignment while preserving her playing team
+		// Clean up: sign back in as sarah to remove her national team assignment
+		await AuthenticationHelper.AuthenticateAsAsync(this._client, "sarah.player@example.com", "password");
 		var cleanupRequest = new
 		{
 			primaryNgb = "USA",
