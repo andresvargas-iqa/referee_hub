@@ -32,11 +32,11 @@ public class TeamViewApiIntegrationTests : IClassFixture<TestWebApplicationFacto
 	[Fact]
 	public async Task GetTeamDetails_AsNgbAdmin_ShouldReturnTeamDetails()
 	{
-		// Arrange: Sign in as NGB admin (has NgbAdminRole - authorized by NationalTeamMemberOrAdminPolicy)
+		// Arrange: Sign in as NGB admin for USA
 		await AuthenticationHelper.AuthenticateAsAsync(this._client, "ngb_admin@example.com", "password");
 
-		// First, get a team ID from the national teams list
-		var teamsResponse = await this._client.GetAsync("/api/v2/Teams/national?SkipPaging=true");
+		// Get teams belonging to the USA NGB (ngb_admin@example.com is a USA NGB admin)
+		var teamsResponse = await this._client.GetAsync("/api/v2/Ngbs/USA/teams?SkipPaging=true");
 		teamsResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 		var teamsResult = await teamsResponse.Content.ReadFromJsonAsync<Filtered<NgbTeamViewModelDto>>();
 		teamsResult.Should().NotBeNull();
@@ -44,12 +44,12 @@ public class TeamViewApiIntegrationTests : IClassFixture<TestWebApplicationFacto
 
 		var firstTeam = teamsResult.Items!.First();
 
-		// Act: Get team details
+		// Act: Get team details for a USA team
 		var response = await this._client.GetAsync($"/api/v2/Teams/{firstTeam.TeamId}");
 
-		// Assert: Response should be successful
+		// Assert: Response should be successful — NGB admin can view teams in their NGB
 		response.StatusCode.Should().Be(HttpStatusCode.OK,
-			"NGB admins should be able to view team details");
+			"NGB admins should be able to view team details for teams in their NGB");
 
 		var teamDetails = await response.Content.ReadFromJsonAsync<TeamDetailViewModelDto>();
 		teamDetails.Should().NotBeNull();
@@ -58,6 +58,29 @@ public class TeamViewApiIntegrationTests : IClassFixture<TestWebApplicationFacto
 		teamDetails.Managers.Should().NotBeNull();
 		teamDetails.Members.Should().NotBeNull();
 		teamDetails.SocialAccounts.Should().NotBeNull();
+	}
+
+	[Fact]
+	public async Task GetTeamDetails_AsNgbAdminOfDifferentNgb_ShouldReturnForbidden()
+	{
+		// Arrange: Sign in as USA NGB admin and try to view a team from a different NGB
+		await AuthenticationHelper.AuthenticateAsAsync(this._client, "ngb_admin@example.com", "password");
+
+		// Get national teams — there are teams from AUS and DEU that the USA NGB admin should not access
+		var teamsResponse = await this._client.GetAsync("/api/v2/Teams/national?SkipPaging=true");
+		teamsResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+		var teamsResult = await teamsResponse.Content.ReadFromJsonAsync<Filtered<NgbTeamViewModelDto>>();
+		teamsResult.Should().NotBeNull();
+		// Pick a national team that does NOT belong to USA
+		var otherNgbTeam = teamsResult!.Items!.FirstOrDefault(t => t.Country != "USA");
+		otherNgbTeam.Should().NotBeNull("there should be at least one national team from a non-USA NGB in test data");
+
+		// Act: Try to get team details for a team from another NGB
+		var response = await this._client.GetAsync($"/api/v2/Teams/{otherNgbTeam!.TeamId}");
+
+		// Assert: Should be forbidden — NGB admins can only view teams within their own NGB
+		response.StatusCode.Should().Be(HttpStatusCode.Forbidden,
+			"NGB admins should not be able to view team details for teams outside their NGB");
 	}
 
 	[Fact]
@@ -86,12 +109,12 @@ public class TeamViewApiIntegrationTests : IClassFixture<TestWebApplicationFacto
 		// Arrange: Sign in as a regular player and assign them to a national team
 		await AuthenticationHelper.AuthenticateAsAsync(this._client, "sarah.player@example.com", "password");
 
-		// Get all national teams to find one to join
+		// Get all national teams to find the USA national team to join
 		var teamsResponse = await this._client.GetAsync("/api/v2/Teams/national?SkipPaging=true");
 		teamsResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 		var teamsResult = await teamsResponse.Content.ReadFromJsonAsync<Filtered<NgbTeamViewModelDto>>();
-		var nationalTeam = teamsResult!.Items!.FirstOrDefault(t => t.GroupAffiliation == "national");
-		nationalTeam.Should().NotBeNull("there should be at least one national team in test data");
+		var nationalTeam = teamsResult!.Items!.FirstOrDefault(t => t.GroupAffiliation == "national" && t.Country == "USA");
+		nationalTeam.Should().NotBeNull("there should be a USA national team in test data");
 
 		// Add sarah to the national team
 		var joinRequest = new
@@ -156,11 +179,11 @@ public class TeamViewApiIntegrationTests : IClassFixture<TestWebApplicationFacto
 	[Fact]
 	public async Task GetTeamDetails_AsNonManager_ShouldHaveIsCurrentUserManagerFalse()
 	{
-		// Arrange: Sign in as NGB admin (authorized by policy but not a team manager of any national team)
+		// Arrange: Sign in as NGB admin (authorized for USA teams but not a team manager)
 		await AuthenticationHelper.AuthenticateAsAsync(this._client, "ngb_admin@example.com", "password");
 
-		// Get a national team (ngb_admin is not a manager of national teams)
-		var teamsResponse = await this._client.GetAsync("/api/v2/Teams/national?SkipPaging=true");
+		// Get a USA team (ngb_admin is not a manager of any USA team by default)
+		var teamsResponse = await this._client.GetAsync("/api/v2/Ngbs/USA/teams?SkipPaging=true");
 		teamsResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 		var teamsResult = await teamsResponse.Content.ReadFromJsonAsync<Filtered<NgbTeamViewModelDto>>();
 		teamsResult.Should().NotBeNull();
@@ -177,7 +200,7 @@ public class TeamViewApiIntegrationTests : IClassFixture<TestWebApplicationFacto
 		var teamDetails = await response.Content.ReadFromJsonAsync<TeamDetailViewModelDto>();
 		teamDetails.Should().NotBeNull();
 		teamDetails!.IsCurrentUserManager.Should().BeFalse(
-			"NGB admin is not a team manager of any national team");
+			"NGB admin is not a team manager of the Yankees team");
 	}
 
 	[Fact]
@@ -193,13 +216,13 @@ public class TeamViewApiIntegrationTests : IClassFixture<TestWebApplicationFacto
 		var sarahUserId = profileContent.GetProperty("userId").GetString();
 		sarahUserId.Should().NotBeNullOrEmpty("Sarah's user ID should be retrievable from the profile");
 
-		// Get all national teams to find one to join
+		// Get all national teams and pick the USA one (ngb_admin@example.com is a USA NGB admin)
 		var teamsResponse = await this._client.GetAsync("/api/v2/Teams/national?SkipPaging=true");
 		teamsResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 		var teamsResult = await teamsResponse.Content.ReadFromJsonAsync<Filtered<NgbTeamViewModelDto>>();
 		teamsResult.Should().NotBeNull();
-		var nationalTeam = teamsResult!.Items!.FirstOrDefault(t => t.GroupAffiliation == "national");
-		nationalTeam.Should().NotBeNull("there should be at least one national team in test data");
+		var nationalTeam = teamsResult!.Items!.FirstOrDefault(t => t.GroupAffiliation == "national" && t.Country == "USA");
+		nationalTeam.Should().NotBeNull("there should be a USA national team in test data");
 
 		// Add sarah to the national team while preserving her playing team (Yankees/TM_1)
 		var joinRequest = new

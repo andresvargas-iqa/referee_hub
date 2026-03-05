@@ -84,18 +84,4 @@ public static class AuthorizationPolicies
 				new TeamUserRoleAuthorizationRequirement<TeamManagerRole>()));
 		});
 
-	/// <summary>
-	/// Policy that allows any admin (IQA admin, any NGB admin, or team manager for the specific team)
-	/// to view or manage team details.
-	/// </summary>
-	public const string TeamManagerOrAnyAdminPolicy = nameof(TeamManagerOrAnyAdminPolicy);
-
-	public static void AddTeamManagerOrAnyAdminPolicy(this AuthorizationOptions options) =>
-		options.AddPolicy(TeamManagerOrAnyAdminPolicy, policy =>
-		{
-			policy.AddRequirements(new CompoundOrAuthorizationRequirement(
-				new UserRoleAuthorizationRequirement<IqaAdminRole>(),
-				new UserRoleAuthorizationRequirement<NgbAdminRole>(),
-				new TeamUserRoleAuthorizationRequirement<TeamManagerRole>()));
-		});
 }
