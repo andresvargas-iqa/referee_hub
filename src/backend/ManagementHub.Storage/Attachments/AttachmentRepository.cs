@@ -66,7 +66,7 @@ public class AttachmentRepository : IAttachmentRepository
 		var record = await this.dbAccessorProvider.GetDbAccessor<TId>().SelectWithId(identifier).SingleOrDefaultAsync(cancellationToken);
 		if (record == null)
 		{
-			throw new NotFoundException(identifier?.ToString() ?? typeof(TId).Name);
+			throw new NotFoundException(identifier?.ToString() ?? $"object of type {typeof(TId).Name}");
 		}
 
 		var attachment = await this.dbContext.ActiveStorageAttachments.Where(a => a.RecordType == recordType && a.Name == attachmentName && a.RecordId == record.Id)
