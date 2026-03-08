@@ -180,9 +180,12 @@ public class TeamsController : ControllerBase
 		// Get managers
 		var managers = await this.teamContextProvider.GetTeamManagersAsync(teamId, NgbConstraint.Any);
 
-		// Get members
-		var membersQuery = this.teamContextProvider.QueryTeamMembers(teamId, NgbConstraint.Any);
-		var members = await membersQuery.ToListAsync();
+		// Get members — only for team managers and IQA admins for privacy reasons
+		IEnumerable<TeamMemberInfo> members = Enumerable.Empty<TeamMemberInfo>();
+		if (isTeamManager || isIqaAdmin)
+		{
+			members = await this.teamContextProvider.QueryTeamMembers(teamId, NgbConstraint.Any).ToListAsync();
+		}
 
 		return new TeamDetailViewModel
 		{
@@ -207,15 +210,13 @@ public class TeamsController : ControllerBase
 			}),
 			// Members are only visible to team managers and IQA admins for privacy reasons —
 			// any authenticated user could otherwise join a team and view other members' personal info.
-			Members = (isTeamManager || isIqaAdmin)
-				? members.Select(m => new TeamMemberViewModel
-				{
-					UserId = m.UserId,
-					Name = m.Name,
-					PrimaryTeamName = m.PrimaryTeamName,
-					PrimaryTeamId = m.PrimaryTeamId?.ToString()
-				})
-				: Enumerable.Empty<TeamMemberViewModel>(),
+			Members = members.Select(m => new TeamMemberViewModel
+			{
+				UserId = m.UserId,
+				Name = m.Name,
+				PrimaryTeamName = m.PrimaryTeamName,
+				PrimaryTeamId = m.PrimaryTeamId?.ToString()
+			}),
 			IsCurrentUserManager = isTeamManager
 		};
 	}
