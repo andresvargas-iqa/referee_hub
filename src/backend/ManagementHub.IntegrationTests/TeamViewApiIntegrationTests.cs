@@ -244,8 +244,8 @@ public class TeamViewApiIntegrationTests : IClassFixture<TestWebApplicationFacto
 		// Act: Try to update the team
 		var updateResponse = await this._client.PutAsJsonAsync($"/api/v2/Teams/{firstTeam.TeamId}", updatedTeam);
 
-		// Assert: Should be unauthorized
-		updateResponse.StatusCode.Should().Be(HttpStatusCode.Unauthorized,
+		// Assert: Should be forbidden (user is authenticated but lacks team manager role)
+		updateResponse.StatusCode.Should().Be(HttpStatusCode.Forbidden,
 			"non-team-managers should not be able to update teams they don't manage");
 	}
 
@@ -282,8 +282,8 @@ public class TeamViewApiIntegrationTests : IClassFixture<TestWebApplicationFacto
 		// Arrange: Sign in as NGB admin and make them a manager
 		await AuthenticationHelper.AuthenticateAsAsync(this._client, "ngb_admin@example.com", "password");
 
-		// Get a team
-		var teamsResponse = await this._client.GetAsync("/api/v2/Teams/national?SkipPaging=true");
+		// Get a team from the USA NGB (to match the NGB admin's jurisdiction for the add-manager step)
+		var teamsResponse = await this._client.GetAsync("/api/v2/Ngbs/USA/teams?SkipPaging=true");
 		teamsResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 		var teamsResult = await teamsResponse.Content.ReadFromJsonAsync<Filtered<NgbTeamViewModelDto>>();
 		var firstTeam = teamsResult!.Items!.First();
