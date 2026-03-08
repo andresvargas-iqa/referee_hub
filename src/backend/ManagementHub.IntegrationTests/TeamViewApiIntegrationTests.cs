@@ -56,9 +56,7 @@ public class TeamViewApiIntegrationTests : IClassFixture<TestWebApplicationFacto
 		teamDetails!.TeamId.Should().Be(firstTeam.TeamId);
 		teamDetails.Name.Should().Be(firstTeam.Name);
 		teamDetails.Managers.Should().NotBeNull();
-		// Members are restricted to team managers and IQA admins for privacy reasons
-		teamDetails.Members.Should().BeEmpty(
-			"NGB admins should not see team members — only team managers and IQA admins can view member details");
+		teamDetails.Members.Should().NotBeNull("NGB admins should be able to see team members in their NGB");
 		teamDetails.SocialAccounts.Should().NotBeNull();
 	}
 
@@ -239,8 +237,8 @@ public class TeamViewApiIntegrationTests : IClassFixture<TestWebApplicationFacto
 		joinResponse.StatusCode.Should().Be(HttpStatusCode.OK,
 			"sarah should be able to join a national team");
 
-		// Act: Sign in as IQA admin — only team managers and IQA admins can view team member details
-		await AuthenticationHelper.AuthenticateAsAsync(this._client, "iqa_admin@example.com", "password");
+		// Act: Sign in as NGB admin — NGB admins can view team member details for teams in their NGB
+		await AuthenticationHelper.AuthenticateAsAsync(this._client, "ngb_admin@example.com", "password");
 		var response = await this._client.GetAsync($"/api/v2/Teams/{nationalTeam.TeamId}");
 
 		// Assert: Response should be successful

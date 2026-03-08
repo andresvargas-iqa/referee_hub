@@ -149,6 +149,7 @@ public class TeamsController : ControllerBase
 		var userContext = await this.contextAccessor.GetCurrentUserContextAsync();
 		var isIqaAdmin = userContext.Roles.OfType<IqaAdminRole>().Any();
 		var isTeamManager = userContext.Roles.OfType<TeamManagerRole>().Any(r => r.Team.AppliesTo(teamId));
+		var isNgbAdmin = false;
 
 		ITeamContext? team = null;
 		if (!isIqaAdmin && !isTeamManager)
@@ -160,7 +161,7 @@ public class TeamsController : ControllerBase
 				return this.NotFound();
 			}
 
-			var isNgbAdmin = userContext.Roles.OfType<NgbAdminRole>().Any(r => r.Ngb.AppliesTo(team.NgbId));
+			isNgbAdmin = userContext.Roles.OfType<NgbAdminRole>().Any(r => r.Ngb.AppliesTo(team.NgbId));
 			if (!isNgbAdmin)
 			{
 				return this.Forbid();
@@ -180,9 +181,9 @@ public class TeamsController : ControllerBase
 		// Get managers
 		var managers = await this.teamContextProvider.GetTeamManagersAsync(teamId, NgbConstraint.Any);
 
-		// Get members — only for team managers and IQA admins for privacy reasons
+		// Get members — visible to team managers, IQA admins, and NGB admins (but not regular authenticated users)
 		IEnumerable<TeamMemberInfo> members = Enumerable.Empty<TeamMemberInfo>();
-		if (isTeamManager || isIqaAdmin)
+		if (isTeamManager || isIqaAdmin || isNgbAdmin)
 		{
 			members = await this.teamContextProvider.QueryTeamMembers(teamId, NgbConstraint.Any).ToListAsync();
 		}
@@ -208,7 +209,7 @@ public class TeamsController : ControllerBase
 				Name = m.Name,
 				// Email is intentionally omitted here — use the team management endpoint for full access.
 			}),
-			// Members are only visible to team managers and IQA admins for privacy reasons —
+			// Members are only visible to team managers, IQA admins, and NGB admins for privacy reasons —
 			// any authenticated user could otherwise join a team and view other members' personal info.
 			Members = members.Select(m => new TeamMemberViewModel
 			{
