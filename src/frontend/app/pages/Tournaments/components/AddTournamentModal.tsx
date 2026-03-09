@@ -25,6 +25,8 @@ interface Tournament {
   organizer?: string;
   isPrivate: boolean;
   isRegistrationOpen?: boolean;
+  allowsIndividualRegistration?: boolean;
+  allowsTeamRegistration?: boolean;
   bannerImageUrl?: string;
 }
 
@@ -53,6 +55,8 @@ const AddTournamentModal = forwardRef<AddTournamentModalRef>((_props, ref) => {
     organizer: "",
     isPrivate: false,
     isRegistrationOpen: true,
+    allowsIndividualRegistration: false,
+    allowsTeamRegistration: true,
     bannerImageUrl: "",
   };
   const [formData, setFormData] = useState<Tournament>(initialFormData);
@@ -78,6 +82,11 @@ const AddTournamentModal = forwardRef<AddTournamentModalRef>((_props, ref) => {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (formData.type === "Fantasy" &&
+        !formData.allowsTeamRegistration && !formData.allowsIndividualRegistration) {
+      showAlert("A Fantasy tournament must allow at least one registration type (team or individual).", "error");
+      return;
+    }
     try {
       if (isEditMode) {
         if (!formData.id) {
@@ -340,6 +349,15 @@ const AddTournamentModal = forwardRef<AddTournamentModalRef>((_props, ref) => {
                 </select>
               </div>
 
+              {/* Fantasy-only: registration type options — shown right after type selector */}
+              {formData.type === "Fantasy" && (
+                <FantasyRegistrationOptions
+                  allowsTeamRegistration={formData.allowsTeamRegistration ?? true}
+                  allowsIndividualRegistration={formData.allowsIndividualRegistration ?? false}
+                  onChange={(field, value) => setFormData({ ...formData, [field]: value })}
+                />
+              )}
+
               <div className="grid grid-cols-3 gap-4">
                 <div>
                   <label htmlFor="country" className="block text-sm font-medium text-gray-700 mb-1">
@@ -425,7 +443,8 @@ const AddTournamentModal = forwardRef<AddTournamentModalRef>((_props, ref) => {
                 </Button>
                 <Button
                   type="submit"
-                  disabled={isCreating || isUpdating}
+                  disabled={isCreating || isUpdating ||
+                    (formData.type === "Fantasy" && !formData.allowsTeamRegistration && !formData.allowsIndividualRegistration)}
                   className="btn btn-primary"
                 >
                   {isCreating || isUpdating

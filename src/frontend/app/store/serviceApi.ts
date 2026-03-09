@@ -1720,6 +1720,8 @@ export type TournamentViewModel = {
   organizer?: string | null;
   isPrivate?: boolean;
   isRegistrationOpen?: boolean;
+  allowsIndividualRegistration?: boolean;
+  allowsTeamRegistration?: boolean;
   id?: string;
   bannerImageUrl?: string | null;
   isCurrentUserInvolved?: boolean;
@@ -1744,6 +1746,8 @@ export type TournamentModel = {
   organizer?: string | null;
   isPrivate?: boolean;
   isRegistrationOpen?: boolean;
+  allowsIndividualRegistration?: boolean;
+  allowsTeamRegistration?: boolean;
 };
 export type TournamentManagerViewModel = {
   id?: string;
