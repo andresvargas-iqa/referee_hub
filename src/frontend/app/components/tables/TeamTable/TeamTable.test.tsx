@@ -46,7 +46,7 @@ describe("TeamTable", () => {
   });
 
   test("renders team logo when logoUri is set", () => {
-    const logoUri = "http://localhost/logos/yankees.png";
+    const logoUri = "/logos/yankees.png";
 
     mockUseGetNgbTeamsQuery.mockReturnValue({
       data: {
@@ -70,7 +70,7 @@ describe("TeamTable", () => {
     mockUseGetNgbTeamsQuery.mockReturnValue({
       data: {
         items: [
-          { ...BASE_TEAM, teamId: "TM_1", name: "Yankees", logoUri: "http://localhost/yankees.png" },
+          { ...BASE_TEAM, teamId: "TM_1", name: "Yankees", logoUri: "/yankees.png" },
           { ...BASE_TEAM, teamId: "TM_2", name: "Red Sox", logoUri: null },
         ],
         metadata: { totalCount: 2 },
