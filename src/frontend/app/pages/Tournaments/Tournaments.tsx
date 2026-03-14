@@ -1,10 +1,12 @@
-import React, { useRef, useMemo } from "react";
+import React, { useRef, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { faArrowLeft, faArrowRight, faEllipsisH } from "@fortawesome/free-solid-svg-icons";
+import { faArrowLeft, faArrowRight, faEllipsisH, faList, faCalendarAlt } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import Pagination from "rc-pagination";
 import AddTournamentModal, { AddTournamentModalRef } from "./components/AddTournamentModal";
 import Search from "./components/Search";
+import TournamentCalendar from "./components/TournamentCalendar";
+import { TournamentCardSkeleton, CalendarSkeleton } from "./components/TournamentSkeletons";
 import { useGetTournamentsQuery, TournamentViewModel } from "../../store/serviceApi";
 import TournamentSection, { TournamentData } from "./components/TournamentsSection";
 
@@ -16,6 +18,7 @@ const Tournament = () => {
   const typeFilter = searchParams.get("type") || "";
   const currentPage = parseInt(searchParams.get("page") || "1", 10);
   const modalRef = useRef<AddTournamentModalRef>(null);
+  const [viewMode, setViewMode] = useState<"grid" | "calendar">("grid");
 
   // Query for user's private tournaments (no pagination - uses lazy loading in carousel)
   const {
@@ -140,6 +143,24 @@ const Tournament = () => {
               selectedType={typeFilter}
             />
           </div>
+          <div className="view-toggle" role="group" aria-label="View mode">
+            <button
+              className={`view-toggle-btn${viewMode === "grid" ? " active" : ""}`}
+              onClick={() => setViewMode("grid")}
+              aria-pressed={viewMode === "grid"}
+              title="Grid view"
+            >
+              <FontAwesomeIcon icon={faList} />
+            </button>
+            <button
+              className={`view-toggle-btn${viewMode === "calendar" ? " active" : ""}`}
+              onClick={() => setViewMode("calendar")}
+              aria-pressed={viewMode === "calendar"}
+              title="Calendar view"
+            >
+              <FontAwesomeIcon icon={faCalendarAlt} />
+            </button>
+          </div>
           <button onClick={() => modalRef.current?.openAdd()} className="btn btn-primary">
             Add Tournament
           </button>
@@ -149,9 +170,11 @@ const Tournament = () => {
       </div>
 
       {isLoading ? (
-        <div className="tournament-loading">Loading tournaments...</div>
+        viewMode === "calendar" ? <CalendarSkeleton /> : <TournamentCardSkeleton />
       ) : isError ? (
         <div className="tournament-error">Error loading tournaments. Please try again.</div>
+      ) : viewMode === "calendar" ? (
+        <TournamentCalendar tournaments={[...privateTournaments, ...publicTournaments]} />
       ) : (
         <div className="tournament-page-container">
           {privateTournaments.length > 0 && (
