@@ -95,6 +95,13 @@ public class DbTournamentContextProvider : ITournamentContextProvider
 						|| (t.Place != null && EF.Functions.Like(t.Place, filter)));
 		}
 
+		// Apply tournament-type filter at the database level so pagination counts are accurate
+		var typeFilter = this.filteringContext.FilteringParameters.TournamentTypeFilter;
+		if (typeFilter.HasValue)
+		{
+			filteredTournaments = filteredTournaments.Where(t => t.Type == typeFilter.Value);
+		}
+
 		if (this.filteringContext.FilteringMetadata != null)
 		{
 			this.filteringContext.FilteringMetadata.TotalCount = filteredTournaments.Count();
@@ -536,11 +543,11 @@ public class DbTournamentContextProvider : ITournamentContextProvider
 		if (filterByParticipant != null)
 		{
 			// First, get the user's database ID using WithIdentifier (supports both UniqueId and legacy IDs)
-			var userId = await UserCollectionExtensions.WithIdentifier(this.dbContext.Users, filterByParticipant.Value)
-				.Select(u => u.Id)
+			var userRecord = await UserCollectionExtensions.WithIdentifier(this.dbContext.Users, filterByParticipant.Value)
+				.Select(u => new { u.Id, u.UniqueId })
 				.FirstOrDefaultAsync(cancellationToken);
 
-			if (userId == 0)
+			if (userRecord == null)
 			{
 				// User not found
 				return new List<InviteInfo>();
@@ -548,20 +555,14 @@ public class DbTournamentContextProvider : ITournamentContextProvider
 
 			// Get team IDs where user is a team manager
 			var userTeamLongIds = await this.dbContext.TeamManagers
-				.Where(tm => tm.UserId == userId)
+				.Where(tm => tm.UserId == userRecord.Id)
 				.Select(tm => tm.TeamId)
 				.ToListAsync(cancellationToken);
-
-			// If user is not a team manager of any team, return empty list
-			if (!userTeamLongIds.Any())
-			{
-				return new List<InviteInfo>();
-			}
 
 			// Convert long IDs to TeamIdentifier strings
 			var userTeamIds = userTeamLongIds.Select(id => new TeamIdentifier(id).ToString()).ToList();
 
-			query = query.Where(i => userTeamIds.Contains(i.ParticipantId));
+			query = query.Where(i => i.ParticipantType == "team" && userTeamIds.Contains(i.ParticipantId));
 		}
 
 		// Fetch invites from database
@@ -575,41 +576,20 @@ public class DbTournamentContextProvider : ITournamentContextProvider
 
 		// Get unique participant IDs for teams
 		var teamParticipantIds = dbInvites
-			.Where(i => i.ParticipantType == "team")
 			.Select(i => i.ParticipantId)
 			.Distinct()
 			.ToList();
 
-		// Fetch team names in a separate query if there are any team participants
-		Dictionary<string, string> teamNames = new Dictionary<string, string>();
-		if (teamParticipantIds.Any())
-		{
-			// Parse team participant IDs to get the long IDs for database query
-			var teamLongIds = teamParticipantIds
-				.Select(id => TeamIdentifier.Parse(id).Id)
-				.ToList();
-
-			// Query teams by long IDs
-			var teams = await this.dbContext.Teams
-				.Where(t => teamLongIds.Contains(t.Id))
-				.Select(t => new { t.Id, t.Name })
-				.ToListAsync(cancellationToken);
-
-			// Convert back to TeamIdentifier strings for the dictionary
-			teamNames = teams.ToDictionary(
-				t => new TeamIdentifier(t.Id).ToString(),
-				t => t.Name);
-		}
+		// Fetch team names
+		var teamNames = await this.GetTeamNamesAsync(teamParticipantIds, cancellationToken);
 
 		// Map to InviteInfo
 		return dbInvites.Select(i => new InviteInfo
 		{
 			TournamentId = TournamentIdentifier.Parse(i.Tournament.UniqueId),
-			ParticipantType = i.ParticipantType == "team" ? ParticipantType.Team : ParticipantType.Team,
+			ParticipantType = ParticipantType.Team,
 			ParticipantId = i.ParticipantId,
-			ParticipantName = i.ParticipantType == "team" && teamNames.TryGetValue(i.ParticipantId, out var name)
-				? name
-				: "Unknown",
+			ParticipantName = teamNames.TryGetValue(i.ParticipantId, out var name) ? name : "Unknown",
 			InitiatorUserId = i.Initiator.UniqueId != null
 				? UserIdentifier.Parse(i.Initiator.UniqueId)
 				: UserIdentifier.FromLegacyUserId(i.Initiator.Id),
@@ -619,6 +599,29 @@ public class DbTournamentContextProvider : ITournamentContextProvider
 			ParticipantApproval = i.ParticipantApproval,
 			ParticipantApprovalDate = i.ParticipantApprovalDate
 		}).ToList();
+	}
+
+	private async Task<Dictionary<string, string>> GetTeamNamesAsync(
+		IReadOnlyList<string> teamParticipantIds,
+		CancellationToken cancellationToken)
+	{
+		if (!teamParticipantIds.Any())
+		{
+			return new Dictionary<string, string>();
+		}
+
+		var teamLongIds = teamParticipantIds
+			.Select(id => TeamIdentifier.Parse(id).Id)
+			.ToList();
+
+		var teams = await this.dbContext.Teams
+			.Where(t => teamLongIds.Contains(t.Id))
+			.Select(t => new { t.Id, t.Name })
+			.ToListAsync(cancellationToken);
+
+		return teams.ToDictionary(
+			t => new TeamIdentifier(t.Id).ToString(),
+			t => t.Name);
 	}
 
 	public async Task<IEnumerable<InviteInfo>> GetTeamInvitesAsync(
