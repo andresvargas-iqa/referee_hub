@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using ManagementHub.Models.Data;
@@ -19,7 +20,7 @@ namespace ManagementHub.Storage.Attachments;
 /// <summary>
 /// Repository of attachments on different entities in the database.
 /// </summary>
-public class AttachmentRepository : IAttachmentRepository
+public partial class AttachmentRepository : IAttachmentRepository
 {
 	private static readonly Dictionary<Type, string> identifierToRecordTypeMapping = new()
 	{
@@ -110,10 +111,13 @@ public class AttachmentRepository : IAttachmentRepository
 		return recordType;
 	}
 
+	[GeneratedRegex("[^a-zA-Z0-9_-]")]
+	private static partial Regex SafeLogValueRegex();
+
 	private static string SanitizeLogValue(string? value)
 	{
 		// Replace any character that is not alphanumeric, underscore, or hyphen with underscore
 		// This prevents log injection while preserving useful debug information
-		return value is null ? string.Empty : System.Text.RegularExpressions.Regex.Replace(value, "[^a-zA-Z0-9_-]", "_");
+		return value is null ? string.Empty : SafeLogValueRegex().Replace(value, "_");
 	}
 }

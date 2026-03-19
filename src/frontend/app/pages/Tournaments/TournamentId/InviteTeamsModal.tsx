@@ -34,9 +34,10 @@ function useInviteTeamsData(
     { groupAffiliations: eligibleAffiliations ?? [] },
     { skip: !isOpen || eligibleAffiliations === null },
   );
+  const eligibleNgbCodeSet = new Set(eligibleNgbCodes ?? []);
   const filteredNgbs = eligibleAffiliations === null
     ? ngbsData?.items
-    : ngbsData?.items?.filter((ngb) => eligibleNgbCodes?.includes(ngb.countryCode ?? ""));
+    : ngbsData?.items?.filter((ngb) => eligibleNgbCodeSet.has(ngb.countryCode ?? ""));
 
   const { data: teamsData, isLoading: isLoadingTeams } = useGetNgbTeamsQuery(
     { ngb: selectedNgb, skipPaging: true },

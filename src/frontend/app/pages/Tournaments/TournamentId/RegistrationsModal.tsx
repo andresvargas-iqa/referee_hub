@@ -302,11 +302,12 @@ const RegistrationsModal = forwardRef<RegistrationsModalRef>((_props, ref) => {
     const ids = Array.from(checkedIds);
     if (ids.length === 0) return;
     setIsBulkProcessing(true);
+    const nameById = new Map(invites?.map((inv) => [inv.participantId, inv.participantName]) ?? []);
     let successCount = 0;
     let failCount = 0;
     for (let i = 0; i < ids.length; i++) {
       const id = ids[i];
-      const name = invites?.find((inv) => inv.participantId === id)?.participantName ?? id;
+      const name = nameById.get(id) ?? id;
       setBulkProgress(`Processing ${i + 1} / ${ids.length}: ${name}…`);
       try {
         await respondToInvite({
