@@ -23,10 +23,6 @@ const Avatar = (props: AvatarProps) => {
   const { data: managedTeams } = useGetManagedTeamsQuery();
   const { data: avatarUrl } = useGetCurrentUserAvatarQuery();
 
-  const handleHomeClick = () => {
-    navigate("/");
-  };
-
   const handleLogoutClick = () => {
     window.location.href = `${window.location.origin}/sign_out`;
   };
@@ -67,12 +63,8 @@ const Avatar = (props: AvatarProps) => {
     );
   };
 
-  const home: ItemConfig = {
-    content: "Home",
-    onClick: handleHomeClick,
-  };
   const refereeProfile: ItemConfig = {
-    content: "Referee Profile",
+    content: "My Profile",
     onClick: handleRefProfileClick,
   };
   const ngbProfile: ItemConfig = {
@@ -96,12 +88,10 @@ const Avatar = (props: AvatarProps) => {
     onClick: handleTournamentsClick,
   };
 
-  const items: ItemConfig[] = [home];
+  const items: ItemConfig[] = [];
 
-  if (enabledFeatures?.includes("i18n")) items.push(settings);
-
-  if (roles.includes("NgbAdmin")) items.push(ngbProfile);
   if (roles.includes("Referee")) items.push(refereeProfile);
+  if (roles.includes("NgbAdmin")) items.push(ngbProfile);
   //if (roles.includes("NgbAdmin") || roles.includes("IqaAdmin")) items.push(invite); // TODO: unblock once implemented
 
   // Add managed teams section
@@ -115,7 +105,8 @@ const Avatar = (props: AvatarProps) => {
     });
   }
 
-  items.push(tournaments);
+  items.push(tournaments);  
+  if (enabledFeatures?.includes("i18n")) items.push(settings);
   items.push(logout);
 
   return <DropdownMenu renderTrigger={renderTrigger} items={items} />;
