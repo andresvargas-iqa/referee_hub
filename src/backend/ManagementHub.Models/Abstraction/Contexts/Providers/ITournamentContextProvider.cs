@@ -31,6 +31,10 @@ public interface ITournamentContextProvider
 
 	Task<IEnumerable<ManagerInfo>> GetTournamentManagersAsync(TournamentIdentifier tournamentId, CancellationToken cancellationToken = default);
 
+	Task AddTournamentManagerAsync(TournamentIdentifier tournamentId, UserIdentifier userId, UserIdentifier addedByUserId, CancellationToken cancellationToken = default);
+
+	Task<bool> RemoveTournamentManagerAsync(TournamentIdentifier tournamentId, UserIdentifier userId, CancellationToken cancellationToken = default);
+
 	// Phase 3: Invite management
 	Task<IEnumerable<InviteInfo>> GetTournamentInvitesAsync(TournamentIdentifier tournamentId, UserIdentifier? filterByParticipant = null, CancellationToken cancellationToken = default);
 

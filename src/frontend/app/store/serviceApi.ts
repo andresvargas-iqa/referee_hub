@@ -457,6 +457,34 @@ const injectedRtkApi = api
         }),
         invalidatesTags: ["Tournament"],
       }),
+      getTournamentManagers: build.query<
+        GetTournamentManagersApiResponse,
+        GetTournamentManagersApiArg
+      >({
+        query: (queryArg) => ({ url: `/api/v2/Tournaments/${queryArg.tournamentId}/managers` }),
+        providesTags: ["Tournament"],
+      }),
+      addTournamentManager: build.mutation<
+        AddTournamentManagerApiResponse,
+        AddTournamentManagerApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/api/v2/Tournaments/${queryArg.tournamentId}/managers`,
+          method: "POST",
+          body: queryArg.addTournamentManagerModel,
+        }),
+        invalidatesTags: ["Tournament"],
+      }),
+      removeTournamentManager: build.mutation<
+        RemoveTournamentManagerApiResponse,
+        RemoveTournamentManagerApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/api/v2/Tournaments/${queryArg.tournamentId}/managers/${queryArg.userId}`,
+          method: "DELETE",
+        }),
+        invalidatesTags: ["Tournament"],
+      }),
       contactTournamentOrganizers: build.mutation<
         ContactTournamentOrganizersApiResponse,
         ContactTournamentOrganizersApiArg
@@ -919,6 +947,21 @@ export type UpdateTournamentBannerApiArg = {
   body: {
     bannerBlob?: Blob;
   };
+};
+export type GetTournamentManagersApiResponse =
+  /** status 200 Success */ TournamentManagerViewModel[];
+export type GetTournamentManagersApiArg = {
+  tournamentId: string;
+};
+export type AddTournamentManagerApiResponse = /** status 200 Success */ void;
+export type AddTournamentManagerApiArg = {
+  tournamentId: string;
+  addTournamentManagerModel: AddTournamentManagerModel;
+};
+export type RemoveTournamentManagerApiResponse = /** status 200 Success */ void;
+export type RemoveTournamentManagerApiArg = {
+  tournamentId: string;
+  userId: string;
 };
 export type ContactTournamentOrganizersApiResponse = /** status 200 Success */ void;
 export type ContactTournamentOrganizersApiArg = {
@@ -1556,6 +1599,14 @@ export type TournamentModel = {
   isPrivate?: boolean;
   isRegistrationOpen?: boolean;
 };
+export type TournamentManagerViewModel = {
+  id?: string;
+  name?: string | null;
+  email?: string | null;
+};
+export type AddTournamentManagerModel = {
+  email?: string | null;
+};
 export type ContactTournamentRequest = {
   message: string;
 };
@@ -1713,6 +1764,9 @@ export const {
   useGetTournamentQuery,
   useUpdateTournamentMutation,
   useUpdateTournamentBannerMutation,
+  useGetTournamentManagersQuery,
+  useAddTournamentManagerMutation,
+  useRemoveTournamentManagerMutation,
   useContactTournamentOrganizersMutation,
   useGetTournamentInvitesQuery,
   useCreateInviteMutation,

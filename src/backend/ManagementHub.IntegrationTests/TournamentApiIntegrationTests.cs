@@ -146,6 +146,139 @@ public class TournamentApiIntegrationTests : IClassFixture<TestWebApplicationFac
 	}
 
 	[Fact]
+	public async Task TournamentManagers_FullWorkflow_ShouldSucceed()
+	{
+		// Step 1: Sign in as referee (who will create the tournament)
+		await AuthenticationHelper.AuthenticateAsAsync(this._client, "referee@example.com", "password");
+
+		// Step 2: Create a tournament
+		var tournamentId = await this.CreateTestTournamentAsync("Manager Test Tournament", TournamentType.Club, "Test Country", "Test City", place: "Test Place");
+
+		// Step 3: List managers - should only show the creator
+		var listManagersResponse = await this._client.GetAsync($"/api/v2/tournaments/{tournamentId}/managers");
+		listManagersResponse.StatusCode.Should().Be(HttpStatusCode.OK,
+		"listing managers should succeed");
+
+		var managers = await listManagersResponse.Content.ReadFromJsonAsync<List<JsonElement>>();
+		managers.Should().HaveCount(1, "should have exactly one manager (the creator)");
+		managers![0].GetProperty("email").GetString().Should().Be("referee@example.com",
+		"creator should be the first manager");
+
+		// Step 4: Add another manager (ngb_admin)
+		var addManagerResponse = await this._client.PostAsJsonAsync($"/api/v2/tournaments/{tournamentId}/managers", new
+		{
+			email = "ngb_admin@example.com"
+		});
+
+		addManagerResponse.StatusCode.Should().Be(HttpStatusCode.OK,
+		"adding a manager should succeed");
+
+		// Step 5: List managers again - should show both
+		listManagersResponse = await this._client.GetAsync($"/api/v2/tournaments/{tournamentId}/managers");
+		managers = await listManagersResponse.Content.ReadFromJsonAsync<List<JsonElement>>();
+		managers.Should().HaveCount(2, "should have two managers after adding one");
+
+		var managerEmails = managers!.Select(m => m.GetProperty("email").GetString()).ToList();
+		managerEmails.Should().Contain("referee@example.com", "original manager should still be present");
+		managerEmails.Should().Contain("ngb_admin@example.com", "new manager should be added");
+
+		// Step 6: Verify new manager can access manager endpoints
+		// Sign in as ngb_admin
+		await AuthenticationHelper.AuthenticateAsAsync(this._client, "ngb_admin@example.com", "password");
+
+		// New manager should be able to list managers
+		listManagersResponse = await this._client.GetAsync($"/api/v2/tournaments/{tournamentId}/managers");
+		listManagersResponse.StatusCode.Should().Be(HttpStatusCode.OK,
+		"new manager should be able to list managers");
+		managers = await listManagersResponse.Content.ReadFromJsonAsync<List<JsonElement>>();
+
+		// Step 7: Remove a manager (sign back in as original creator)
+		await AuthenticationHelper.AuthenticateAsAsync(this._client, "referee@example.com", "password");
+
+		// Get the ngb_admin userId from the managers list
+		var ngbAdminManager = managers!.First(m => m.GetProperty("email").GetString() == "ngb_admin@example.com");
+		var ngbAdminUserId = ngbAdminManager.GetProperty("id").GetString();
+
+		var removeManagerResponse = await this._client.DeleteAsync($"/api/v2/tournaments/{tournamentId}/managers/{ngbAdminUserId}");
+		removeManagerResponse.StatusCode.Should().Be(HttpStatusCode.OK,
+		"removing a manager should succeed");
+
+		// Step 8: Verify manager was removed
+		listManagersResponse = await this._client.GetAsync($"/api/v2/tournaments/{tournamentId}/managers");
+		managers = await listManagersResponse.Content.ReadFromJsonAsync<List<JsonElement>>();
+		managers.Should().HaveCount(1, "should have one manager after removing one");
+		managers![0].GetProperty("email").GetString().Should().Be("referee@example.com",
+		"only the original manager should remain");
+
+		// Step 9: Verify removed manager cannot access manager endpoints
+		await AuthenticationHelper.AuthenticateAsAsync(this._client, "ngb_admin@example.com", "password");
+
+		listManagersResponse = await this._client.GetAsync($"/api/v2/tournaments/{tournamentId}/managers");
+		listManagersResponse.StatusCode.Should().Be(HttpStatusCode.Forbidden,
+		"removed manager should not be able to access manager endpoints");
+	}
+
+	[Fact]
+	public async Task AddTournamentManager_WithInvalidEmail_ShouldReturnBadRequest()
+	{
+		// Sign in and create a tournament
+		await AuthenticationHelper.AuthenticateAsAsync(this._client, "referee@example.com", "password");
+
+		var tournamentId = await this.CreateTestTournamentAsync("Test Tournament", TournamentType.Club, "Test", "Test");
+
+		// Try to add manager with invalid email
+		var addResponse = await this._client.PostAsJsonAsync($"/api/v2/tournaments/{tournamentId}/managers", new
+		{
+			email = "not-an-email"
+		});
+
+		addResponse.StatusCode.Should().Be(HttpStatusCode.BadRequest,
+		"adding manager with invalid email should return BadRequest");
+	}
+
+	[Fact]
+	public async Task AddTournamentManager_WithNonexistentUser_ShouldReturnNotFound()
+	{
+		// Sign in and create a tournament
+		await AuthenticationHelper.AuthenticateAsAsync(this._client, "referee@example.com", "password");
+
+		var tournamentId = await this.CreateTestTournamentAsync("Test Tournament", TournamentType.Club, "Test", "Test");
+
+		// Try to add manager with nonexistent user email
+		var addResponse = await this._client.PostAsJsonAsync($"/api/v2/tournaments/{tournamentId}/managers", new
+		{
+			email = "nonexistent@example.com"
+		});
+
+		addResponse.StatusCode.Should().Be(HttpStatusCode.NotFound,
+		"adding nonexistent user as manager should return NotFound");
+	}
+
+	[Fact]
+	public async Task RemoveTournamentManager_LastManager_ShouldReturnBadRequest()
+	{
+		// Sign in and create a tournament
+		await AuthenticationHelper.AuthenticateAsAsync(this._client, "referee@example.com", "password");
+
+		var tournamentId = await this.CreateTestTournamentAsync("Test Tournament", TournamentType.Club, "Test", "Test");
+
+		// Get the current user's userId from the managers list
+		var listManagersResponse = await this._client.GetAsync($"/api/v2/tournaments/{tournamentId}/managers");
+		var managers = await listManagersResponse.Content.ReadFromJsonAsync<List<JsonElement>>();
+		var currentUserId = managers![0].GetProperty("id").GetString();
+
+		// Try to remove the only manager
+		var removeResponse = await this._client.DeleteAsync($"/api/v2/tournaments/{tournamentId}/managers/{currentUserId}");
+
+		removeResponse.StatusCode.Should().Be(HttpStatusCode.BadRequest,
+		"removing the last manager should return BadRequest");
+
+		var errorContent = await removeResponse.Content.ReadFromJsonAsync<JsonElement>();
+		errorContent.GetProperty("error").GetString().Should().Contain("last manager",
+		"error message should indicate cannot remove last manager");
+	}
+
+	[Fact]
 	public async Task ContactTournamentOrganizers_PublicTournament_ShouldSucceed()
 	{
 		// Sign in as referee and create a public tournament
@@ -172,14 +305,23 @@ public class TournamentApiIntegrationTests : IClassFixture<TestWebApplicationFac
 		await AuthenticationHelper.AuthenticateAsAsync(this._client, "referee@example.com", "password");
 		var tournamentId = await this.CreateTestTournamentAsync("Private Contact Test", TournamentType.Club, "Test", "Test", isPrivate: true);
 
-		// Send a contact message as the tournament creator (manager)
+		// Add ngb_admin as a manager
+		await this._client.PostAsJsonAsync($"/api/v2/tournaments/{tournamentId}/managers", new
+		{
+			email = "ngb_admin@example.com"
+		});
+
+		// Sign in as ngb_admin (who is now a manager)
+		await AuthenticationHelper.AuthenticateAsAsync(this._client, "ngb_admin@example.com", "password");
+
+		// Send a contact message as manager (involved user)
 		var contactResponse = await this._client.PostAsJsonAsync($"/api/v2/tournaments/{tournamentId}/contact", new
 		{
-			message = "I'm the manager contacting about this tournament."
+			message = "I'm a manager contacting other managers."
 		});
 
 		contactResponse.StatusCode.Should().Be(HttpStatusCode.OK,
-		"tournament creator/manager should be able to contact organizers of their own private tournament");
+		"involved users should be able to contact organizers of a private tournament");
 
 		// Sign in as empty@example.com who is NOT involved
 		await AuthenticationHelper.AuthenticateAsAsync(this._client, "empty@example.com", "password");
@@ -227,6 +369,35 @@ public class TournamentApiIntegrationTests : IClassFixture<TestWebApplicationFac
 
 		contactResponse.StatusCode.Should().Be(HttpStatusCode.BadRequest,
 		"sending a message longer than 1000 characters should return BadRequest");
+	}
+
+	[Fact]
+	public async Task AddTournamentManager_Idempotent_ShouldNotError()
+	{
+		// Sign in and create a tournament
+		await AuthenticationHelper.AuthenticateAsAsync(this._client, "referee@example.com", "password");
+
+		var tournamentId = await this.CreateTestTournamentAsync("Test Tournament", TournamentType.Club, "Test", "Test");
+
+		// Add a manager
+		var addResponse1 = await this._client.PostAsJsonAsync($"/api/v2/tournaments/{tournamentId}/managers", new
+		{
+			email = "ngb_admin@example.com"
+		});
+		addResponse1.StatusCode.Should().Be(HttpStatusCode.OK);
+
+		// Add the same manager again (idempotent)
+		var addResponse2 = await this._client.PostAsJsonAsync($"/api/v2/tournaments/{tournamentId}/managers", new
+		{
+			email = "ngb_admin@example.com"
+		});
+		addResponse2.StatusCode.Should().Be(HttpStatusCode.OK,
+		"adding the same manager again should be idempotent and not error");
+
+		// Verify still only 2 managers (not 3)
+		var listResponse = await this._client.GetAsync($"/api/v2/tournaments/{tournamentId}/managers");
+		var managers = await listResponse.Content.ReadFromJsonAsync<List<JsonElement>>();
+		managers.Should().HaveCount(2, "should still have only 2 managers after duplicate add");
 	}
 
 	// Helper method to create a test tournament

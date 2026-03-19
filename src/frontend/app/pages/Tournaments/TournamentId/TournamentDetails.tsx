@@ -15,6 +15,7 @@ import {
 } from "./components";
 import {
   useGetTournamentQuery,
+  useGetTournamentManagersQuery,
   useGetCurrentUserQuery,
   useGetTournamentInvitesQuery,
   useRespondToInviteMutation,
@@ -429,6 +430,12 @@ function useTournamentDetailsData(tournamentId: string | undefined) {
     [currentUser?.roles, tournamentId],
   );
 
+  const shouldFetchManagers = Boolean(tournamentId && isTournamentManagerOfThis);
+  const { data: managers, isError: managersError } = useGetTournamentManagersQuery(
+    { tournamentId: tournamentId ?? "" },
+    { skip: !shouldFetchManagers },
+  );
+
   const { data: invites, refetch: refetchInvites } = useGetTournamentInvitesQuery(
     { tournamentId: tournamentId ?? "" },
     { skip: !tournamentId || isError },
@@ -487,7 +494,8 @@ function useTournamentDetailsData(tournamentId: string | undefined) {
     isError,
     tournamentRequiresAuth,
     currentUser,
-    isTournamentManagerOfThis,
+    managers,
+    managersError,
     invites,
     refetchInvites,
     refetchParticipants,
@@ -557,7 +565,8 @@ const TournamentDetails = () => {
     isError,
     tournamentRequiresAuth,
     currentUser,
-    isTournamentManagerOfThis,
+    managers,
+    managersError,
     invites,
     refetchInvites,
     refetchParticipants,
@@ -597,7 +606,10 @@ const TournamentDetails = () => {
     );
   }
 
-  const isManager = Boolean(isTournamentManagerOfThis);
+  const isManager =
+    !managersError && currentUser?.userId && managers
+      ? managers.some((manager) => manager.id === currentUser.userId)
+      : false;
 
   const formattedDateRange = formatDateRange(tournament.startDate, tournament.endDate);
 
