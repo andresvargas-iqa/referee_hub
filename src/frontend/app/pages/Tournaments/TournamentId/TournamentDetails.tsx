@@ -21,7 +21,6 @@ import {
   useRespondToInviteMutation,
   useGetManagedTeamsQuery,
   useGetParticipantsQuery,
-  useAddTournamentManagerMutation,
   TournamentInviteViewModel,
   TournamentViewModel,
 } from "../../../store/serviceApi";
@@ -256,37 +255,6 @@ const UserRegistrationCard: React.FC<UserRegistrationCardProps> = ({
   );
 };
 
-// ── AddManagerForm ────────────────────────────────────────────────────────────
-interface AddManagerFormProps {
-  email: string;
-  isLoading: boolean;
-  onChange: (v: string) => void;
-  onSubmit: (e: React.FormEvent) => void;
-  onCancel: () => void;
-}
-const AddManagerForm: React.FC<AddManagerFormProps> = ({ email, isLoading, onChange, onSubmit, onCancel }) => (
-  <div className="card card-mb">
-    <h3 className="card-title">Add Tournament Manager</h3>
-    <p className="card-description">Enter the email address of the user you want to add as a tournament manager.</p>
-    <form onSubmit={onSubmit} className="space-y-3">
-      <input
-        type="email"
-        value={email}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder="Email address"
-        required
-        className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:border-blue-500"
-      />
-      <div className="flex gap-2">
-        <button type="submit" disabled={isLoading || !email.trim()} className="btn btn-primary">
-          {isLoading ? "Adding..." : "Add Manager"}
-        </button>
-        <button type="button" onClick={onCancel} className="btn btn-secondary">Cancel</button>
-      </div>
-    </form>
-  </div>
-);
-
 // ── TournamentStats ───────────────────────────────────────────────────────────
 interface TournamentStatsProps {
   approvedCount: number;
@@ -319,9 +287,6 @@ interface ManagerSidebarProps {
   inviteCount: number;
   approvedCount: number;
   playerCount: number;
-  isAddManagerOpen: boolean;
-  addManagerEmail: string;
-  isAddingManager: boolean;
   pendingInvitesForUser: TournamentInviteViewModel[];
   respondingTo: string | null;
   approvedTeamsForUser: ApprovedTeam[];
@@ -329,10 +294,6 @@ interface ManagerSidebarProps {
   onEdit: () => void;
   onViewRegistrations: () => void;
   onInviteTeams: () => void;
-  onAddManagerOpen: () => void;
-  onAddManagerEmailChange: (v: string) => void;
-  onAddManagerSubmit: (e: React.FormEvent) => void;
-  onAddManagerCancel: () => void;
   onAccept: (id: string) => void;
   onDecline: (id: string) => void;
   onScrollToRoster: () => void;
@@ -344,9 +305,6 @@ const ManagerSidebar: React.FC<ManagerSidebarProps> = ({
   inviteCount,
   approvedCount,
   playerCount,
-  isAddManagerOpen,
-  addManagerEmail,
-  isAddingManager,
   pendingInvitesForUser,
   respondingTo,
   approvedTeamsForUser,
@@ -354,10 +312,6 @@ const ManagerSidebar: React.FC<ManagerSidebarProps> = ({
   onEdit,
   onViewRegistrations,
   onInviteTeams,
-  onAddManagerOpen,
-  onAddManagerEmailChange,
-  onAddManagerSubmit,
-  onAddManagerCancel,
   onAccept,
   onDecline,
   onScrollToRoster,
@@ -383,20 +337,7 @@ const ManagerSidebar: React.FC<ManagerSidebarProps> = ({
       <button onClick={onInviteTeams} className="btn btn-secondary btn-full-width card-mb">
         Invite Teams
       </button>
-      <button onClick={onAddManagerOpen} className="btn btn-secondary btn-full-width">
-        Add Tournament Manager
-      </button>
     </div>
-
-    {isAddManagerOpen && (
-      <AddManagerForm
-        email={addManagerEmail}
-        isLoading={isAddingManager}
-        onChange={onAddManagerEmailChange}
-        onSubmit={onAddManagerSubmit}
-        onCancel={onAddManagerCancel}
-      />
-    )}
 
     <TournamentStats
       approvedCount={approvedCount}
@@ -607,27 +548,7 @@ function useTournamentActions(
   refetchInvites: () => void,
 ) {
   const [respondingTo, setRespondingTo] = useState<string | null>(null);
-  const [addManagerEmail, setAddManagerEmail] = useState("");
-  const [isAddManagerOpen, setIsAddManagerOpen] = useState(false);
-  const [addTournamentManager, { isLoading: isAddingManager }] = useAddTournamentManagerMutation();
   const [respondToInvite] = useRespondToInviteMutation();
-
-  async function handleAddManager(e: React.FormEvent) {
-    e.preventDefault();
-    if (!addManagerEmail.trim() || !tournamentId) return;
-    try {
-      await addTournamentManager({
-        tournamentId,
-        addTournamentManagerModel: { email: addManagerEmail.trim() },
-      }).unwrap();
-      showAlert("Successfully added manager.", "success");
-      setAddManagerEmail("");
-      setIsAddManagerOpen(false);
-    } catch (error) {
-      console.error("Failed to add manager:", error);
-      showAlert(getApiErrorMessage(error, "Failed to add manager. Check that the email belongs to a registered user."), "error");
-    }
-  }
 
   async function handleRespondToInvite(participantId: string, approved: boolean) {
     if (!tournamentId) return;
@@ -646,16 +567,6 @@ function useTournamentActions(
 
   return {
     respondingTo,
-    addManagerEmail,
-    setAddManagerEmail,
-    isAddManagerOpen,
-    setIsAddManagerOpen,
-    isAddingManager,
-    handleAddManager,
-    handleCancelAddManager: () => {
-      setIsAddManagerOpen(false);
-      setAddManagerEmail("");
-    },
     handleRespondToInvite,
   };
 }
@@ -702,13 +613,6 @@ const TournamentDetails = () => {
 
   const {
     respondingTo,
-    addManagerEmail,
-    setAddManagerEmail,
-    isAddManagerOpen,
-    setIsAddManagerOpen,
-    isAddingManager,
-    handleAddManager,
-    handleCancelAddManager,
     handleRespondToInvite,
   } = useTournamentActions(tournamentId, showAlert, refetchInvites);
 
@@ -801,9 +705,6 @@ const TournamentDetails = () => {
                   inviteCount={invites?.length ?? 0}
                   approvedCount={approvedInviteCount}
                   playerCount={totalPlayerCount}
-                  isAddManagerOpen={isAddManagerOpen}
-                  addManagerEmail={addManagerEmail}
-                  isAddingManager={isAddingManager}
                   pendingInvitesForUser={pendingInvitesForUser}
                   respondingTo={respondingTo}
                   approvedTeamsForUser={approvedTeamsForUser}
@@ -811,10 +712,6 @@ const TournamentDetails = () => {
                   onEdit={handleEdit}
                   onViewRegistrations={() => registrationsModalRef.current?.open(tournament.id ?? "", tournament.name ?? "Unknown Tournament")}
                   onInviteTeams={() => inviteTeamsModalRef.current?.open(tournament)}
-                  onAddManagerOpen={() => setIsAddManagerOpen(true)}
-                  onAddManagerEmailChange={setAddManagerEmail}
-                  onAddManagerSubmit={handleAddManager}
-                  onAddManagerCancel={handleCancelAddManager}
                   onAccept={(id) => handleRespondToInvite(id, true)}
                   onDecline={(id) => handleRespondToInvite(id, false)}
                   onScrollToRoster={scrollToRoster}
