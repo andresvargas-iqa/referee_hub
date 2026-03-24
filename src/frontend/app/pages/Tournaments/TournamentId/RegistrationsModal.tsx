@@ -1,9 +1,10 @@
 import { Dialog, DialogPanel, DialogTitle } from "@headlessui/react";
-import { useState, forwardRef, useImperativeHandle, useRef } from "react";
+import { useState, forwardRef, useImperativeHandle, useRef, useMemo } from "react";
 import React from "react";
 import {
   useGetTournamentInvitesQuery,
   useRespondToInviteMutation,
+  useDeleteInviteMutation,
   TournamentInviteViewModel,
 } from "../../../store/serviceApi";
 import StatusBadge from "../../../components/StatusBadge";
@@ -11,6 +12,7 @@ import ActionButtonPair from "../../../components/ActionButtonPair";
 import CustomAlert from "../../../components/CustomAlert";
 import { useAlert } from "../../../hooks/useAlert";
 import RosterViewModal, { RosterViewModalRef } from "./RosterViewModal";
+import { getApiErrorMessage } from "../../../utils/tournamentUtils";
 
 export interface RegistrationsModalRef {
   open: (tournamentId: string, tournamentName: string) => void;
@@ -31,6 +33,13 @@ const RegistrationsModal = forwardRef<RegistrationsModalRef>((_props, ref) => {
   );
 
   const [respondToInvite] = useRespondToInviteMutation();
+  const [deleteInvite] = useDeleteInviteMutation();
+
+  /** All team-type invites (excludes player invites) */
+  const teamInvites = useMemo(
+    () => (invites ?? []).filter((i) => i.participantType !== "player"),
+    [invites]
+  );
 
   useImperativeHandle(ref, () => ({
     open: (tournId: string, tournName: string) => {
@@ -56,10 +65,9 @@ const RegistrationsModal = forwardRef<RegistrationsModalRef>((_props, ref) => {
       }).unwrap();
       showAlert(`Successfully approved ${teamName}'s registration!`, "success");
       refetch();
-      setSelectedInvite(null);
     } catch (error) {
       console.error("Failed to approve:", error);
-      showAlert("Failed to approve. Please try again.", "error");
+      showAlert(getApiErrorMessage(error, `Failed to approve ${teamName}'s registration. Please try again.`), "error");
     } finally {
       setIsSubmitting(false);
     }
@@ -75,10 +83,24 @@ const RegistrationsModal = forwardRef<RegistrationsModalRef>((_props, ref) => {
       }).unwrap();
       showAlert(`Successfully denied ${teamName}'s registration.`, "success");
       refetch();
-      setSelectedInvite(null);
     } catch (error) {
       console.error("Failed to deny:", error);
-      showAlert("Failed to deny. Please try again.", "error");
+      showAlert(getApiErrorMessage(error, `Failed to deny ${teamName}'s registration. Please try again.`), "error");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function handleDeleteInvite(participantId: string, teamName: string) {
+    setIsSubmitting(true);
+    try {
+      await deleteInvite({ tournamentId, participantId }).unwrap();
+      showAlert(`Removed ${teamName}'s invite. You can now re-invite them.`, "success");
+      refetch();
+      setSelectedInvite(null);
+    } catch (error) {
+      console.error("Failed to delete invite:", error);
+      showAlert(getApiErrorMessage(error, "Failed to remove invite. Please try again."), "error");
     } finally {
       setIsSubmitting(false);
     }
@@ -187,13 +209,13 @@ const RegistrationsModal = forwardRef<RegistrationsModalRef>((_props, ref) => {
                     <ActionButtonPair
                       onAccept={() =>
                         handleApprove(
-                          selectedInviteData.participantId,
+                          selectedInviteData.participantId ?? "",
                           selectedInviteData.participantName || ""
                         )
                       }
                       onDecline={() =>
                         handleDeny(
-                          selectedInviteData.participantId,
+                          selectedInviteData.participantId ?? "",
                           selectedInviteData.participantName || ""
                         )
                       }
@@ -214,20 +236,36 @@ const RegistrationsModal = forwardRef<RegistrationsModalRef>((_props, ref) => {
                       </p>
                     </div>
                   )}
+
+                {/* Delete option for rejected invites */}
+                {selectedInviteData.status === "rejected" && (
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                    <p className="text-sm text-red-800 mb-3">
+                      This registration was rejected. You can remove this invite to allow the team to be re-invited.
+                    </p>
+                    <button
+                      onClick={() => handleDeleteInvite(selectedInviteData.participantId ?? "", selectedInviteData.participantName || "")}
+                      disabled={isSubmitting}
+                      className="px-4 py-2 text-sm font-medium rounded bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
+                    >
+                      {isSubmitting ? "Removing..." : "Remove Invite"}
+                    </button>
+                  </div>
+                )}
               </div>
             ) : (
               // List view
               <>
-                {invites && invites.length > 0 ? (
+                {teamInvites.length > 0 ? (
                   <div>
-                    {invites.map((invite) => (
+                    {teamInvites.map((invite) => (
                       <div
                         key={invite.participantId}
                         className="border border-gray-200 rounded-lg p-4 mb-3 hover:shadow-md"
                       >
                         <div 
                           className="flex items-center justify-between cursor-pointer"
-                          onClick={() => setSelectedInvite(invite.participantId)}
+                          onClick={() => setSelectedInvite(invite.participantId ?? "")}
                         >
                           <div>
                             <h4 className="font-semibold text-gray-900">
@@ -254,7 +292,7 @@ const RegistrationsModal = forwardRef<RegistrationsModalRef>((_props, ref) => {
                                 e.stopPropagation();
                                 rosterViewModalRef.current?.open(
                                   tournamentId,
-                                  invite.participantId,
+                                  invite.participantId ?? "",
                                   invite.participantName || "Unknown Team",
                                   tournamentName
                                 );
