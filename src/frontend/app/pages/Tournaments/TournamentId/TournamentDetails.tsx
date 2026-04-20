@@ -21,10 +21,11 @@ import {
   useRespondToInviteMutation,
   useGetManagedTeamsQuery,
   useGetParticipantsQuery,
+  useDeleteTournamentMutation,
   TournamentInviteViewModel,
   TournamentViewModel,
 } from "../../../store/serviceApi";
-import { useNavigationParams } from "../../../utils/navigationUtils";
+import { useNavigationParams, useNavigate } from "../../../utils/navigationUtils";
 import { getApiErrorMessage } from "../../../utils/tournamentUtils";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -445,12 +446,21 @@ function useTournamentDetailsData(tournamentId: string | undefined) {
     { skip: !tournamentId || isError },
   );
 
-  const managedTeamIds = useMemo(() => {
-    const ids = new Set<string>();
-    managedTeamsData?.forEach((t) => {
-      if (t.teamId) ids.add(t.teamId);
-    });
-    return ids;
+  const [respondToInvite] = useRespondToInviteMutation();
+  const [deleteTournament] = useDeleteTournamentMutation();
+  const navigate = useNavigate();
+
+  // Get team IDs from the managed teams endpoint
+  const managedTeamIds: Set<string> = useMemo(() => {
+    const teamIds = new Set<string>();
+    if (managedTeamsData) {
+      managedTeamsData.forEach((team) => {
+        if (team.teamId) {
+          teamIds.add(team.teamId);
+        }
+      });
+    }
+    return teamIds;
   }, [managedTeamsData]);
 
   const pendingInvitesForUser: TournamentInviteViewModel[] = useMemo(() => {
@@ -581,6 +591,17 @@ const TournamentDetails = () => {
     respondingTo,
     handleRespondToInvite,
   } = useTournamentActions(tournamentId, showAlert, refetchInvites);
+  async function handleDelete() {
+    if (!tournamentId) return;
+    if (!window.confirm(`Are you sure you want to delete "${tournament?.name ?? "this tournament"}"? It will be removed from view.`)) return;
+    try {
+      await deleteTournament({ tournamentId }).unwrap();
+      navigate("/tournaments");
+    } catch (error) {
+      console.error("Failed to delete tournament:", error);
+      showAlert("Failed to delete the tournament. Please try again.", "error");
+    }
+  }
 
   if (isLoading) {
     return (
@@ -652,7 +673,77 @@ const TournamentDetails = () => {
             </div>
 
             <div>
-              {!currentUser ? (
+              {isManager ? (
+                <>
+                  {/* Manager Tools Card */}
+                  <div className="card card-highlighted card-mb card-sticky">
+                    <h3 className="card-title">Manager Tools</h3>
+                    <p className="card-description">
+                      You are the manager of this tournament. Use the tools below to manage the
+                      tournament.
+                    </p>
+                    <button
+                      onClick={handleEdit}
+                      className="btn btn-primary btn-full-width btn-with-icon card-mb"
+                    >
+                      <svg
+                        className="btn-icon"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                        />
+                      </svg>
+                      Edit Tournament Details
+                    </button>
+                    <button
+                      onClick={() => registrationsModalRef.current?.open(tournament.id || "", tournament.name || "Unknown Tournament")}
+                      className="btn btn-secondary btn-full-width card-mb"
+                    >
+                      View Team Registrations ({invites?.length || 0})
+                    </button>
+                    <button
+                      onClick={() => inviteTeamsModalRef.current?.open(tournament)}
+                      className="btn btn-secondary btn-full-width"
+                    >
+                      Invite Teams
+                    </button>
+                    <button
+                      onClick={handleDelete}
+                      className="btn btn-danger btn-full-width"
+                      style={{ marginTop: "0.75rem" }}
+                    >
+                      Delete Tournament
+                    </button>
+                  </div>
+
+                  {/* Tournament Stats Card */}
+                  <div className="card">
+                    <h3 className="card-title">Tournament Stats</h3>
+                    <div className="stats-list">
+                      <div className="stats-item">
+                        <span className="stats-label">Teams Registered</span>
+                        <span className="stats-value">
+                          {invites?.filter((i) => i.status === "approved").length || 0}
+                        </span>
+                      </div>
+                      <div className="stats-item">
+                        <span className="stats-label">Players Registered</span>
+                        <span className="stats-value">{totalPlayerCount}</span>
+                      </div>
+                      <div className="stats-item">
+                        <span className="stats-label">Private Tournament</span>
+                        <span className="stats-value">{tournament.isPrivate ? "Yes" : "No"}</span>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              ) : (
                 <>
                   <TournamentStats
                     approvedCount={approvedInviteCount}
