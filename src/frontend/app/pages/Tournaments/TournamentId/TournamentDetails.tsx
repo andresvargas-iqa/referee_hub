@@ -4,6 +4,7 @@ import ContactOrganizerModal, { ContactOrganizerModalRef } from "./ContactOrgani
 import AddTournamentModal, { AddTournamentModalRef } from "../components/AddTournamentModal";
 import RegistrationsModal, { RegistrationsModalRef } from "./RegistrationsModal";
 import InviteTeamsModal, { InviteTeamsModalRef } from "./InviteTeamsModal";
+import AddTournamentManagerModal from "./AddTournamentManagerModal";
 import ActionButtonPair from "../../../components/ActionButtonPair";
 import CustomAlert from "../../../components/CustomAlert";
 import { useAlert } from "../../../hooks/useAlert";
@@ -28,7 +29,17 @@ import {
 import { useNavigationParams, useNavigate } from "../../../utils/navigationUtils";
 import { getApiErrorMessage } from "../../../utils/tournamentUtils";
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
+const TournamentDetails = () => {
+  const { tournamentId } = useNavigationParams<"tournamentId">();
+  const registerModalRef = useRef<RegisterTournamentModalRef>(null);
+  const contactOrganizerModalRef = useRef<ContactOrganizerModalRef>(null);
+  const editModalRef = useRef<AddTournamentModalRef>(null);
+  const registrationsModalRef = useRef<RegistrationsModalRef>(null);
+  const inviteTeamsModalRef = useRef<InviteTeamsModalRef>(null);
+  const rosterSectionRef = useRef<HTMLDivElement>(null);
+  const [respondingTo, setRespondingTo] = useState<string | null>(null);
+  const [isAddManagerModalOpen, setIsAddManagerModalOpen] = useState(false);
+  const { alertState, showAlert, hideAlert } = useAlert();
 
 function buildTournamentEditPayload(tournament: TournamentViewModel) {
   const {
@@ -709,9 +720,15 @@ const TournamentDetails = () => {
                     </button>
                     <button
                       onClick={() => inviteTeamsModalRef.current?.open(tournament)}
-                      className="btn btn-secondary btn-full-width"
+                      className="btn btn-secondary btn-full-width card-mb"
                     >
                       Invite Teams
+                    </button>
+                    <button
+                      onClick={() => setIsAddManagerModalOpen(true)}
+                      className="btn btn-secondary btn-full-width"
+                    >
+                      Add Tournament Manager
                     </button>
                     <button
                       onClick={handleDelete}
@@ -815,6 +832,12 @@ const TournamentDetails = () => {
       <AddTournamentModal ref={editModalRef} />
       <RegistrationsModal ref={registrationsModalRef} />
       <InviteTeamsModal ref={inviteTeamsModalRef} />
+      {isAddManagerModalOpen && tournamentId && (
+        <AddTournamentManagerModal
+          tournamentId={tournamentId}
+          onClose={() => setIsAddManagerModalOpen(false)}
+        />
+      )}
     </>
   );
 };
