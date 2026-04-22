@@ -29,18 +29,6 @@ import {
 import { useNavigationParams, useNavigate } from "../../../utils/navigationUtils";
 import { getApiErrorMessage } from "../../../utils/tournamentUtils";
 
-const TournamentDetails = () => {
-  const { tournamentId } = useNavigationParams<"tournamentId">();
-  const registerModalRef = useRef<RegisterTournamentModalRef>(null);
-  const contactOrganizerModalRef = useRef<ContactOrganizerModalRef>(null);
-  const editModalRef = useRef<AddTournamentModalRef>(null);
-  const registrationsModalRef = useRef<RegistrationsModalRef>(null);
-  const inviteTeamsModalRef = useRef<InviteTeamsModalRef>(null);
-  const rosterSectionRef = useRef<HTMLDivElement>(null);
-  const [respondingTo, setRespondingTo] = useState<string | null>(null);
-  const [isAddManagerModalOpen, setIsAddManagerModalOpen] = useState(false);
-  const { alertState, showAlert, hideAlert } = useAlert();
-
 function buildTournamentEditPayload(tournament: TournamentViewModel) {
   const {
     id = "",
