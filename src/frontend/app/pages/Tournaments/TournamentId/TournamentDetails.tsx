@@ -522,9 +522,12 @@ function useTournamentActions(
   tournamentId: string | undefined,
   showAlert: (msg: string, type: "success" | "error") => void,
   refetchInvites: () => void,
+  onDeleteSuccess: () => void,
 ) {
   const [respondingTo, setRespondingTo] = useState<string | null>(null);
   const [respondToInvite] = useRespondToInviteMutation();
+  const [deleteTournament] = useDeleteTournamentMutation();
+  const navigate = useNavigate();
 
   async function handleRespondToInvite(participantId: string, approved: boolean) {
     if (!tournamentId) return;
@@ -541,9 +544,23 @@ function useTournamentActions(
     }
   }
 
+  async function handleDelete() {
+    if (!tournamentId) return;
+    if (!window.confirm(`Are you sure you want to delete this tournament? It will be removed from view.`)) return;
+    try {
+      await deleteTournament({ tournamentId }).unwrap();
+      showAlert("Tournament deleted successfully.", "success");
+      navigate("/tournaments");
+    } catch (error) {
+      console.error("Failed to delete tournament:", error);
+      showAlert(getApiErrorMessage(error, "Failed to delete the tournament. Please try again."), "error");
+    }
+  }
+
   return {
     respondingTo,
     handleRespondToInvite,
+    handleDelete,
   };
 }
 
@@ -560,6 +577,7 @@ function formatDateRange(startDateStr?: string | null, endDateStr?: string | nul
 
 const TournamentDetails = () => {
   const { tournamentId } = useNavigationParams<"tournamentId">();
+  const [isAddManagerModalOpen, setIsAddManagerModalOpen] = useState(false);
   const registerModalRef = useRef<RegisterTournamentModalRef>(null);
   const contactOrganizerModalRef = useRef<ContactOrganizerModalRef>(null);
   const editModalRef = useRef<AddTournamentModalRef>(null);
@@ -589,18 +607,10 @@ const TournamentDetails = () => {
   const {
     respondingTo,
     handleRespondToInvite,
-  } = useTournamentActions(tournamentId, showAlert, refetchInvites);
-  async function handleDelete() {
-    if (!tournamentId) return;
-    if (!window.confirm(`Are you sure you want to delete "${tournament?.name ?? "this tournament"}"? It will be removed from view.`)) return;
-    try {
-      await deleteTournament({ tournamentId }).unwrap();
-      navigate("/tournaments");
-    } catch (error) {
-      console.error("Failed to delete tournament:", error);
-      showAlert("Failed to delete the tournament. Please try again.", "error");
-    }
-  }
+    handleDelete,
+  } = useTournamentActions(tournamentId, showAlert, refetchInvites, () => {
+    // Optional callback after delete
+  });
 
   if (isLoading) {
     return (
