@@ -683,132 +683,105 @@ const TournamentDetails = () => {
               />
             </div>
 
-            <div>
-              {isManager ? (
-                <>
-                  {/* Manager Tools Card */}
-                  <div className="card card-highlighted card-mb card-sticky">
-                    <h3 className="card-title">Manager Tools</h3>
-                    <p className="card-description">
-                      You are the manager of this tournament. Use the tools below to manage the
-                      tournament.
-                    </p>
-                    <button
-                      onClick={handleEdit}
-                      className="btn btn-primary btn-full-width btn-with-icon card-mb"
-                    >
-                      <svg
-                        className="btn-icon"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                        />
-                      </svg>
-                      Edit Tournament Details
-                    </button>
-                    <button
-                      onClick={() => registrationsModalRef.current?.open(tournament.id || "", tournament.name || "Unknown Tournament")}
-                      className="btn btn-secondary btn-full-width card-mb"
-                    >
-                      View Team Registrations ({invites?.length || 0})
-                    </button>
-                    <button
-                      onClick={() => inviteTeamsModalRef.current?.open(tournament)}
-                      className="btn btn-secondary btn-full-width card-mb"
-                    >
-                      Invite Teams
-                    </button>
-                    <button
-                      onClick={() => setIsAddManagerModalOpen(true)}
-                      className="btn btn-secondary btn-full-width"
-                    >
-                      Add Tournament Manager
-                    </button>
-                    <button
-                      onClick={handleDelete}
-                      className="btn btn-danger btn-full-width"
-                      style={{ marginTop: "0.75rem" }}
-                    >
-                      Delete Tournament
-                    </button>
-                  </div>
+ <div>
+  {isManager ? (
+    <>
+      {/* Manager Tools Card */}
+      <div className="card card-highlighted card-mb card-sticky">
+        <h3 className="card-title">Manager Tools</h3>
+        <p className="card-description">
+          You are the manager of this tournament. Use the tools below to manage the
+          tournament.
+        </p>
+        <button
+          onClick={handleEdit}
+          className="btn btn-primary btn-full-width btn-with-icon card-mb"
+        >
+          <svg
+            className="btn-icon"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+            />
+          </svg>
+          Edit Tournament Details
+        </button>
+        <button
+          onClick={() => registrationsModalRef.current?.open(tournament.id || "", tournament.name || "Unknown Tournament")}
+          className="btn btn-secondary btn-full-width card-mb"
+        >
+          View Team Registrations ({invites?.length || 0})
+        </button>
+        <button
+          onClick={() => inviteTeamsModalRef.current?.open(tournament)}
+          className="btn btn-secondary btn-full-width card-mb"
+        >
+          Invite Teams
+        </button>
+        <button
+          onClick={() => setIsAddManagerModalOpen(true)}
+          className="btn btn-secondary btn-full-width card-mb"
+        >
+          Add Tournament Manager
+        </button>
+        <button
+          onClick={handleDelete}
+          className="btn btn-danger btn-full-width"
+        >
+          Delete Tournament
+        </button>
+      </div>
 
-                  {/* Tournament Stats Card */}
-                  <div className="card">
-                    <h3 className="card-title">Tournament Stats</h3>
-                    <div className="stats-list">
-                      <div className="stats-item">
-                        <span className="stats-label">Teams Registered</span>
-                        <span className="stats-value">
-                          {invites?.filter((i) => i.status === "approved").length || 0}
-                        </span>
-                      </div>
-                      <div className="stats-item">
-                        <span className="stats-label">Players Registered</span>
-                        <span className="stats-value">{totalPlayerCount}</span>
-                      </div>
-                      <div className="stats-item">
-                        <span className="stats-label">Private Tournament</span>
-                        <span className="stats-value">{tournament.isPrivate ? "Yes" : "No"}</span>
-                      </div>
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <TournamentStats
-                    approvedCount={approvedInviteCount}
-                    playerCount={totalPlayerCount}
-                    isPrivate={tournament.isPrivate}
-                  />
-                  <div className="card">
-                    <p className="text-center" style={{ padding: "1.5rem", color: "#555" }}>
-                      <a href="/sign_in" className="text-link">Sign in</a> to register for this tournament or contact the organizer.
-                    </p>
-                  </div>
-                </>
-              ) : isManager ? (
-                <ManagerSidebar
-                  tournament={tournament}
-                  inviteCount={invites?.length ?? 0}
-                  approvedCount={approvedInviteCount}
-                  playerCount={totalPlayerCount}
-                  pendingInvitesForUser={pendingInvitesForUser}
-                  respondingTo={respondingTo}
-                  approvedTeamsForUser={approvedTeamsForUser}
-                  isRegistrationClosed={isRegistrationClosed}
-                  onEdit={handleEdit}
-                  onViewRegistrations={() => registrationsModalRef.current?.open(tournament.id ?? "", tournament.name ?? "Unknown Tournament")}
-                  onInviteTeams={() => inviteTeamsModalRef.current?.open(tournament)}
-                  onAccept={(id) => handleRespondToInvite(id, true)}
-                  onDecline={(id) => handleRespondToInvite(id, false)}
-                  onScrollToRoster={scrollToRoster}
-                  onOpenRegisterModal={openRegisterModal}
-                  managedTeamsCount={managedTeamsData?.length ?? 0}
-                />
-              ) : (
-                <UserSidebar
-                  pendingInvitesForUser={pendingInvitesForUser}
-                  respondingTo={respondingTo}
-                  isRegistrationClosed={isRegistrationClosed}
-                  approvedTeamsForUser={approvedTeamsForUser}
-                  tournament={tournament}
-                  contactOrganizerRef={contactOrganizerModalRef as React.RefObject<{ open: (args: { name: string; tournamentName: string; tournamentId?: string | null }) => void }>}
-                  onAccept={(id) => handleRespondToInvite(id, true)}
-                  onDecline={(id) => handleRespondToInvite(id, false)}
-                  onScrollToRoster={scrollToRoster}
-                  onOpenRegisterModal={openRegisterModal}
-                  approvedCount={approvedInviteCount}
-                  playerCount={totalPlayerCount}
-                />
-              )}
-            </div>
+      {/* Tournament Stats Card */}
+      <div className="card">
+        <h3 className="card-title">Tournament Stats</h3>
+        <div className="stats-list">
+          <div className="stats-item">
+            <span className="stats-label">Teams Registered</span>
+            <span className="stats-value">
+              {invites?.filter((i) => i.status === "approved").length || 0}
+            </span>
+          </div>
+          <div className="stats-item">
+            <span className="stats-label">Players Registered</span>
+            <span className="stats-value">{totalPlayerCount}</span>
+          </div>
+          <div className="stats-item">
+            <span className="stats-label">Private Tournament</span>
+            <span className="stats-value">{tournament.isPrivate ? "Yes" : "No"}</span>
+          </div>
+        </div>
+      </div>
+    </>
+  ) : currentUser ? (
+    <UserSidebar
+      pendingInvitesForUser={pendingInvitesForUser}
+      respondingTo={respondingTo}
+      isRegistrationClosed={isRegistrationClosed}
+      approvedTeamsForUser={approvedTeamsForUser}
+      tournament={tournament}
+      contactOrganizerRef={contactOrganizerModalRef as React.RefObject<{ open: (args: { name: string; tournamentName: string; tournamentId?: string | null }) => void }>}
+      onAccept={(id) => handleRespondToInvite(id, true)}
+      onDecline={(id) => handleRespondToInvite(id, false)}
+      onScrollToRoster={scrollToRoster}
+      onOpenRegisterModal={openRegisterModal}
+      approvedCount={approvedInviteCount}
+      playerCount={totalPlayerCount}
+    />
+  ) : (
+    <div className="card">
+      <p className="text-center" style={{ padding: "1.5rem", color: "#555" }}>
+        <a href="/sign_in" className="text-link">Sign in</a> to register for this tournament or contact the organizer.
+      </p>
+    </div>
+  )}
+</div>
           </div>
 
           {approvedTeamsForUser.length > 0 && (
