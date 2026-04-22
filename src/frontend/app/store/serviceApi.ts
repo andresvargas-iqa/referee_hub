@@ -110,6 +110,13 @@ const injectedRtkApi = api
         query: (queryArg) => ({ url: `/api/v2/Ngbs/${queryArg.ngb}` }),
         providesTags: ["Ngb"],
       }),
+      getEligibleNgbs: build.query<GetEligibleNgbsApiResponse, GetEligibleNgbsApiArg>({
+        query: (queryArg) => ({
+          url: `/api/v2/Ngbs/with-eligible-teams`,
+          params: { groupAffiliations: queryArg.groupAffiliations },
+        }),
+        providesTags: ["Ngb"],
+      }),
       updateNgb: build.mutation<UpdateNgbApiResponse, UpdateNgbApiArg>({
         query: (queryArg) => ({
           url: `/api/v2/Ngbs/${queryArg.ngb}`,
@@ -418,6 +425,7 @@ const injectedRtkApi = api
             Page: queryArg.page,
             PageSize: queryArg.pageSize,
             SkipPaging: queryArg.skipPaging,
+            TournamentTypeFilter: queryArg.tournamentType,
           },
         }),
         providesTags: ["Tournament"],
@@ -692,6 +700,10 @@ export type GetNgbInfoApiResponse = /** status 200 Success */ NgbInfoViewModelRe
 export type GetNgbInfoApiArg = {
   ngb: string;
 };
+export type GetEligibleNgbsApiResponse = /** status 200 Success */ string[];
+export type GetEligibleNgbsApiArg = {
+  groupAffiliations: TeamGroupAffiliation[];
+};
 export type UpdateNgbApiResponse = unknown;
 export type UpdateNgbApiArg = {
   ngb: string;
@@ -909,6 +921,7 @@ export type GetTournamentsApiArg = {
   page?: number;
   pageSize?: number;
   skipPaging?: boolean;
+  tournamentType?: string;
 };
 export type CreateTournamentApiResponse = /** status 200 Success */ TournamentIdResponse;
 export type CreateTournamentApiArg = {
@@ -1456,6 +1469,7 @@ export type TournamentInviteViewModel = {
   participantType?: ParticipantType;
   participantId?: string | null;
   participantName?: string | null;
+  logoUri?: string | null;
   status?: InviteStatus;
   initiatorUserId?: string;
   createdAt?: string;
@@ -1622,6 +1636,7 @@ export type StaffViewModel = {
 export type TournamentParticipantViewModel = {
   teamId?: string;
   teamName?: string | null;
+  logoUri?: string | null;
   players?: PlayerViewModel[] | null;
   coaches?: StaffViewModel[] | null;
   staff?: StaffViewModel[] | null;
@@ -1683,6 +1698,7 @@ export type ManagedTeamViewModel = {
   teamName?: string | null;
   ngb?: string;
   groupAffiliation?: TeamGroupAffiliation;
+  status?: TeamStatus;
 };
 export type UserDataViewModel = {
   firstName?: string | null;
@@ -1706,6 +1722,7 @@ export const {
   useLoginMutation,
   useGetLanguagesQuery,
   useGetNgbsQuery,
+  useGetEligibleNgbsQuery,
   useGetNgbInfoQuery,
   useUpdateNgbMutation,
   useUpdateNgbAvatarMutation,
