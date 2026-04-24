@@ -35,6 +35,24 @@ const toDateOnlyString = (date: Date): string => {
   return `${year}-${month}-${day}`;
 };
 
+const extractDateOnlyString = (dateValue?: string | null): string | null => {
+  if (!dateValue) {
+    return null;
+  }
+
+  const match = dateValue.match(/\d{4}-\d{2}-\d{2}/);
+  if (match?.[0]) {
+    return match[0];
+  }
+
+  const parsed = new Date(dateValue);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+
+  return toDateOnlyString(parsed);
+};
+
 const parseDateOnlyToLocalDate = (dateValue?: string | null): Date | null => {
   if (!dateValue) {
     return null;
@@ -275,8 +293,10 @@ const TournamentDetails = () => {
   const startDate = parseDateOnlyToLocalDate(tournament.startDate);
   const endDate = parseDateOnlyToLocalDate(tournament.endDate);
   const todayDateOnly = toDateOnlyString(new Date());
-  const tournamentEndDateOnly = tournament.endDate?.split("T")[0] || "";
-  const isTournamentFinished = tournamentEndDateOnly !== "" && tournamentEndDateOnly <= todayDateOnly;
+  const tournamentEndDateOnly =
+    extractDateOnlyString(tournament.endDate) ?? extractDateOnlyString(tournament.startDate);
+  const isTournamentFinished =
+    tournamentEndDateOnly !== null && tournamentEndDateOnly <= todayDateOnly;
 
   // Check if start and end dates are the same
   const isSameDay = startDate && endDate ? startDate.toDateString() === endDate.toDateString() : true;
@@ -402,14 +422,19 @@ const TournamentDetails = () => {
                     >
                       Add Tournament Manager
                     </button>
-                    {isTournamentFinished && (
-                      <button
-                        onClick={() => setIsRankingModalOpen(true)}
-                        className="btn btn-secondary btn-full-width"
-                        style={{ marginTop: "0.75rem" }}
-                      >
-                        Tournament Ranking
-                      </button>
+                    <button
+                      onClick={() => setIsRankingModalOpen(true)}
+                      className="btn btn-secondary btn-full-width"
+                      style={{ marginTop: "0.75rem" }}
+                      disabled={!isTournamentFinished}
+                      title={!isTournamentFinished ? "Available after tournament end date" : undefined}
+                    >
+                      Tournament Ranking
+                    </button>
+                    {!isTournamentFinished && (
+                      <p className="text-xs text-gray-600 mt-2">
+                        Ranking becomes available after the tournament end date.
+                      </p>
                     )}
                     <button
                       onClick={handleDelete}
