@@ -80,7 +80,9 @@ public partial class ManagementHubDbContext : DbContext, IDataProtectionKeyConte
 			entity.HasIndex(e => new { e.RecordType, e.RecordId, e.Name, e.BlobId }, "index_active_storage_attachments_uniqueness")
 				.IsUnique();
 
-			entity.Property(e => e.Id).HasColumnName("id");
+			entity.Property(e => e.Id)
+				.ValueGeneratedOnAdd()
+				.HasColumnName("id");
 
 			entity.Property(e => e.BlobId).HasColumnName("blob_id");
 
