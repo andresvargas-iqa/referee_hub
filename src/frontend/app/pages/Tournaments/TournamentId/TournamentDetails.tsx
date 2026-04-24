@@ -28,6 +28,31 @@ import {
 } from "../../../store/serviceApi";
 import { useNavigationParams, useNavigate } from "../../../utils/navigationUtils";
 
+const toDateOnlyString = (date: Date): string => {
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, "0");
+  const day = `${date.getDate()}`.padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const parseDateOnlyToLocalDate = (dateValue?: string | null): Date | null => {
+  if (!dateValue) {
+    return null;
+  }
+
+  const dateOnly = dateValue.split("T")[0];
+  const [yearText, monthText, dayText] = dateOnly.split("-");
+  const year = Number(yearText);
+  const month = Number(monthText);
+  const day = Number(dayText);
+
+  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) {
+    return null;
+  }
+
+  return new Date(year, month - 1, day);
+};
+
 const TournamentDetails = () => {
   const { tournamentId } = useNavigationParams<"tournamentId">();
   const registerModalRef = useRef<RegisterTournamentModalRef>(null);
@@ -247,30 +272,31 @@ const TournamentDetails = () => {
       ? managers.some((manager) => manager.id === currentUser.userId)
       : false;
 
-  const startDate = new Date(tournament.startDate || "");
-  const endDate = new Date(tournament.endDate || "");
-  const today = new Date();
-  endDate.setHours(0, 0, 0, 0);
-  today.setHours(0, 0, 0, 0);
-  const isTournamentFinished = endDate <= today;
+  const startDate = parseDateOnlyToLocalDate(tournament.startDate);
+  const endDate = parseDateOnlyToLocalDate(tournament.endDate);
+  const todayDateOnly = toDateOnlyString(new Date());
+  const tournamentEndDateOnly = tournament.endDate?.split("T")[0] || "";
+  const isTournamentFinished = tournamentEndDateOnly !== "" && tournamentEndDateOnly <= todayDateOnly;
 
   // Check if start and end dates are the same
-  const isSameDay = startDate.toDateString() === endDate.toDateString();
+  const isSameDay = startDate && endDate ? startDate.toDateString() === endDate.toDateString() : true;
 
-  const formattedDateRange = isSameDay
-    ? startDate.toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      })
-    : `${startDate.toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-      })} - ${endDate.toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      })}`;
+  const formattedDateRange = startDate
+    ? isSameDay
+      ? startDate.toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        })
+      : `${startDate.toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+        })} - ${endDate?.toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        }) || ""}`
+    : "N/A";
 
   // Handle edit tournament (for managers)
   const handleEdit = () => {
