@@ -7,6 +7,7 @@ import {
 import { getErrorString } from "../../utils/errorUtils";
 import TeamEditModal from "../../components/modals/TeamEditModal/TeamEditModal";
 import AddManagerModal from "./AddManagerModal";
+import TeamTournamentRankingsSection from "../../components/TeamTournamentRankingsSection";
 
 const TeamManagement = () => {
   const { teamId } = useNavigationParams<"teamId">();
@@ -162,6 +163,8 @@ const TeamManagement = () => {
           onClose={() => setIsAddManagerModalOpen(false)}
         />
       )}
+
+      {teamId && <TeamTournamentRankingsSection teamId={teamId} />}
 
       {/* Team Players/Members Section */}
       <div className="bg-gray-100 rounded-lg p-6 mb-8">

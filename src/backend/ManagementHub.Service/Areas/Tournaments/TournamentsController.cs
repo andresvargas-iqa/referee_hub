@@ -91,6 +91,7 @@ public class TournamentsController : ControllerBase
 
 		// Fetch banner URLs for all tournaments
 		var tournamentIds = tournaments.Select(t => t.Id).ToList();
+		var tournamentIdValues = tournamentIds.Select(id => id.ToString()).ToList();
 		var bannerUrls = new Dictionary<TournamentIdentifier, Uri?>();
 		foreach (var tournamentId in tournamentIds)
 		{
@@ -98,6 +99,13 @@ public class TournamentsController : ControllerBase
 				.GetTournamentBannerUriAsync(tournamentId, this.HttpContext.RequestAborted);
 			bannerUrls[tournamentId] = bannerUri;
 		}
+
+		var publishedRankingTournamentIdsList = await this.dbContext.TournamentTeamRankings
+			.Where(r => r.DeletedAt == null && tournamentIdValues.Contains(r.Tournament.UniqueId))
+			.Select(r => r.Tournament.UniqueId)
+			.Distinct()
+			.ToListAsync(this.HttpContext.RequestAborted);
+		var publishedRankingTournamentIds = publishedRankingTournamentIdsList.ToHashSet();
 
 		// Map to view models - IsCurrentUserInvolved is already computed at DB level
 		var viewModels = tournaments.Select(t => new TournamentViewModel
@@ -116,7 +124,8 @@ public class TournamentsController : ControllerBase
 			IsPrivate = t.IsPrivate,
 			IsRegistrationOpen = t.IsRegistrationOpen,
 			BannerImageUrl = bannerUrls.TryGetValue(t.Id, out var uri) ? uri?.ToString() : null,
-			IsCurrentUserInvolved = t.IsCurrentUserInvolved
+			IsCurrentUserInvolved = t.IsCurrentUserInvolved,
+			HasPublishedRanking = publishedRankingTournamentIds.Contains(t.Id.ToString())
 		}).ToList();
 
 		// AsFiltered wraps the list in a Filtered<T> container once, allowing the MVC filtering
@@ -145,6 +154,11 @@ public class TournamentsController : ControllerBase
 		var bannerUri = await this.tournamentContextProvider
 			.GetTournamentBannerUriAsync(tournamentId, this.HttpContext.RequestAborted);
 
+		var hasPublishedRanking = await this.dbContext.TournamentTeamRankings
+			.AnyAsync(
+				r => r.DeletedAt == null && r.Tournament.UniqueId == tournamentId.ToString(),
+				this.HttpContext.RequestAborted);
+
 		return new TournamentViewModel
 		{
 			Id = tournament.Id,
@@ -161,7 +175,8 @@ public class TournamentsController : ControllerBase
 			IsPrivate = tournament.IsPrivate,
 			IsRegistrationOpen = tournament.IsRegistrationOpen,
 			BannerImageUrl = bannerUri?.ToString(),
-			IsCurrentUserInvolved = tournament.IsCurrentUserInvolved
+			IsCurrentUserInvolved = tournament.IsCurrentUserInvolved,
+			HasPublishedRanking = hasPublishedRanking
 		};
 	}
 
@@ -1172,5 +1187,126 @@ public class TournamentsController : ControllerBase
 			TournamentType.Fantasy => true, // Any team can join
 			_ => false
 		};
+	}
+
+	/// <summary>
+	/// Get all team rankings for a finished tournament.
+	/// </summary>
+	[HttpGet("{tournamentId}/rankings")]
+	[Tags("Tournament")]
+	[ProducesResponseType(StatusCodes.Status200OK)]
+	[ProducesResponseType(StatusCodes.Status404NotFound)]
+	public async Task<ActionResult<IEnumerable<TournamentTeamRankingViewModel>>> GetTournamentRankings(
+		[FromRoute] TournamentIdentifier tournamentId)
+	{
+		var tournament = await this.dbContext.Tournaments
+			.Where(t => t.UniqueId == tournamentId.ToString() && t.DeletedAt == null)
+			.FirstOrDefaultAsync(this.HttpContext.RequestAborted);
+
+		if (tournament == null)
+		{
+			return this.NotFound(new { error = "Tournament not found" });
+		}
+
+		var rankings = await this.dbContext.TournamentTeamRankings
+			.Where(r => r.TournamentId == tournament.Id && r.DeletedAt == null)
+			.OrderBy(r => r.RankingPosition)
+			.Select(r => new TournamentTeamRankingViewModel
+			{
+				TeamId = new TeamIdentifier(r.TeamId),
+				TeamName = r.Team.Name,
+				RankingPosition = r.RankingPosition
+			})
+			.ToListAsync(this.HttpContext.RequestAborted);
+
+		return this.Ok(rankings);
+	}
+
+	/// <summary>
+	/// Save or update team rankings for a finished tournament.
+	/// Only tournament managers can save rankings.
+	/// Tournament must be finished (EndDate &lt; Today).
+	/// </summary>
+	[HttpPost("{tournamentId}/rankings")]
+	[Tags("Tournament")]
+	[Authorize(AuthorizationPolicies.TournamentManagerPolicy)]
+	[ProducesResponseType(StatusCodes.Status200OK)]
+	[ProducesResponseType(StatusCodes.Status400BadRequest)]
+	[ProducesResponseType(StatusCodes.Status404NotFound)]
+	public async Task<IActionResult> SaveTournamentRankings(
+		[FromRoute] TournamentIdentifier tournamentId,
+		[FromBody] SaveRankingsRequest request)
+	{
+		if (request.Rankings == null || request.Rankings.Count == 0)
+		{
+			return this.BadRequest(new { error = "At least one team ranking is required" });
+		}
+
+		var tournament = await this.dbContext.Tournaments
+			.Where(t => t.UniqueId == tournamentId.ToString() && t.DeletedAt == null)
+			.FirstOrDefaultAsync(this.HttpContext.RequestAborted);
+
+		if (tournament == null)
+		{
+			return this.NotFound(new { error = "Tournament not found" });
+		}
+
+		if (DateOnly.FromDateTime(DateTime.UtcNow) < tournament.EndDate)
+		{
+			return this.BadRequest(new { error = "Tournament must be finished to set rankings" });
+		}
+
+		var participantTeams = await this.dbContext.TournamentTeamParticipants
+			.Where(p => p.TournamentId == tournament.Id)
+			.Select(p => new
+			{
+				p.TeamId
+			})
+			.ToListAsync(this.HttpContext.RequestAborted);
+
+		var participantTeamIds = participantTeams.Select(x => x.TeamId).ToHashSet();
+		var requestTeamIds = request.Rankings.Select(r => r.TeamId).ToList();
+		var invalidTeamIds = requestTeamIds.Where(id => !participantTeamIds.Contains(id.Id)).ToList();
+
+		if (invalidTeamIds.Any())
+		{
+			return this.BadRequest(new { error = "One or more teams are not participants in this tournament" });
+		}
+
+		if (requestTeamIds.Count != requestTeamIds.Distinct().Count())
+		{
+			return this.BadRequest(new { error = "Each team can appear only once in rankings" });
+		}
+
+		var positions = request.Rankings.OrderBy(r => r.RankingPosition).Select(r => r.RankingPosition).ToList();
+		for (int i = 0; i < positions.Count; i++)
+		{
+			if (positions[i] != i + 1)
+			{
+				return this.BadRequest(new { error = "Ranking positions must be sequential starting from 1" });
+			}
+		}
+
+		var existingRankings = await this.dbContext.TournamentTeamRankings
+			.Where(r => r.TournamentId == tournament.Id)
+			.ToListAsync(this.HttpContext.RequestAborted);
+
+		this.dbContext.TournamentTeamRankings.RemoveRange(existingRankings);
+
+		var now = DateTime.UtcNow;
+		var newRankings = request.Rankings.Select(r => new ManagementHub.Models.Data.TournamentTeamRanking
+		{
+			TournamentId = tournament.Id,
+			TeamId = r.TeamId.Id,
+			RankingPosition = r.RankingPosition,
+			CreatedAt = now,
+			UpdatedAt = now,
+			DeletedAt = null
+		}).ToList();
+
+		this.dbContext.TournamentTeamRankings.AddRange(newRankings);
+		await this.dbContext.SaveChangesAsync(this.HttpContext.RequestAborted);
+
+		return this.Ok();
 	}
 }

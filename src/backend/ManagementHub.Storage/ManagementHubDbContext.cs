@@ -52,6 +52,7 @@ public partial class ManagementHubDbContext : DbContext, IDataProtectionKeyConte
 	public virtual DbSet<TournamentManager> TournamentManagers { get; set; } = null!;
 	public virtual DbSet<TournamentTeamParticipant> TournamentTeamParticipants { get; set; } = null!;
 	public virtual DbSet<TournamentTeamRosterEntry> TournamentTeamRosterEntries { get; set; } = null!;
+	public virtual DbSet<TournamentTeamRanking> TournamentTeamRankings { get; set; } = null!;
 	public virtual DbSet<TestAttempt> TestAttempts { get; set; } = null!;
 	public virtual DbSet<TestResult> TestResults { get; set; } = null!;
 	public virtual DbSet<User> Users { get; set; } = null!;
@@ -1742,6 +1743,48 @@ public partial class ManagementHubDbContext : DbContext, IDataProtectionKeyConte
 				.HasForeignKey(d => d.AddedByUserId)
 				.OnDelete(DeleteBehavior.Restrict)
 				.HasConstraintName("fk_team_managers_added_by_user");
+		});
+
+		modelBuilder.Entity<TournamentTeamRanking>(entity =>
+		{
+			entity.ToTable("tournament_team_rankings");
+
+			entity.HasIndex(e => new { e.TournamentId, e.TeamId }, "index_tournament_team_rankings_on_tournament_and_team")
+				.IsUnique();
+
+			entity.HasIndex(e => new { e.TournamentId, e.RankingPosition }, "index_tournament_team_rankings_on_tournament_and_position");
+
+			entity.Property(e => e.Id).HasColumnName("id");
+
+			entity.Property(e => e.TournamentId).HasColumnName("tournament_id");
+
+			entity.Property(e => e.TeamId).HasColumnName("team_id");
+
+			entity.Property(e => e.RankingPosition).HasColumnName("ranking_position");
+
+			entity.Property(e => e.CreatedAt)
+				.HasColumnType("timestamp with time zone")
+				.HasColumnName("created_at");
+
+			entity.Property(e => e.UpdatedAt)
+				.HasColumnType("timestamp with time zone")
+				.HasColumnName("updated_at");
+
+			entity.Property(e => e.DeletedAt)
+				.HasColumnType("timestamp with time zone")
+				.HasColumnName("deleted_at");
+
+			entity.HasOne(d => d.Tournament)
+				.WithMany(p => p.TournamentTeamRankings)
+				.HasForeignKey(d => d.TournamentId)
+				.OnDelete(DeleteBehavior.Cascade)
+				.HasConstraintName("fk_tournament_team_rankings_tournament");
+
+			entity.HasOne(d => d.Team)
+				.WithMany()
+				.HasForeignKey(d => d.TeamId)
+				.OnDelete(DeleteBehavior.Restrict)
+				.HasConstraintName("fk_tournament_team_rankings_team");
 		});
 
 		this.OnModelCreatingPartial(modelBuilder);

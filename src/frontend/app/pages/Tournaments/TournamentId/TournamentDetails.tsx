@@ -5,6 +5,7 @@ import AddTournamentModal, { AddTournamentModalRef } from "../components/AddTour
 import RegistrationsModal, { RegistrationsModalRef } from "./RegistrationsModal";
 import InviteTeamsModal, { InviteTeamsModalRef } from "./InviteTeamsModal";
 import AddTournamentManagerModal from "./AddTournamentManagerModal";
+import TournamentRankingModal from "./TournamentRankingModal";
 import ActionButtonPair from "../../../components/ActionButtonPair";
 import CustomAlert from "../../../components/CustomAlert";
 import { useAlert } from "../../../hooks/useAlert";
@@ -37,6 +38,7 @@ const TournamentDetails = () => {
   const rosterSectionRef = useRef<HTMLDivElement>(null);
   const [respondingTo, setRespondingTo] = useState<string | null>(null);
   const [isAddManagerModalOpen, setIsAddManagerModalOpen] = useState(false);
+  const [isRankingModalOpen, setIsRankingModalOpen] = useState(false);
   const { alertState, showAlert, hideAlert } = useAlert();
 
   const {
@@ -247,6 +249,10 @@ const TournamentDetails = () => {
 
   const startDate = new Date(tournament.startDate || "");
   const endDate = new Date(tournament.endDate || "");
+  const today = new Date();
+  endDate.setHours(0, 0, 0, 0);
+  today.setHours(0, 0, 0, 0);
+  const isTournamentFinished = endDate <= today;
 
   // Check if start and end dates are the same
   const isSameDay = startDate.toDateString() === endDate.toDateString();
@@ -370,6 +376,15 @@ const TournamentDetails = () => {
                     >
                       Add Tournament Manager
                     </button>
+                    {isTournamentFinished && (
+                      <button
+                        onClick={() => setIsRankingModalOpen(true)}
+                        className="btn btn-secondary btn-full-width"
+                        style={{ marginTop: "0.75rem" }}
+                      >
+                        Tournament Ranking
+                      </button>
+                    )}
                     <button
                       onClick={handleDelete}
                       className="btn btn-danger btn-full-width"
@@ -553,6 +568,13 @@ const TournamentDetails = () => {
         <AddTournamentManagerModal
           tournamentId={tournamentId}
           onClose={() => setIsAddManagerModalOpen(false)}
+        />
+      )}
+      {isRankingModalOpen && tournamentId && (
+        <TournamentRankingModal
+          isOpen={isRankingModalOpen}
+          tournamentId={tournamentId}
+          onClose={() => setIsRankingModalOpen(false)}
         />
       )}
     </>

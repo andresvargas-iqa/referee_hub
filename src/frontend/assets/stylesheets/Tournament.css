@@ -51,6 +51,13 @@
   margin-bottom: 0.5rem;
 }
 
+.tournament-card .card-header-right {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
 .tournament-card .card-type {
   font-size: 0.875rem;
   font-weight: 600;
@@ -67,6 +74,17 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   margin-left: 0.5rem;
+}
+
+.tournament-card .card-ranking-badge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #0f5132;
+  background-color: #d1fae5;
+  border: 1px solid #10b981;
+  padding: 0.2rem 0.45rem;
+  border-radius: 9999px;
+  white-space: nowrap;
 }
 
 .tournament-card .card-title {
