@@ -254,10 +254,10 @@ const UpcomingEvents = () => {
 // ──────────────────────────────────────────────────────────────────────────────
 
 const VERSION_LABELS: Record<string, string> = {
-  eighteen: "18",
-  twenty: "20",
-  twentytwo: "22",
-  twentyfour: "24",
+  eighteen: "'18",
+  twenty: "'20",
+  twentytwo: "'22",
+  twentyfour: "'24",
 };
 
 const formatAttemptLevel = (attempt: TestAttemptViewModelRead): string => {
