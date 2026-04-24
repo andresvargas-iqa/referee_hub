@@ -1,10 +1,13 @@
 using Microsoft.EntityFrameworkCore.Migrations;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 
 #nullable disable
 
 namespace ManagementHub.Storage.Migrations
 {
     /// <inheritdoc />
+    [DbContext(typeof(ManagementHubDbContext))]
+    [Migration("20260424161500_FixTournamentTeamRankingsIdGenerationForPostgres")]
     public partial class FixTournamentTeamRankingsIdGenerationForPostgres : Migration
     {
         /// <inheritdoc />
