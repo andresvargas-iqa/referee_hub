@@ -1268,7 +1268,7 @@ public class TournamentsController : ControllerBase
 		var requestTeamIds = request.Rankings.Select(r => r.TeamId).ToList();
 		var invalidTeamIds = requestTeamIds.Where(id => !participantTeamIds.Contains(id.Id)).ToList();
 
-		if (invalidTeamIds.Any())
+		if (invalidTeamIds.Count > 0)
 		{
 			return this.BadRequest(new { error = "One or more teams are not participants in this tournament" });
 		}
