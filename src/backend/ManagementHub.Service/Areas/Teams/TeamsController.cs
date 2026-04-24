@@ -4,10 +4,12 @@ using ManagementHub.Models.Abstraction.Contexts.Providers;
 using ManagementHub.Models.Domain.General;
 using ManagementHub.Models.Domain.Ngb;
 using ManagementHub.Models.Domain.Team;
+using ManagementHub.Models.Domain.Tournament;
 using ManagementHub.Models.Domain.User;
 using ManagementHub.Models.Domain.User.Roles;
 using ManagementHub.Models.Enums;
 using ManagementHub.Service.Areas.Ngbs;
+using ManagementHub.Service.Areas.Tournaments;
 using ManagementHub.Service.Authorization;
 using ManagementHub.Service.Contexts;
 using ManagementHub.Service.Filtering;
@@ -489,5 +491,28 @@ public class TeamsController : ControllerBase
 		}
 
 		return await this.accessFileCommand.GetFileAccessUriAsync(attachment.Blob.Key, TimeSpan.FromMinutes(5), this.HttpContext.RequestAborted);
+	}
+
+	/// <summary>
+	/// Get a team's rankings in finished tournaments.
+	/// </summary>
+	[HttpGet("{teamId}/tournament-rankings")]
+	[Tags("Team")]
+	[ProducesResponseType(StatusCodes.Status200OK)]
+	public async Task<ActionResult<IEnumerable<TeamRankingPositionViewModel>>> GetTeamTournamentRankings(
+		[FromRoute] TeamIdentifier teamId)
+	{
+		var rankings = await this.dbContext.TournamentTeamRankings
+			.Where(r => r.TeamId == teamId.Id && r.DeletedAt == null && r.Tournament.DeletedAt == null)
+			.OrderBy(r => r.Tournament.EndDate)
+			.Select(r => new TeamRankingPositionViewModel
+			{
+				TournamentId = TournamentIdentifier.Parse(r.Tournament.UniqueId),
+				TournamentName = r.Tournament.Name,
+				RankingPosition = r.RankingPosition
+			})
+			.ToListAsync(this.HttpContext.RequestAborted);
+
+		return this.Ok(rankings);
 	}
 }

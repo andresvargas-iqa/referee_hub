@@ -5,6 +5,7 @@ import AddTournamentModal, { AddTournamentModalRef } from "../components/AddTour
 import RegistrationsModal, { RegistrationsModalRef } from "./RegistrationsModal";
 import InviteTeamsModal, { InviteTeamsModalRef } from "./InviteTeamsModal";
 import AddTournamentManagerModal from "./AddTournamentManagerModal";
+import TournamentRankingModal from "./TournamentRankingModal";
 import ActionButtonPair from "../../../components/ActionButtonPair";
 import CustomAlert from "../../../components/CustomAlert";
 import { useAlert } from "../../../hooks/useAlert";
@@ -27,6 +28,49 @@ import {
 } from "../../../store/serviceApi";
 import { useNavigationParams, useNavigate } from "../../../utils/navigationUtils";
 
+const toDateOnlyString = (date: Date): string => {
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, "0");
+  const day = `${date.getDate()}`.padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const extractDateOnlyString = (dateValue?: string | null): string | null => {
+  if (!dateValue) {
+    return null;
+  }
+
+  const match = dateValue.match(/\d{4}-\d{2}-\d{2}/);
+  if (match?.[0]) {
+    return match[0];
+  }
+
+  const parsed = new Date(dateValue);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+
+  return toDateOnlyString(parsed);
+};
+
+const parseDateOnlyToLocalDate = (dateValue?: string | null): Date | null => {
+  if (!dateValue) {
+    return null;
+  }
+
+  const dateOnly = dateValue.split("T")[0];
+  const [yearText, monthText, dayText] = dateOnly.split("-");
+  const year = Number(yearText);
+  const month = Number(monthText);
+  const day = Number(dayText);
+
+  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) {
+    return null;
+  }
+
+  return new Date(year, month - 1, day);
+};
+
 const TournamentDetails = () => {
   const { tournamentId } = useNavigationParams<"tournamentId">();
   const registerModalRef = useRef<RegisterTournamentModalRef>(null);
@@ -37,6 +81,7 @@ const TournamentDetails = () => {
   const rosterSectionRef = useRef<HTMLDivElement>(null);
   const [respondingTo, setRespondingTo] = useState<string | null>(null);
   const [isAddManagerModalOpen, setIsAddManagerModalOpen] = useState(false);
+  const [isRankingModalOpen, setIsRankingModalOpen] = useState(false);
   const { alertState, showAlert, hideAlert } = useAlert();
 
   const {
@@ -245,26 +290,33 @@ const TournamentDetails = () => {
       ? managers.some((manager) => manager.id === currentUser.userId)
       : false;
 
-  const startDate = new Date(tournament.startDate || "");
-  const endDate = new Date(tournament.endDate || "");
+  const startDate = parseDateOnlyToLocalDate(tournament.startDate);
+  const endDate = parseDateOnlyToLocalDate(tournament.endDate);
+  const todayDateOnly = toDateOnlyString(new Date());
+  const tournamentEndDateOnly =
+    extractDateOnlyString(tournament.endDate) ?? extractDateOnlyString(tournament.startDate);
+  const isTournamentFinished =
+    tournamentEndDateOnly !== null && tournamentEndDateOnly <= todayDateOnly;
 
   // Check if start and end dates are the same
-  const isSameDay = startDate.toDateString() === endDate.toDateString();
+  const isSameDay = startDate && endDate ? startDate.toDateString() === endDate.toDateString() : true;
 
-  const formattedDateRange = isSameDay
-    ? startDate.toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      })
-    : `${startDate.toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-      })} - ${endDate.toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      })}`;
+  const formattedDateRange = startDate
+    ? isSameDay
+      ? startDate.toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        })
+      : `${startDate.toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+        })} - ${endDate?.toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        }) || ""}`
+    : "N/A";
 
   // Handle edit tournament (for managers)
   const handleEdit = () => {
@@ -329,6 +381,7 @@ const TournamentDetails = () => {
                   {/* Manager Tools Card */}
                   <div className="card card-highlighted card-mb card-sticky">
                     <h3 className="card-title">Manager Tools</h3>
+                    <p className="text-xs text-gray-500 mb-2">Build marker: ranking-ui-2026-04-24b</p>
                     <p className="card-description">
                       You are the manager of this tournament. Use the tools below to manage the
                       tournament.
@@ -370,6 +423,20 @@ const TournamentDetails = () => {
                     >
                       Add Tournament Manager
                     </button>
+                    <button
+                      onClick={() => setIsRankingModalOpen(true)}
+                      className="btn btn-secondary btn-full-width"
+                      style={{ marginTop: "0.75rem" }}
+                      disabled={!isTournamentFinished}
+                      title={!isTournamentFinished ? "Available after tournament end date" : undefined}
+                    >
+                      Tournament Ranking
+                    </button>
+                    {!isTournamentFinished && (
+                      <p className="text-xs text-gray-600 mt-2">
+                        Ranking becomes available after the tournament end date.
+                      </p>
+                    )}
                     <button
                       onClick={handleDelete}
                       className="btn btn-danger btn-full-width"
@@ -553,6 +620,13 @@ const TournamentDetails = () => {
         <AddTournamentManagerModal
           tournamentId={tournamentId}
           onClose={() => setIsAddManagerModalOpen(false)}
+        />
+      )}
+      {isRankingModalOpen && tournamentId && (
+        <TournamentRankingModal
+          isOpen={isRankingModalOpen}
+          tournamentId={tournamentId}
+          onClose={() => setIsRankingModalOpen(false)}
         />
       )}
     </>

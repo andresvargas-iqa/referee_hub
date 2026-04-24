@@ -440,6 +440,122 @@ public class TournamentApiIntegrationTests : IClassFixture<TestWebApplicationFac
 		return yankeesTeamId!;
 	}
 
+	private async Task EnsureTeamParticipantAsync(string tournamentId, string teamId)
+	{
+		var createInviteModel = new CreateInviteModel
+		{
+			ParticipantType = ParticipantType.Team,
+			ParticipantId = teamId
+		};
+
+		var createInviteResponse = await this._client.PostAsJsonAsync(
+			$"/api/v2/tournaments/{tournamentId}/invites",
+			createInviteModel);
+		createInviteResponse.StatusCode.Should().Be(HttpStatusCode.Created);
+
+		await AuthenticationHelper.AuthenticateAsAsync(this._client, "team_manager@example.com", "password");
+
+		var acceptModel = new InviteResponseModel { Approved = true };
+		var acceptResponse = await this._client.PostAsJsonAsync(
+			$"/api/v2/tournaments/{tournamentId}/invites/{teamId}",
+			acceptModel);
+		acceptResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+		await AuthenticationHelper.AuthenticateAsAsync(this._client, "referee@example.com", "password");
+	}
+
+	[Fact]
+	public async Task TournamentRankings_EndDateToday_ShouldAllowSaveAndBeVisibleOnTeamAndTournamentList()
+	{
+		await AuthenticationHelper.AuthenticateAsAsync(this._client, "referee@example.com", "password");
+
+		var tournamentId = await this.CreateTestTournamentAsync("Ranking Boundary Tournament", TournamentType.Club, "USA", "Boston");
+		var yankeesTeamId = await this.GetYankeesTeamIdAsync();
+		await this.EnsureTeamParticipantAsync(tournamentId, yankeesTeamId);
+
+		var makeFinishedTodayModel = new TournamentModel
+		{
+			Name = "Ranking Boundary Tournament",
+			Description = "Boundary rule test",
+			StartDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-1)),
+			EndDate = DateOnly.FromDateTime(DateTime.UtcNow),
+			Type = TournamentType.Club,
+			Country = "USA",
+			City = "Boston",
+			Organizer = "Test Organizer",
+			IsPrivate = false
+		};
+
+		var updateTournamentResponse = await this._client.PutAsJsonAsync($"/api/v2/tournaments/{tournamentId}", makeFinishedTodayModel);
+		updateTournamentResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+		var saveRankingsResponse = await this._client.PostAsJsonAsync(
+			$"/api/v2/tournaments/{tournamentId}/rankings",
+			new
+			{
+				rankings = new[]
+				{
+					new { teamId = yankeesTeamId, rankingPosition = 1 }
+				}
+			});
+
+		saveRankingsResponse.StatusCode.Should().Be(HttpStatusCode.OK,
+			"saving rankings should be allowed when today equals the tournament end date");
+
+		var getRankingsResponse = await this._client.GetAsync($"/api/v2/tournaments/{tournamentId}/rankings");
+		getRankingsResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+		var rankingRows = await getRankingsResponse.Content.ReadFromJsonAsync<List<JsonElement>>();
+		rankingRows.Should().NotBeNull();
+		var rankingRowsValue = rankingRows ?? throw new InvalidOperationException("Expected ranking rows payload.");
+		rankingRowsValue.Should().ContainSingle();
+		rankingRowsValue[0].GetProperty("teamId").GetString().Should().Be(yankeesTeamId);
+		rankingRowsValue[0].GetProperty("rankingPosition").GetInt32().Should().Be(1);
+
+		var teamRankingsResponse = await this._client.GetAsync($"/api/v2/teams/{yankeesTeamId}/tournament-rankings");
+		teamRankingsResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+		var teamRankings = await teamRankingsResponse.Content.ReadFromJsonAsync<List<JsonElement>>();
+		teamRankings.Should().NotBeNull();
+		var teamRankingsValue = teamRankings ?? throw new InvalidOperationException("Expected team rankings payload.");
+		teamRankingsValue.Should().Contain(r =>
+			r.GetProperty("tournamentId").GetString() == tournamentId &&
+			r.GetProperty("rankingPosition").GetInt32() == 1,
+			"team tournament rankings endpoint should include the saved placement");
+
+		var listResponse = await this._client.GetAsync("/api/v2/tournaments");
+		listResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+		var tournamentsResponse = await listResponse.Content.ReadFromJsonAsync<Filtered<TournamentViewModelDto>>();
+		tournamentsResponse.Should().NotBeNull();
+		var tournamentsResponseValue = tournamentsResponse ?? throw new InvalidOperationException("Expected tournaments response payload.");
+		tournamentsResponseValue.Items.Should().Contain(t => t.Id == tournamentId && t.HasPublishedRanking,
+			"tournament list should indicate that a ranking has been published");
+	}
+
+	[Fact]
+	public async Task TournamentRankings_BeforeTournamentEnd_ShouldReturnBadRequest()
+	{
+		await AuthenticationHelper.AuthenticateAsAsync(this._client, "referee@example.com", "password");
+
+		var tournamentId = await this.CreateTestTournamentAsync("Future Ranking Tournament", TournamentType.Club, "USA", "Seattle");
+		var yankeesTeamId = await this.GetYankeesTeamIdAsync();
+		await this.EnsureTeamParticipantAsync(tournamentId, yankeesTeamId);
+
+		var saveRankingsResponse = await this._client.PostAsJsonAsync(
+			$"/api/v2/tournaments/{tournamentId}/rankings",
+			new
+			{
+				rankings = new[]
+				{
+					new { teamId = yankeesTeamId, rankingPosition = 1 }
+				}
+			});
+
+		saveRankingsResponse.StatusCode.Should().Be(HttpStatusCode.BadRequest,
+			"saving rankings before end date should still be rejected");
+	}
+
 	[Fact]
 	public async Task Tournament_TournamentManagerInvitesTeam_TeamManagerAccepts_ShouldCreateParticipant()
 	{
