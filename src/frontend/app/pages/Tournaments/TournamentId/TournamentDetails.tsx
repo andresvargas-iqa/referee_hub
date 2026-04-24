@@ -381,6 +381,7 @@ const TournamentDetails = () => {
                   {/* Manager Tools Card */}
                   <div className="card card-highlighted card-mb card-sticky">
                     <h3 className="card-title">Manager Tools</h3>
+                    <p className="text-xs text-gray-500 mb-2">Build marker: ranking-ui-2026-04-24b</p>
                     <p className="card-description">
                       You are the manager of this tournament. Use the tools below to manage the
                       tournament.
