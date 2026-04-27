@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from "react";
-import { useNavigationParams, useNavigate } from "../../utils/navigationUtils";
+import { useNavigationParams } from "../../utils/navigationUtils";
 import { 
-  useGetTeamDetailsQuery,
+  useGetTeamManagementQuery,
   useRemovePlayerMutation,
 } from "../../store/serviceApi";
 import { getErrorString } from "../../utils/errorUtils";
@@ -10,11 +10,10 @@ import AddManagerModal from "./AddManagerModal";
 
 const TeamManagement = () => {
   const { teamId } = useNavigationParams<"teamId">();
-  const navigate = useNavigate();
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isAddManagerModalOpen, setIsAddManagerModalOpen] = useState(false);
   
-  const { data: team, error: teamError, isLoading } = useGetTeamDetailsQuery(
+  const { data: team, error: teamError, isLoading } = useGetTeamManagementQuery(
     { teamId: teamId! },
     { skip: !teamId }
   );
@@ -76,11 +75,6 @@ const TeamManagement = () => {
         <p>Team not found</p>
       </div>
     );
-  }
-
-  if (!team.isCurrentUserManager) {
-    navigate(`/teams/${teamId}`, { replace: true });
-    return null;
   }
 
   return (
@@ -213,8 +207,21 @@ const TeamManagement = () => {
         <h2 className="text-2xl font-semibold mb-4 border-b-2 border-green pb-2">
           Pending Invitations
         </h2>
-        {/* FUTURE Phase 3: Show pending invites when invite-player endpoint is implemented */}
-        <p className="text-gray-500">No pending invitations</p>
+        {team.pendingInvites && team.pendingInvites.length > 0 ? (
+          <div className="space-y-2">
+            {team.pendingInvites.map((invite) => (
+              <div key={invite.invitationId} className="bg-white p-3 rounded">
+                <p className="font-medium">{invite.email}</p>
+                <p className="text-sm text-gray-600">
+                  Invited {invite.createdAt ? new Date(invite.createdAt).toLocaleDateString() : "recently"}
+                  {invite.invitedByName ? ` by ${invite.invitedByName}` : ""}
+                </p>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-gray-500">No pending invitations</p>
+        )}
       </div>
     </div>
   );

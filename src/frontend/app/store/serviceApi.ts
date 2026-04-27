@@ -373,14 +373,14 @@ const injectedRtkApi = api
           method: "POST",
           body: queryArg.addTeamManagerRequest,
         }),
-        invalidatesTags: ["TeamManagement"],
+        invalidatesTags: ["TeamManagement", "Team"],
       }),
       removePlayer: build.mutation<RemovePlayerApiResponse, RemovePlayerApiArg>({
         query: (queryArg) => ({
           url: `/api/v2/Teams/${queryArg.teamId}/players/${queryArg.playerId}`,
           method: "DELETE",
         }),
-        invalidatesTags: ["TeamManagement"],
+        invalidatesTags: ["TeamManagement", "Team"],
       }),
       getTestDetails: build.query<GetTestDetailsApiResponse, GetTestDetailsApiArg>({
         query: (queryArg) => ({ url: `/api/v2/referees/me/tests/${queryArg.testId}/details` }),
@@ -1519,6 +1519,8 @@ export type TeamManagementViewModel = {
   country?: string | null;
   status?: TeamStatus;
   groupAffiliation?: TeamGroupAffiliation;
+  /** Date when the team joined. */
+  joinedAt?: string | null;
   /** URL to the team's logo image (fetched from attachment storage). */
   logoUri?: string | null;
   /** Team description. */

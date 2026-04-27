@@ -46,6 +46,11 @@ public class TeamManagementViewModel
 	public required TeamGroupAffiliation GroupAffiliation { get; set; }
 
 	/// <summary>
+	/// Date when the team joined.
+	/// </summary>
+	public required DateOnly JoinedAt { get; set; }
+
+	/// <summary>
 	/// URL to the team's logo image (fetched from attachment storage).
 	/// </summary>
 	public Uri? LogoUri { get; set; }

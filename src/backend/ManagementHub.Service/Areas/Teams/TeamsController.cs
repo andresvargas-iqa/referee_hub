@@ -359,6 +359,7 @@ public class TeamsController : ControllerBase
 			Country = team.TeamData.Country,
 			Status = team.TeamData.Status,
 			GroupAffiliation = team.TeamData.GroupAffiliation,
+			JoinedAt = DateOnly.FromDateTime(team.TeamData.JoinedAt),
 			LogoUri = await this.GetTeamLogoUriAsync(teamId),
 			Description = team.TeamData.Description,
 			ContactEmail = team.TeamData.ContactEmail,
