@@ -6,8 +6,10 @@ import RefereeTeam from "./RefereeTeam";
 import { capitalize } from "lodash";
 import {
   useGetRefereeQuery,
+  useGetCurrentRefereeQuery,
   useUpdateCurrentRefereeMutation,
   useGetUserDataQuery,
+  useGetCurrentUserDataQuery,
   useUpdateCurrentUserDataMutation,
   useGetMyTeamInvitesQuery,
   useRespondToTeamInviteMutation,
@@ -137,9 +139,18 @@ const BasicDetails = ({ userData, isEditing, isEditable, onChange, onEdit, onSav
 
 const PlayerDetails = () => {
   const { refereeId } = useNavigationParams<"refereeId">();
+  const isOwnProfile = refereeId === "me";
+  const refereeQueryUserId = refereeId ?? "";
   const [isEditing, setIsEditing] = useState(false);
 
-  const { currentData: referee } = useGetRefereeQuery({ userId: refereeId });
+  const { currentData: currentReferee } = useGetCurrentRefereeQuery(undefined, {
+    skip: !isOwnProfile,
+  });
+  const { currentData: viewedReferee } = useGetRefereeQuery(
+    { userId: refereeQueryUserId },
+    { skip: isOwnProfile || !refereeId },
+  );
+  const referee = isOwnProfile ? currentReferee : viewedReferee;
   const [editableReferee, setReferee] = useState<RefereeLocationOptions & RefereeTeamOptions>(referee);
   const [updateReferee, { error: updateRefereeError }] = useUpdateCurrentRefereeMutation();
 
@@ -155,17 +166,21 @@ const PlayerDetails = () => {
 
   const buttonClick = async () => {
     if (isEditing) {
-      if (!editableReferee) {
+      const payload = editableReferee ?? referee;
+      if (!payload) {
         return;
       }
 
       try {
-        await updateReferee({ refereeUpdateViewModel: editableReferee }).unwrap();
+        await updateReferee({ refereeUpdateViewModel: payload }).unwrap();
         setIsEditing(false);
       } catch {
         // Keep editing mode active so the user can fix and resubmit.
       }
     } else {
+      if (referee) {
+        setReferee(referee);
+      }
       setIsEditing(true);
     }
   };
@@ -176,7 +191,7 @@ const PlayerDetails = () => {
         <h3 className="card-title" style={{ marginBottom: 0 }}>
           Player Details
         </h3>
-        {refereeId === "me" && (
+        {isOwnProfile && (
           <button
             type="button"
             className="btn btn-primary"
@@ -426,9 +441,28 @@ const CertificationHistory = () => {
 const RefereeProfile = () => {
   const navigate = useNavigate();
   const { refereeId } = useNavigationParams<"refereeId">();
+  const isOwnProfile = refereeId === "me";
+  const refereeQueryUserId = refereeId ?? "";
 
-  const { currentData: referee, error: refereeGetError } = useGetRefereeQuery({ userId: refereeId });
-  const { data: userData } = useGetUserDataQuery({ userId: refereeId });
+  const { currentData: currentReferee, error: currentRefereeError } = useGetCurrentRefereeQuery(undefined, {
+    skip: !isOwnProfile,
+  });
+  const { currentData: viewedReferee, error: viewedRefereeError } = useGetRefereeQuery(
+    { userId: refereeQueryUserId },
+    { skip: isOwnProfile || !refereeId },
+  );
+
+  const { data: currentUserData } = useGetCurrentUserDataQuery(undefined, {
+    skip: !isOwnProfile,
+  });
+  const { data: viewedUserData } = useGetUserDataQuery(
+    { userId: refereeQueryUserId },
+    { skip: isOwnProfile || !refereeId },
+  );
+
+  const referee = isOwnProfile ? currentReferee : viewedReferee;
+  const refereeGetError = isOwnProfile ? currentRefereeError : viewedRefereeError;
+  const userData = isOwnProfile ? currentUserData : viewedUserData;
   const [updateUser, { error: updateUserError }] = useUpdateCurrentUserDataMutation();
 
   const [editableUser, setEditableUser] = useState<UserDataViewModel>(userData ?? {});
@@ -441,7 +475,7 @@ const RefereeProfile = () => {
   if (refereeGetError) return <p style={{ color: "red" }}>{getErrorString(refereeGetError)}</p>;
   if (!referee) return null;
 
-  const isEditable = refereeId === "me";
+  const isEditable = isOwnProfile;
 
   const handleDetailsChange = (partial: Partial<UserDataViewModel>) =>
     setEditableUser((prev) => ({ ...prev, ...partial }));
