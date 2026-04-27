@@ -9,6 +9,8 @@ import {
   useUpdateCurrentRefereeMutation,
   useGetUserDataQuery,
   useUpdateCurrentUserDataMutation,
+  useGetMyTeamInvitesQuery,
+  useRespondToTeamInviteMutation,
   useGetMyUpcomingTournamentsQuery,
   useGetTestAttemptsQuery,
   UserDataViewModel,
@@ -19,6 +21,9 @@ import { RefereeTeamOptions } from "./RefereeTeam/RefereeTeam";
 import { getErrorString } from "../../utils/errorUtils";
 import { useNavigate, useNavigationParams } from "../../utils/navigationUtils";
 import Toggle from "../../components/Toggle";
+import ActionButtonPair from "../../components/ActionButtonPair";
+import CustomAlert from "../../components/CustomAlert";
+import { useAlert } from "../../hooks/useAlert";
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Basic Details section (pronouns, bio)
@@ -249,6 +254,67 @@ const UpcomingEvents = () => {
   );
 };
 
+const TeamInvites = () => {
+  const { data: invites, isLoading } = useGetMyTeamInvitesQuery();
+  const [respondToTeamInvite] = useRespondToTeamInviteMutation();
+  const [respondingTo, setRespondingTo] = useState<string | null>(null);
+  const { alertState, showAlert, hideAlert } = useAlert();
+
+  const handleRespond = async (invitationId: string, approved: boolean) => {
+    setRespondingTo(invitationId);
+    try {
+      await respondToTeamInvite({
+        invitationId,
+        inviteResponseModel: { approved },
+      }).unwrap();
+      showAlert(approved ? "Successfully accepted invite." : "Invite declined.", "success");
+    } catch (error) {
+      console.error("Failed to respond to team invite", error);
+      showAlert("Failed to respond. Please try again.", "error");
+    } finally {
+      setRespondingTo(null);
+    }
+  };
+
+  return (
+    <div className="card card-mb">
+      {alertState.isVisible && (
+        <CustomAlert message={alertState.message} type={alertState.type} onClose={hideAlert} />
+      )}
+      <h3 className="card-title">Team Invitations</h3>
+      {isLoading && <p className="card-description">Loading…</p>}
+      {!isLoading && (!invites || invites.length === 0) && (
+        <p className="card-description">No pending team invitations.</p>
+      )}
+      {!isLoading && invites && invites.length > 0 && (
+        <div className="invite-list">
+          {invites.map((invite) => {
+            if (!invite.invitationId) return null;
+
+            return (
+              <div key={invite.invitationId} className="invite-item" style={{ alignItems: "center" }}>
+                <div>
+                  <div className="invite-team-name">{invite.teamName || invite.teamId || "Team"}</div>
+                  <div className="text-sm text-gray-600">
+                    {invite.invitedByName ? `Invited by ${invite.invitedByName}` : "Invited"}
+                    {invite.createdAt ? ` on ${new Date(invite.createdAt).toLocaleDateString()}` : ""}
+                  </div>
+                </div>
+                <ActionButtonPair
+                  onAccept={() => handleRespond(invite.invitationId!, true)}
+                  onDecline={() => handleRespond(invite.invitationId!, false)}
+                  isLoading={respondingTo === invite.invitationId}
+                  size="sm"
+                />
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
+
 // ──────────────────────────────────────────────────────────────────────────────
 // Certification Attempt History section (only shown on own profile)
 // ──────────────────────────────────────────────────────────────────────────────
@@ -391,6 +457,7 @@ const RefereeProfile = () => {
           {/* Column 1: Player Details + Upcoming Events */}
           <div>
             <PlayerDetails />
+            {isEditable && <TeamInvites />}
             {isEditable && <UpcomingEvents />}
           </div>
 

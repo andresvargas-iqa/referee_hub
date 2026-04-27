@@ -3,6 +3,7 @@ using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
 using ManagementHub.Models.Abstraction.Commands;
+using ManagementHub.Models.Abstraction.Commands.Mailers;
 using ManagementHub.Models.Abstraction.Services;
 using ManagementHub.Models.Data;
 using ManagementHub.Models.Domain.Ngb;
@@ -13,6 +14,8 @@ using ManagementHub.Models.Enums;
 using ManagementHub.Models.Exceptions;
 using ManagementHub.Service.Authorization;
 using ManagementHub.Service.Contexts;
+using ManagementHub.Service.Areas.Teams;
+using ManagementHub.Service.Areas.Tournaments;
 using ManagementHub.Storage;
 using ManagementHub.Storage.Extensions;
 using Microsoft.AspNetCore.Authorization;
@@ -37,8 +40,10 @@ public class UsersController : ControllerBase
 	private readonly IUpdateUserAvatarCommand updateUserAvatarCommand;
 	private readonly ISetUserAttributeCommand setUserAttributeCommand;
 	private readonly IUserDelicateInfoService userDelicateInfoService;
+	private readonly ISendTeamInviteEmail sendTeamInviteEmail;
 	private readonly ManagementHubDbContext dbContext;
 	private readonly IContextualOptions<FeatureGates> featureGatesOptions;
+	private readonly ILogger<UsersController> logger;
 
 	public UsersController(
 		IUserContextAccessor contextAccessor,
@@ -46,16 +51,20 @@ public class UsersController : ControllerBase
 		IUpdateUserAvatarCommand updateUserAvatarCommand,
 		ISetUserAttributeCommand setUserAttributeCommand,
 		IUserDelicateInfoService userDelicateInfoService,
+		ISendTeamInviteEmail sendTeamInviteEmail,
 		ManagementHubDbContext dbContext,
-		IContextualOptions<FeatureGates> featureGatesOptions)
+		IContextualOptions<FeatureGates> featureGatesOptions,
+		ILogger<UsersController> logger)
 	{
 		this.contextAccessor = contextAccessor;
 		this.updateUserDataCommand = updateUserDataCommand;
 		this.updateUserAvatarCommand = updateUserAvatarCommand;
 		this.setUserAttributeCommand = setUserAttributeCommand;
 		this.userDelicateInfoService = userDelicateInfoService;
+		this.sendTeamInviteEmail = sendTeamInviteEmail;
 		this.dbContext = dbContext;
 		this.featureGatesOptions = featureGatesOptions;
+		this.logger = logger;
 	}
 
 	/// <summary>
@@ -341,6 +350,123 @@ public class UsersController : ControllerBase
 
 		return managedTeams;
 	}
+
+	/// <summary>
+	/// Get pending team invitations for the currently signed-in user.
+	/// </summary>
+	[HttpGet("me/teamInvites")]
+	[Tags("User")]
+	public async Task<List<CurrentUserTeamInviteViewModel>> GetMyTeamInvites()
+	{
+		var currentUser = await this.contextAccessor.GetCurrentUserContextAsync();
+		var normalizedEmail = currentUser.UserData.Email.Value.Trim().ToLowerInvariant();
+
+		return await this.dbContext.TeamInvitations
+			.Where(invite => invite.Email.ToLower() == normalizedEmail && invite.RevokedAt == null && invite.AcceptedAt == null && invite.DeclinedAt == null)
+			.OrderByDescending(invite => invite.CreatedAt)
+			.Select(invite => new CurrentUserTeamInviteViewModel
+			{
+				InvitationId = invite.Id.ToString(),
+				TeamId = new TeamIdentifier(invite.TeamId),
+				TeamName = invite.Team.Name,
+				Email = invite.Email,
+				CreatedAt = invite.CreatedAt,
+				InvitedByName = string.Join(" ", new[] { invite.Initiator.FirstName, invite.Initiator.LastName }.Where(part => !string.IsNullOrWhiteSpace(part)))
+			})
+			.ToListAsync(this.HttpContext.RequestAborted);
+	}
+
+	/// <summary>
+	/// Accept or decline a pending team invitation for the current user.
+	/// </summary>
+	[HttpPost("me/teamInvites/{invitationId:long}")]
+	[Tags("User")]
+	public async Task<IActionResult> RespondToTeamInvite([FromRoute] long invitationId, [FromBody] InviteResponseModel response)
+	{
+		var currentUser = await this.contextAccessor.GetCurrentUserContextAsync();
+		var currentUserDbId = await this.dbContext.Users
+			.WithIdentifier(currentUser.UserId)
+			.Select(user => user.Id)
+			.SingleAsync(this.HttpContext.RequestAborted);
+		var normalizedEmail = currentUser.UserData.Email.Value.Trim().ToLowerInvariant();
+
+		var invitation = await this.dbContext.TeamInvitations
+			.Include(invite => invite.Team)
+			.FirstOrDefaultAsync(invite =>
+				invite.Id == invitationId &&
+				invite.Email.ToLower() == normalizedEmail &&
+				invite.RevokedAt == null &&
+				invite.AcceptedAt == null &&
+				invite.DeclinedAt == null,
+				this.HttpContext.RequestAborted);
+
+		if (invitation == null)
+		{
+			return this.NotFound(new { error = "No pending invite found" });
+		}
+
+		var existingMembership = await this.dbContext.RefereeTeams
+			.AnyAsync(membership => membership.TeamId == invitation.TeamId && membership.RefereeId == currentUserDbId, this.HttpContext.RequestAborted);
+
+		if (response.Approved && existingMembership)
+		{
+			return this.BadRequest(new { error = "User is already a team member" });
+		}
+
+		var respondedAt = DateTime.UtcNow;
+		invitation.RespondedByUserId = currentUserDbId;
+
+		if (response.Approved)
+		{
+			invitation.AcceptedAt = respondedAt;
+			this.dbContext.RefereeTeams.Add(new RefereeTeam
+			{
+				AssociationType = RefereeTeamAssociationType.Player,
+				RefereeId = currentUserDbId,
+				TeamId = invitation.TeamId,
+				CreatedAt = respondedAt,
+				UpdatedAt = respondedAt,
+			});
+		}
+		else
+		{
+			invitation.DeclinedAt = respondedAt;
+		}
+
+		this.dbContext.TeamPlayerActivities.Add(new TeamPlayerActivity
+		{
+			TeamId = invitation.TeamId,
+			UserId = currentUserDbId,
+			Email = invitation.Email,
+			InitiatorUserId = currentUserDbId,
+			ActivityType = response.Approved ? TeamPlayerActivityType.InviteAccepted : TeamPlayerActivityType.InviteDeclined,
+			CreatedAt = respondedAt,
+		});
+
+		await this.dbContext.SaveChangesAsync(this.HttpContext.RequestAborted);
+
+		var responderName = string.Join(" ", new[] { currentUser.UserData.FirstName, currentUser.UserData.LastName }
+			.Where(part => !string.IsNullOrWhiteSpace(part)));
+
+		try
+		{
+			await this.sendTeamInviteEmail.SendTeamInviteResponseEmailAsync(
+				new TeamIdentifier(invitation.TeamId),
+				invitation.Email,
+				string.IsNullOrWhiteSpace(responderName) ? null : responderName,
+				response.Approved,
+				this.GetHostBaseUri(),
+				this.HttpContext.RequestAborted);
+		}
+		catch (Exception ex)
+		{
+			this.logger.LogError(ex, "Failed to send team invite response email for invitation {InvitationId}", invitationId);
+		}
+
+		return this.Ok();
+	}
+
+	private Uri GetHostBaseUri() => new($"{this.Request.Scheme}://{this.Request.Host}");
 
 	/// <summary>
 	/// Get upcoming tournaments for the currently signed-in user based on team roster entries.

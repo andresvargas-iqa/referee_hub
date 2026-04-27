@@ -1,4 +1,5 @@
 using ManagementHub.Models.Abstraction.Commands;
+using ManagementHub.Models.Abstraction.Commands.Mailers;
 using ManagementHub.Models.Abstraction.Contexts;
 using ManagementHub.Models.Abstraction.Contexts.Providers;
 using ManagementHub.Models.Domain.General;
@@ -8,6 +9,7 @@ using ManagementHub.Models.Domain.User;
 using ManagementHub.Models.Domain.User.Roles;
 using ManagementHub.Models.Enums;
 using ManagementHub.Service.Areas.Ngbs;
+using ManagementHub.Service.Areas.Tournaments;
 using ManagementHub.Service.Authorization;
 using ManagementHub.Service.Contexts;
 using ManagementHub.Service.Filtering;
@@ -35,9 +37,11 @@ public class TeamsController : ControllerBase
 	private readonly IUserContextAccessor contextAccessor;
 	private readonly IUpdateUserAvatarCommand updateUserAvatarCommand;
 	private readonly IUpdateTeamManagerRoleCommand updateTeamManagerRoleCommand;
+	private readonly ISendTeamInviteEmail sendTeamInviteEmail;
 	private readonly ManagementHubDbContext dbContext;
 	private readonly IAttachmentRepository attachmentRepository;
 	private readonly IAccessFileCommand accessFileCommand;
+	private readonly ILogger<TeamsController> logger;
 
 	public TeamsController(
 		ITeamContextProvider teamContextProvider,
@@ -45,18 +49,22 @@ public class TeamsController : ControllerBase
 		IUserContextAccessor contextAccessor,
 		IUpdateUserAvatarCommand updateUserAvatarCommand,
 		IUpdateTeamManagerRoleCommand updateTeamManagerRoleCommand,
+		ISendTeamInviteEmail sendTeamInviteEmail,
 		ManagementHubDbContext dbContext,
 		IAttachmentRepository attachmentRepository,
-		IAccessFileCommand accessFileCommand)
+		IAccessFileCommand accessFileCommand,
+		ILogger<TeamsController> logger)
 	{
 		this.teamContextProvider = teamContextProvider;
 		this.socialAccountsProvider = socialAccountsProvider;
 		this.contextAccessor = contextAccessor;
 		this.updateUserAvatarCommand = updateUserAvatarCommand;
 		this.updateTeamManagerRoleCommand = updateTeamManagerRoleCommand;
+		this.sendTeamInviteEmail = sendTeamInviteEmail;
 		this.dbContext = dbContext;
 		this.attachmentRepository = attachmentRepository;
 		this.accessFileCommand = accessFileCommand;
+		this.logger = logger;
 	}
 
 	/// <summary>
@@ -348,7 +356,7 @@ public class TeamsController : ControllerBase
 		var members = await membersQuery.ToListAsync();
 
 		var pendingInvites = await this.dbContext.TeamInvitations
-			.Where(i => i.TeamId == teamId.Id && i.RevokedAt == null)
+			.Where(i => i.TeamId == teamId.Id && i.RevokedAt == null && i.AcceptedAt == null && i.DeclinedAt == null)
 			.OrderByDescending(i => i.CreatedAt)
 			.Select(i => new TeamInvitationViewModel
 			{
@@ -357,6 +365,26 @@ public class TeamsController : ControllerBase
 				CreatedAt = i.CreatedAt,
 				InvitedByName = string.Join(" ", new[] { i.Initiator.FirstName, i.Initiator.LastName }
 					.Where(part => !string.IsNullOrWhiteSpace(part)))
+			})
+			.ToListAsync();
+
+		var playerHistory = await this.dbContext.TeamPlayerActivities
+			.Where(activity => activity.TeamId == teamId.Id)
+			.OrderByDescending(activity => activity.CreatedAt)
+			.Take(25)
+			.Select(activity => new TeamPlayerActivityViewModel
+			{
+				TeamId = new TeamIdentifier(activity.TeamId),
+				ActivityType = activity.ActivityType,
+				Email = activity.Email,
+				UserId = activity.User == null
+					? null
+					: activity.User.UniqueId != null
+						? UserIdentifier.Parse(activity.User.UniqueId)
+						: UserIdentifier.FromLegacyUserId(activity.User.Id),
+				UserName = activity.User != null ? string.Join(" ", new[] { activity.User.FirstName, activity.User.LastName }.Where(part => !string.IsNullOrWhiteSpace(part))) : null,
+				InitiatorName = string.Join(" ", new[] { activity.Initiator.FirstName, activity.Initiator.LastName }.Where(part => !string.IsNullOrWhiteSpace(part))),
+				CreatedAt = activity.CreatedAt,
 			})
 			.ToListAsync();
 
@@ -387,7 +415,8 @@ public class TeamsController : ControllerBase
 				PrimaryTeamName = m.PrimaryTeamName,
 				PrimaryTeamId = m.PrimaryTeamId?.ToString()
 			}),
-			PendingInvites = pendingInvites
+			PendingInvites = pendingInvites,
+			PlayerHistory = playerHistory
 		};
 	}
 
@@ -478,6 +507,7 @@ public class TeamsController : ControllerBase
 		}
 
 		var normalizedEmailValue = normalizedEmail!;
+		var currentUserDbId = await this.GetCurrentUserDbIdAsync(userContext.UserId);
 
 		var existingMember = await this.dbContext.RefereeTeams
 			.Where(rt => rt.TeamId == teamId.Id)
@@ -489,7 +519,7 @@ public class TeamsController : ControllerBase
 		}
 
 		var existingInvite = await this.dbContext.TeamInvitations
-			.AnyAsync(i => i.TeamId == teamId.Id && i.RevokedAt == null && i.Email.ToLower() == normalizedEmailValue);
+			.AnyAsync(i => i.TeamId == teamId.Id && i.RevokedAt == null && i.AcceptedAt == null && i.DeclinedAt == null && i.Email.ToLower() == normalizedEmailValue);
 
 		if (existingInvite)
 		{
@@ -500,15 +530,37 @@ public class TeamsController : ControllerBase
 		{
 			TeamId = teamId.Id,
 			Email = normalizedEmailValue,
-			InitiatorUserId = userContext.UserId.Id,
+			InitiatorUserId = currentUserDbId,
 			CreatedAt = DateTime.UtcNow,
 		};
 
 		this.dbContext.TeamInvitations.Add(invitation);
+		this.dbContext.TeamPlayerActivities.Add(new ManagementHub.Models.Data.TeamPlayerActivity
+		{
+			TeamId = teamId.Id,
+			Email = normalizedEmailValue,
+			InitiatorUserId = currentUserDbId,
+			ActivityType = TeamPlayerActivityType.InviteCreated,
+			CreatedAt = invitation.CreatedAt,
+		});
 		await this.dbContext.SaveChangesAsync(this.HttpContext.RequestAborted);
 
 		var invitedByName = string.Join(" ", userContext.UserData.FirstName, userContext.UserData.LastName)
 			.Trim();
+
+		try
+		{
+			await this.sendTeamInviteEmail.SendTeamInviteEmailAsync(
+				teamId,
+				invitation.Email,
+				string.IsNullOrWhiteSpace(invitedByName) ? null : invitedByName,
+				this.GetHostBaseUri(),
+				this.HttpContext.RequestAborted);
+		}
+		catch (Exception ex)
+		{
+			this.logger.LogError(ex, "Failed to send team invite email for team {TeamId} to {Email}", teamId, invitation.Email);
+		}
 
 		return this.CreatedAtAction(
 			nameof(GetTeamManagement),
@@ -543,14 +595,24 @@ public class TeamsController : ControllerBase
 		}
 
 		var invitation = await this.dbContext.TeamInvitations
-			.FirstOrDefaultAsync(i => i.Id == invitationId && i.TeamId == teamId.Id && i.RevokedAt == null);
+			.FirstOrDefaultAsync(i => i.Id == invitationId && i.TeamId == teamId.Id && i.RevokedAt == null && i.AcceptedAt == null && i.DeclinedAt == null);
 
 		if (invitation == null)
 		{
 			return this.NotFound();
 		}
 
-		invitation.RevokedAt = DateTime.UtcNow;
+		var currentUserDbId = await this.GetCurrentUserDbIdAsync(userContext.UserId);
+		var revokedAt = DateTime.UtcNow;
+		invitation.RevokedAt = revokedAt;
+		this.dbContext.TeamPlayerActivities.Add(new ManagementHub.Models.Data.TeamPlayerActivity
+		{
+			TeamId = teamId.Id,
+			Email = invitation.Email,
+			InitiatorUserId = currentUserDbId,
+			ActivityType = TeamPlayerActivityType.InviteRevoked,
+			CreatedAt = revokedAt,
+		});
 		await this.dbContext.SaveChangesAsync(this.HttpContext.RequestAborted);
 
 		return this.NoContent();
@@ -594,17 +656,41 @@ public class TeamsController : ControllerBase
 		}
 
 		// Remove the RefereeTeam association
-		var deleted = await this.dbContext.RefereeTeams
-			.Where(rt => rt.TeamId == teamId.Id && rt.RefereeId == userDbId)
-			.ExecuteDeleteAsync();
+		var membership = await this.dbContext.RefereeTeams
+			.Include(rt => rt.Referee)
+			.FirstOrDefaultAsync(rt => rt.TeamId == teamId.Id && rt.RefereeId == userDbId);
 
-		if (deleted == 0)
+		if (membership == null)
 		{
 			return this.NotFound("Player not found on this team");
 		}
 
+		var currentUserDbId = await this.GetCurrentUserDbIdAsync(userContext.UserId);
+		var removedAt = DateTime.UtcNow;
+		this.dbContext.TeamPlayerActivities.Add(new ManagementHub.Models.Data.TeamPlayerActivity
+		{
+			TeamId = teamId.Id,
+			UserId = membership.RefereeId,
+			Email = membership.Referee.Email,
+			InitiatorUserId = currentUserDbId,
+			ActivityType = TeamPlayerActivityType.PlayerRemoved,
+			CreatedAt = removedAt,
+		});
+		this.dbContext.RefereeTeams.Remove(membership);
+		await this.dbContext.SaveChangesAsync(this.HttpContext.RequestAborted);
+
 		return this.NoContent();
 	}
+
+	private async Task<long> GetCurrentUserDbIdAsync(UserIdentifier userId)
+	{
+		return await this.dbContext.Users
+			.WithIdentifier(userId)
+			.Select(user => user.Id)
+			.SingleAsync(this.HttpContext.RequestAborted);
+	}
+
+	private Uri GetHostBaseUri() => new($"{this.Request.Scheme}://{this.Request.Host}");
 
 	private async Task<Uri?> GetTeamLogoUriAsync(TeamIdentifier teamId)
 	{

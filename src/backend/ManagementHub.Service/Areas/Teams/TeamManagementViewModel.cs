@@ -84,4 +84,9 @@ public class TeamManagementViewModel
 	/// Pending invitations for this team.
 	/// </summary>
 	public required IEnumerable<TeamInvitationViewModel> PendingInvites { get; set; }
+
+	/// <summary>
+	/// Recent player invite and membership activity for this team.
+	/// </summary>
+	public required IEnumerable<TeamPlayerActivityViewModel> PlayerHistory { get; set; }
 }

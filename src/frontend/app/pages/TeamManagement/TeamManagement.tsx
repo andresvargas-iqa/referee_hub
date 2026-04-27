@@ -287,6 +287,31 @@ const TeamManagement = () => {
           <p className="text-gray-500">No pending invitations</p>
         )}
       </div>
+
+      <div className="bg-gray-100 rounded-lg p-6 mt-8">
+        <h2 className="text-2xl font-semibold mb-4 border-b-2 border-green pb-2">Player Activity</h2>
+        {team.playerHistory && team.playerHistory.length > 0 ? (
+          <div className="space-y-2">
+            {team.playerHistory.map((activity, index) => (
+              <div key={`${activity.createdAt || "unknown"}-${index}`} className="bg-white p-3 rounded">
+                <p className="font-medium">
+                  {activity.activityType === "inviteCreated" && `Invite sent to ${activity.email || "unknown"}`}
+                  {activity.activityType === "inviteRevoked" && `Invite revoked for ${activity.email || "unknown"}`}
+                  {activity.activityType === "inviteAccepted" && `${activity.userName || activity.email || "A user"} accepted invitation`}
+                  {activity.activityType === "inviteDeclined" && `${activity.userName || activity.email || "A user"} declined invitation`}
+                  {activity.activityType === "playerRemoved" && `${activity.userName || activity.email || "A user"} removed from team`}
+                </p>
+                <p className="text-sm text-gray-600">
+                  {activity.createdAt ? new Date(activity.createdAt).toLocaleString() : "Unknown time"}
+                  {activity.initiatorName ? ` by ${activity.initiatorName}` : ""}
+                </p>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-gray-500">No player activity yet</p>
+        )}
+      </div>
     </div>
   );
 };

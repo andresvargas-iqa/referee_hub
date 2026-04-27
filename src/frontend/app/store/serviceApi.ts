@@ -626,6 +626,18 @@ const injectedRtkApi = api
         query: () => ({ url: `/api/v2/Users/me/managedTeams` }),
         providesTags: ["User"],
       }),
+      getMyTeamInvites: build.query<GetMyTeamInvitesApiResponse, GetMyTeamInvitesApiArg>({
+        query: () => ({ url: `/api/v2/Users/me/teamInvites` }),
+        providesTags: ["User", "TeamManagement"],
+      }),
+      respondToTeamInvite: build.mutation<RespondToTeamInviteApiResponse, RespondToTeamInviteApiArg>({
+        query: (queryArg) => ({
+          url: `/api/v2/Users/me/teamInvites/${queryArg.invitationId}`,
+          method: "POST",
+          body: queryArg.inviteResponseModel,
+        }),
+        invalidatesTags: ["User", "TeamManagement", "Team"],
+      }),
       getMyUpcomingTournaments: build.query<
         GetMyUpcomingTournamentsApiResponse,
         GetMyUpcomingTournamentsApiArg
@@ -1069,6 +1081,13 @@ export type DeleteMyGenderApiResponse = unknown;
 export type DeleteMyGenderApiArg = void;
 export type GetManagedTeamsApiResponse = /** status 200 Success */ ManagedTeamViewModel[];
 export type GetManagedTeamsApiArg = void;
+export type GetMyTeamInvitesApiResponse = /** status 200 Success */ CurrentUserTeamInviteViewModel[];
+export type GetMyTeamInvitesApiArg = void;
+export type RespondToTeamInviteApiResponse = /** status 200 Success */ void;
+export type RespondToTeamInviteApiArg = {
+  invitationId: string;
+  inviteResponseModel: InviteResponseModel;
+};
 export type GetMyUpcomingTournamentsApiResponse =
   /** status 200 Success */ TournamentReferenceViewModel[];
 export type GetMyUpcomingTournamentsApiArg = void;
@@ -1533,6 +1552,30 @@ export type TeamInvitationViewModel = {
   /** Name of the person who sent the invitation (if available). */
   invitedByName?: string | null;
 };
+export type TeamPlayerActivityType =
+  | "inviteCreated"
+  | "inviteRevoked"
+  | "inviteAccepted"
+  | "inviteDeclined"
+  | "playerRemoved";
+export type TeamPlayerActivityViewModel = {
+  teamId?: string;
+  activityType?: TeamPlayerActivityType;
+  email?: string | null;
+  teamName?: string | null;
+  userId?: string | null;
+  userName?: string | null;
+  initiatorName?: string | null;
+  createdAt?: string;
+};
+export type CurrentUserTeamInviteViewModel = {
+  invitationId?: string | null;
+  teamId?: string;
+  teamName?: string | null;
+  email?: string | null;
+  createdAt?: string;
+  invitedByName?: string | null;
+};
 export type TeamManagementViewModel = {
   /** Team identifier. */
   teamId?: string;
@@ -1562,6 +1605,8 @@ export type TeamManagementViewModel = {
   members?: TeamMemberViewModel[] | null;
   /** Pending invitations for this team. */
   pendingInvites?: TeamInvitationViewModel[] | null;
+  /** Recent player invite and membership activity for this team. */
+  playerHistory?: TeamPlayerActivityViewModel[] | null;
 };
 export type AddTeamManagerRequest = {
   /** Email address of the user to add as manager. */
@@ -1841,6 +1886,8 @@ export const {
   useGetMyGenderQuery,
   useDeleteMyGenderMutation,
   useGetManagedTeamsQuery,
+  useGetMyTeamInvitesQuery,
+  useRespondToTeamInviteMutation,
   useGetMyUpcomingTournamentsQuery,
   useGetCurrentUserAvatarQuery,
   useUpdateCurrentUserAvatarMutation,
