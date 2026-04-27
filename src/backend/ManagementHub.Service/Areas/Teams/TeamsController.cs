@@ -325,7 +325,7 @@ public class TeamsController : ControllerBase
 	[HttpGet("{teamId}/management")]
 	[Tags("TeamManagement")]
 	[Authorize(AuthorizationPolicies.TeamManagerPolicy)]
-	public async Task<TeamManagementViewModel> GetTeamManagement([FromRoute] TeamIdentifier teamId)
+	public async Task<ActionResult<TeamManagementViewModel>> GetTeamManagement([FromRoute] TeamIdentifier teamId)
 	{
 		// Verify user is a manager of this team
 		var userContext = await this.contextAccessor.GetCurrentUserContextAsync();
@@ -335,14 +335,14 @@ public class TeamsController : ControllerBase
 
 		if (!isTeamManager)
 		{
-			throw new UnauthorizedAccessException($"User is not a manager of team {teamId}");
+			return this.Forbid();
 		}
 
 		// Get team details
 		var team = await this.teamContextProvider.GetTeamAsync(teamId, NgbConstraint.Any);
 		if (team == null)
 		{
-			throw new ArgumentException($"Team {teamId} not found");
+			return this.NotFound();
 		}
 
 		// Get social accounts
@@ -355,41 +355,68 @@ public class TeamsController : ControllerBase
 		var membersQuery = this.teamContextProvider.QueryTeamMembers(teamId, NgbConstraint.Any);
 		var members = await membersQuery.ToListAsync();
 
-		var pendingInvites = await this.dbContext.TeamInvitations
+		var pendingInviteRows = await this.dbContext.TeamInvitations
 			.Where(i => i.TeamId == teamId.Id && i.RevokedAt == null && i.AcceptedAt == null && i.DeclinedAt == null)
 			.OrderByDescending(i => i.CreatedAt)
+			.Select(i => new
+			{
+				i.Id,
+				i.Email,
+				i.CreatedAt,
+				InitiatorFirstName = i.Initiator.FirstName,
+				InitiatorLastName = i.Initiator.LastName,
+				InitiatorEmail = i.Initiator.Email
+			})
+			.ToListAsync();
+
+		var pendingInvites = pendingInviteRows
 			.Select(i => new TeamInvitationViewModel
 			{
 				InvitationId = i.Id.ToString(),
 				Email = i.Email,
 				CreatedAt = i.CreatedAt,
-				InvitedByName = string.Join(" ", new[] { i.Initiator.FirstName, i.Initiator.LastName }
-					.Where(part => !string.IsNullOrWhiteSpace(part))),
-				RequiresManagerDecision = i.Initiator.Email.ToLower() == i.Email.ToLower()
+				InvitedByName = BuildDisplayName(i.InitiatorFirstName, i.InitiatorLastName),
+				RequiresManagerDecision = string.Equals(i.InitiatorEmail, i.Email, StringComparison.OrdinalIgnoreCase)
 			})
-			.ToListAsync();
+			.ToList();
 
-		var playerHistory = await this.dbContext.TeamPlayerActivities
+		var playerHistoryRows = await this.dbContext.TeamPlayerActivities
 			.Where(activity => activity.TeamId == teamId.Id)
 			.OrderByDescending(activity => activity.CreatedAt)
 			.Take(25)
+			.Select(activity => new
+			{
+				activity.TeamId,
+				activity.ActivityType,
+				activity.Email,
+				activity.UserId,
+				UserUniqueId = activity.User != null ? activity.User.UniqueId : null,
+				UserFirstName = activity.User != null ? activity.User.FirstName : null,
+				UserLastName = activity.User != null ? activity.User.LastName : null,
+				InitiatorFirstName = activity.Initiator.FirstName,
+				InitiatorLastName = activity.Initiator.LastName,
+				activity.CreatedAt,
+			})
+			.ToListAsync();
+
+		var playerHistory = playerHistoryRows
 			.Select(activity => new TeamPlayerActivityViewModel
 			{
 				TeamId = new TeamIdentifier(activity.TeamId),
 				ActivityType = activity.ActivityType,
 				Email = activity.Email,
-				UserId = activity.User == null
+				UserId = activity.UserId == null
 					? null
-					: activity.User.UniqueId != null
-						? UserIdentifier.Parse(activity.User.UniqueId)
-						: UserIdentifier.FromLegacyUserId(activity.User.Id),
-				UserName = activity.User != null ? string.Join(" ", new[] { activity.User.FirstName, activity.User.LastName }.Where(part => !string.IsNullOrWhiteSpace(part))) : null,
-				InitiatorName = string.Join(" ", new[] { activity.Initiator.FirstName, activity.Initiator.LastName }.Where(part => !string.IsNullOrWhiteSpace(part))),
+					: !string.IsNullOrWhiteSpace(activity.UserUniqueId)
+						? UserIdentifier.Parse(activity.UserUniqueId)
+						: UserIdentifier.FromLegacyUserId(activity.UserId.Value),
+				UserName = BuildDisplayName(activity.UserFirstName, activity.UserLastName),
+				InitiatorName = BuildDisplayName(activity.InitiatorFirstName, activity.InitiatorLastName),
 				CreatedAt = activity.CreatedAt,
 			})
-			.ToListAsync();
+			.ToList();
 
-		return new TeamManagementViewModel
+		return this.Ok(new TeamManagementViewModel
 		{
 			TeamId = team.TeamId,
 			Name = team.TeamData.Name,
@@ -418,7 +445,7 @@ public class TeamsController : ControllerBase
 			}),
 			PendingInvites = pendingInvites,
 			PlayerHistory = playerHistory
-		};
+		});
 	}
 
 	/// <summary>

@@ -365,20 +365,34 @@ public class UsersController : ControllerBase
 			.SingleAsync(this.HttpContext.RequestAborted);
 		var normalizedEmail = currentUser.UserData.Email.Value.Trim().ToLowerInvariant();
 
-		return await this.dbContext.TeamInvitations
+		var pendingInvites = await this.dbContext.TeamInvitations
 			.Where(invite => invite.Email.ToLower() == normalizedEmail && invite.RevokedAt == null && invite.AcceptedAt == null && invite.DeclinedAt == null)
 			.OrderByDescending(invite => invite.CreatedAt)
+			.Select(invite => new
+			{
+				invite.Id,
+				invite.TeamId,
+				TeamName = invite.Team.Name,
+				invite.Email,
+				invite.CreatedAt,
+				InitiatorFirstName = invite.Initiator.FirstName,
+				InitiatorLastName = invite.Initiator.LastName,
+				invite.InitiatorUserId
+			})
+			.ToListAsync(this.HttpContext.RequestAborted);
+
+		return pendingInvites
 			.Select(invite => new CurrentUserTeamInviteViewModel
 			{
 				InvitationId = invite.Id.ToString(),
 				TeamId = new TeamIdentifier(invite.TeamId),
-				TeamName = invite.Team.Name,
+				TeamName = invite.TeamName,
 				Email = invite.Email,
 				CreatedAt = invite.CreatedAt,
-				InvitedByName = string.Join(" ", new[] { invite.Initiator.FirstName, invite.Initiator.LastName }.Where(part => !string.IsNullOrWhiteSpace(part))),
+				InvitedByName = BuildDisplayName(invite.InitiatorFirstName, invite.InitiatorLastName),
 				CanRespond = invite.InitiatorUserId != currentUserDbId
 			})
-			.ToListAsync(this.HttpContext.RequestAborted);
+			.ToList();
 	}
 
 	/// <summary>
@@ -477,6 +491,12 @@ public class UsersController : ControllerBase
 	}
 
 	private Uri GetHostBaseUri() => new($"{this.Request.Scheme}://{this.Request.Host}");
+
+	private static string? BuildDisplayName(string? firstName, string? lastName)
+	{
+		var displayName = string.Join(" ", new[] { firstName, lastName }.Where(part => !string.IsNullOrWhiteSpace(part)));
+		return string.IsNullOrWhiteSpace(displayName) ? null : displayName;
+	}
 
 	/// <summary>
 	/// Get upcoming tournaments for the currently signed-in user based on team roster entries.
