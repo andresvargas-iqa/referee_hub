@@ -143,14 +143,28 @@ const PlayerDetails = () => {
   const [editableReferee, setReferee] = useState<RefereeLocationOptions & RefereeTeamOptions>(referee);
   const [updateReferee, { error: updateRefereeError }] = useUpdateCurrentRefereeMutation();
 
+  useEffect(() => {
+    if (!isEditing && referee) {
+      setReferee(referee);
+    }
+  }, [referee, isEditing]);
+
   const handleChange = (newState: RefereeLocationOptions | RefereeTeamOptions) => {
-    setReferee({ ...editableReferee, ...newState });
+    setReferee((prev) => ({ ...(prev ?? {}), ...newState }));
   };
 
-  const buttonClick = () => {
+  const buttonClick = async () => {
     if (isEditing) {
-      setIsEditing(false);
-      updateReferee({ refereeUpdateViewModel: editableReferee });
+      if (!editableReferee) {
+        return;
+      }
+
+      try {
+        await updateReferee({ refereeUpdateViewModel: editableReferee }).unwrap();
+        setIsEditing(false);
+      } catch {
+        // Keep editing mode active so the user can fix and resubmit.
+      }
     } else {
       setIsEditing(true);
     }
