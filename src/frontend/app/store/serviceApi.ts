@@ -390,6 +390,17 @@ const injectedRtkApi = api
         }),
         invalidatesTags: ["TeamManagement"],
       }),
+      respondToPendingTeamInvite: build.mutation<
+        RespondToPendingTeamInviteApiResponse,
+        RespondToPendingTeamInviteApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/api/v2/Teams/${queryArg.teamId}/invites/${queryArg.invitationId}/response`,
+          method: "POST",
+          body: queryArg.inviteResponseModel,
+        }),
+        invalidatesTags: ["TeamManagement", "User", "Team"],
+      }),
       removePlayer: build.mutation<RemovePlayerApiResponse, RemovePlayerApiArg>({
         query: (queryArg) => ({
           url: `/api/v2/Teams/${queryArg.teamId}/players/${queryArg.playerId}`,
@@ -935,6 +946,13 @@ export type RevokeTeamInviteApiArg = {
   /** Team identifier */
   teamId: string;
   invitationId: string;
+};
+export type RespondToPendingTeamInviteApiResponse = unknown;
+export type RespondToPendingTeamInviteApiArg = {
+  /** Team identifier */
+  teamId: string;
+  invitationId: string;
+  inviteResponseModel: InviteResponseModel;
 };
 export type RemovePlayerApiResponse = unknown;
 export type RemovePlayerApiArg = {
@@ -1551,6 +1569,8 @@ export type TeamInvitationViewModel = {
   createdAt?: string;
   /** Name of the person who sent the invitation (if available). */
   invitedByName?: string | null;
+  /** True when this pending item is a player join request awaiting manager approval. */
+  requiresManagerDecision?: boolean;
 };
 export type TeamPlayerActivityType =
   | "inviteCreated"
@@ -1575,6 +1595,7 @@ export type CurrentUserTeamInviteViewModel = {
   email?: string | null;
   createdAt?: string;
   invitedByName?: string | null;
+  canRespond?: boolean;
 };
 export type TeamManagementViewModel = {
   /** Team identifier. */
@@ -1854,6 +1875,7 @@ export const {
   useAddTeamManagerToTeamMutation,
   useCreateTeamInviteMutation,
   useRevokeTeamInviteMutation,
+  useRespondToPendingTeamInviteMutation,
   useRemovePlayerMutation,
   useGetTestDetailsQuery,
   useCreateNewTestMutation,

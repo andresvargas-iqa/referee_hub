@@ -364,7 +364,8 @@ public class TeamsController : ControllerBase
 				Email = i.Email,
 				CreatedAt = i.CreatedAt,
 				InvitedByName = string.Join(" ", new[] { i.Initiator.FirstName, i.Initiator.LastName }
-					.Where(part => !string.IsNullOrWhiteSpace(part)))
+					.Where(part => !string.IsNullOrWhiteSpace(part))),
+				RequiresManagerDecision = i.Initiator.Email.ToLower() == i.Email.ToLower()
 			})
 			.ToListAsync();
 
@@ -568,6 +569,97 @@ public class TeamsController : ControllerBase
 		});
 		await this.dbContext.SaveChangesAsync(this.HttpContext.RequestAborted);
 
+		return this.NoContent();
+	}
+
+	/// <summary>
+	/// Accept or reject a pending player join request for the team.
+	/// </summary>
+	[HttpPost("{teamId}/invites/{invitationId:long}/response")]
+	[Tags("TeamManagement")]
+	[Authorize]
+	public async Task<IActionResult> RespondToPendingInvite(
+		[FromRoute] TeamIdentifier teamId,
+		[FromRoute] long invitationId,
+		[FromBody] InviteResponseModel response)
+	{
+		var userContext = await this.contextAccessor.GetCurrentUserContextAsync();
+		var isTeamManager = userContext.Roles
+			.OfType<TeamManagerRole>()
+			.Any(role => role.Team.AppliesTo(teamId));
+
+		if (!isTeamManager)
+		{
+			return this.Forbid();
+		}
+
+		var invitation = await this.dbContext.TeamInvitations
+			.FirstOrDefaultAsync(i =>
+				i.Id == invitationId &&
+				i.TeamId == teamId.Id &&
+				i.RevokedAt == null &&
+				i.AcceptedAt == null &&
+				i.DeclinedAt == null,
+				this.HttpContext.RequestAborted);
+
+		if (invitation == null)
+		{
+			return this.NotFound();
+		}
+
+		var currentUserDbId = await this.GetCurrentUserDbIdAsync(userContext.UserId);
+		var invitationEmail = invitation.Email.ToLower();
+		var invitedUser = await this.dbContext.Users
+			.Where(user => user.Email.ToLower() == invitationEmail)
+			.Select(user => new { user.Id, user.Email })
+			.FirstOrDefaultAsync(this.HttpContext.RequestAborted);
+
+		if (response.Approved)
+		{
+			if (invitedUser == null)
+			{
+				return this.BadRequest("Cannot approve request because the player account was not found.");
+			}
+
+			var existingMembership = await this.dbContext.RefereeTeams
+				.AnyAsync(rt => rt.TeamId == teamId.Id && rt.RefereeId == invitedUser.Id, this.HttpContext.RequestAborted);
+
+			if (!existingMembership)
+			{
+				var now = DateTime.UtcNow;
+				this.dbContext.RefereeTeams.Add(new ManagementHub.Models.Data.RefereeTeam
+				{
+					AssociationType = RefereeTeamAssociationType.Player,
+					RefereeId = invitedUser.Id,
+					TeamId = teamId.Id,
+					CreatedAt = now,
+					UpdatedAt = now,
+				});
+			}
+		}
+
+		var respondedAt = DateTime.UtcNow;
+		invitation.RespondedByUserId = currentUserDbId;
+		if (response.Approved)
+		{
+			invitation.AcceptedAt = respondedAt;
+		}
+		else
+		{
+			invitation.DeclinedAt = respondedAt;
+		}
+
+		this.dbContext.TeamPlayerActivities.Add(new ManagementHub.Models.Data.TeamPlayerActivity
+		{
+			TeamId = teamId.Id,
+			UserId = invitedUser?.Id,
+			Email = invitation.Email,
+			InitiatorUserId = currentUserDbId,
+			ActivityType = response.Approved ? TeamPlayerActivityType.InviteAccepted : TeamPlayerActivityType.InviteDeclined,
+			CreatedAt = respondedAt,
+		});
+
+		await this.dbContext.SaveChangesAsync(this.HttpContext.RequestAborted);
 		return this.NoContent();
 	}
 

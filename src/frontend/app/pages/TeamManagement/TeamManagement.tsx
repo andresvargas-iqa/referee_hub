@@ -4,11 +4,13 @@ import {
   useCreateTeamInviteMutation,
   useGetTeamManagementQuery,
   useRemovePlayerMutation,
+  useRespondToPendingTeamInviteMutation,
   useRevokeTeamInviteMutation,
 } from "../../store/serviceApi";
 import { getErrorString } from "../../utils/errorUtils";
 import TeamEditModal from "../../components/modals/TeamEditModal/TeamEditModal";
 import AddManagerModal from "./AddManagerModal";
+import ActionButtonPair from "../../components/ActionButtonPair";
 
 const TeamManagement = () => {
   const { teamId } = useNavigationParams<"teamId">();
@@ -25,6 +27,7 @@ const TeamManagement = () => {
   const [createTeamInvite, { isLoading: isCreatingInvite }] = useCreateTeamInviteMutation();
   const [removePlayer, { isLoading: isRemovingPlayer }] = useRemovePlayerMutation();
   const [revokeTeamInvite, { isLoading: isRevokingInvite }] = useRevokeTeamInviteMutation();
+  const [respondToPendingTeamInvite, { isLoading: isRespondingInvite }] = useRespondToPendingTeamInviteMutation();
 
   const handleRemovePlayer = async (playerId: string, playerName: string) => {
     if (!teamId) return;
@@ -69,6 +72,20 @@ const TeamManagement = () => {
       await revokeTeamInvite({ teamId, invitationId }).unwrap();
     } catch (error: any) {
       alert(error?.data || "Failed to revoke invite. Please try again.");
+    }
+  };
+
+  const handleRespondToPendingInvite = async (invitationId: string, approved: boolean) => {
+    if (!teamId) return;
+
+    try {
+      await respondToPendingTeamInvite({
+        teamId,
+        invitationId,
+        inviteResponseModel: { approved },
+      }).unwrap();
+    } catch (error: any) {
+      alert(error?.data || "Failed to update player request. Please try again.");
     }
   };
 
@@ -269,17 +286,26 @@ const TeamManagement = () => {
                 <div>
                   <p className="font-medium">{invite.email}</p>
                   <p className="text-sm text-gray-600">
-                    Invited {invite.createdAt ? new Date(invite.createdAt).toLocaleDateString() : "recently"}
+                    {invite.requiresManagerDecision ? "Requested" : "Invited"} {invite.createdAt ? new Date(invite.createdAt).toLocaleDateString() : "recently"}
                     {invite.invitedByName ? ` by ${invite.invitedByName}` : ""}
                   </p>
                 </div>
-                <button
-                  className="text-red-600 hover:underline disabled:opacity-50"
-                  onClick={() => handleRevokeInvite(invite.invitationId, invite.email)}
-                  disabled={isRevokingInvite}
-                >
-                  Revoke
-                </button>
+                {invite.requiresManagerDecision ? (
+                  <ActionButtonPair
+                    onAccept={() => handleRespondToPendingInvite(invite.invitationId, true)}
+                    onDecline={() => handleRespondToPendingInvite(invite.invitationId, false)}
+                    isLoading={isRespondingInvite}
+                    size="sm"
+                  />
+                ) : (
+                  <button
+                    className="text-red-600 hover:underline disabled:opacity-50"
+                    onClick={() => handleRevokeInvite(invite.invitationId, invite.email)}
+                    disabled={isRevokingInvite}
+                  >
+                    Revoke
+                  </button>
+                )}
               </div>
             ))}
           </div>

@@ -359,6 +359,10 @@ public class UsersController : ControllerBase
 	public async Task<List<CurrentUserTeamInviteViewModel>> GetMyTeamInvites()
 	{
 		var currentUser = await this.contextAccessor.GetCurrentUserContextAsync();
+		var currentUserDbId = await this.dbContext.Users
+			.WithIdentifier(currentUser.UserId)
+			.Select(user => user.Id)
+			.SingleAsync(this.HttpContext.RequestAborted);
 		var normalizedEmail = currentUser.UserData.Email.Value.Trim().ToLowerInvariant();
 
 		return await this.dbContext.TeamInvitations
@@ -371,7 +375,8 @@ public class UsersController : ControllerBase
 				TeamName = invite.Team.Name,
 				Email = invite.Email,
 				CreatedAt = invite.CreatedAt,
-				InvitedByName = string.Join(" ", new[] { invite.Initiator.FirstName, invite.Initiator.LastName }.Where(part => !string.IsNullOrWhiteSpace(part)))
+				InvitedByName = string.Join(" ", new[] { invite.Initiator.FirstName, invite.Initiator.LastName }.Where(part => !string.IsNullOrWhiteSpace(part))),
+				CanRespond = invite.InitiatorUserId != currentUserDbId
 			})
 			.ToListAsync(this.HttpContext.RequestAborted);
 	}
@@ -403,6 +408,11 @@ public class UsersController : ControllerBase
 		if (invitation == null)
 		{
 			return this.NotFound(new { error = "No pending invite found" });
+		}
+
+		if (invitation.InitiatorUserId == currentUserDbId)
+		{
+			return this.BadRequest(new { error = "This request is waiting for team manager approval." });
 		}
 
 		var existingMembership = await this.dbContext.RefereeTeams

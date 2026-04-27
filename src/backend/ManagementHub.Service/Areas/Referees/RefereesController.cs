@@ -3,6 +3,7 @@ using ManagementHub.Models.Abstraction.Contexts;
 using ManagementHub.Models.Domain.Ngb;
 using ManagementHub.Models.Domain.User;
 using ManagementHub.Models.Domain.User.Roles;
+using ManagementHub.Models.Enums;
 using ManagementHub.Service.Areas.Ngbs;
 using ManagementHub.Service.Authorization;
 using ManagementHub.Service.Contexts;
@@ -50,18 +51,88 @@ public class RefereesController : ControllerBase
 	[HttpPut("me")]
 	[Tags("Referee", "User")]
 	[Authorize(AuthorizationPolicies.RefereePolicy)]
-	public async Task UpdateCurrentReferee([FromBody] RefereeUpdateViewModel refereeUpdate)
+	public async Task<IActionResult> UpdateCurrentReferee([FromBody] RefereeUpdateViewModel refereeUpdate)
 	{
 		var userContext = await this.contextAccessor.GetCurrentUserContextAsync();
+		var currentUserDbId = await this.dbContext.Users
+			.WithIdentifier(userContext.UserId)
+			.Select(user => user.Id)
+			.SingleAsync(this.HttpContext.RequestAborted);
+
+		var currentPlayingTeam = await this.dbContext.RefereeTeams
+			.Where(team => team.RefereeId == currentUserDbId && team.AssociationType == RefereeTeamAssociationType.Player)
+			.Select(team => team.TeamId)
+			.FirstOrDefaultAsync(this.HttpContext.RequestAborted);
+		long? currentPlayingTeamId = currentPlayingTeam == 0 ? null : currentPlayingTeam;
+
+		var requestedPlayingTeamId = refereeUpdate.PlayingTeam?.Id.Id;
+		if (currentPlayingTeamId != null &&
+			requestedPlayingTeamId != null &&
+			requestedPlayingTeamId != currentPlayingTeamId.Value)
+		{
+			return this.BadRequest("Leave your current playing team before requesting a new one.");
+		}
+
+		var shouldCreatePlayingTeamRequest = currentPlayingTeamId == null && requestedPlayingTeamId != null;
+
 		await this.updateRefereeRoleCommand.UpdateRefereeRoleAsync(userContext.UserId, refereeRole => new RefereeRole
 		{
 			IsActive = refereeRole.IsActive,
 			CoachingTeam = refereeUpdate.CoachingTeam?.Id,
-			PlayingTeam = refereeUpdate.PlayingTeam?.Id,
+			PlayingTeam = currentPlayingTeamId != null && refereeUpdate.PlayingTeam == null
+				? null
+				: refereeRole.PlayingTeam,
 			NationalTeam = refereeUpdate.NationalTeam?.Id,
 			PrimaryNgb = refereeUpdate.PrimaryNgb,
 			SecondaryNgb = refereeUpdate.SecondaryNgb,
 		}, this.HttpContext.RequestAborted);
+
+		if (shouldCreatePlayingTeamRequest)
+		{
+			var requestedPlayingTeamIdValue = requestedPlayingTeamId!.Value;
+			var teamExists = await this.dbContext.Teams
+				.AnyAsync(team => team.Id == requestedPlayingTeamIdValue, this.HttpContext.RequestAborted);
+			if (!teamExists)
+			{
+				return this.BadRequest("Selected team was not found.");
+			}
+
+			var normalizedEmail = userContext.UserData.Email.Value.Trim().ToLowerInvariant();
+			var hasPendingRequest = await this.dbContext.TeamInvitations
+				.AnyAsync(invite =>
+					invite.TeamId == requestedPlayingTeamIdValue &&
+					invite.Email.ToLower() == normalizedEmail &&
+					invite.RevokedAt == null &&
+					invite.AcceptedAt == null &&
+					invite.DeclinedAt == null,
+					this.HttpContext.RequestAborted);
+
+			if (!hasPendingRequest)
+			{
+				var requestedAt = DateTime.UtcNow;
+				this.dbContext.TeamInvitations.Add(new ManagementHub.Models.Data.TeamInvitation
+				{
+					TeamId = requestedPlayingTeamIdValue,
+					Email = normalizedEmail,
+					InitiatorUserId = currentUserDbId,
+					CreatedAt = requestedAt,
+				});
+
+				this.dbContext.TeamPlayerActivities.Add(new ManagementHub.Models.Data.TeamPlayerActivity
+				{
+					TeamId = requestedPlayingTeamIdValue,
+					UserId = currentUserDbId,
+					Email = normalizedEmail,
+					InitiatorUserId = currentUserDbId,
+					ActivityType = TeamPlayerActivityType.InviteCreated,
+					CreatedAt = requestedAt,
+				});
+
+				await this.dbContext.SaveChangesAsync(this.HttpContext.RequestAborted);
+			}
+		}
+
+		return this.NoContent();
 	}
 
 	/// <summary>

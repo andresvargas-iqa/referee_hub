@@ -296,16 +296,23 @@ const TeamInvites = () => {
                 <div>
                   <div className="invite-team-name">{invite.teamName || invite.teamId || "Team"}</div>
                   <div className="text-sm text-gray-600">
-                    {invite.invitedByName ? `Invited by ${invite.invitedByName}` : "Invited"}
+                    {invite.canRespond
+                      ? (invite.invitedByName ? `Invited by ${invite.invitedByName}` : "Invited")
+                      : (invite.invitedByName ? `Requested by ${invite.invitedByName}` : "Request pending")}
                     {invite.createdAt ? ` on ${new Date(invite.createdAt).toLocaleDateString()}` : ""}
+                    {!invite.canRespond ? " - Waiting for team manager approval" : ""}
                   </div>
                 </div>
-                <ActionButtonPair
-                  onAccept={() => handleRespond(invite.invitationId!, true)}
-                  onDecline={() => handleRespond(invite.invitationId!, false)}
-                  isLoading={respondingTo === invite.invitationId}
-                  size="sm"
-                />
+                {invite.canRespond ? (
+                  <ActionButtonPair
+                    onAccept={() => handleRespond(invite.invitationId!, true)}
+                    onDecline={() => handleRespond(invite.invitationId!, false)}
+                    isLoading={respondingTo === invite.invitationId}
+                    size="sm"
+                  />
+                ) : (
+                  <span className="text-sm text-gray-500">Pending</span>
+                )}
               </div>
             );
           })}
