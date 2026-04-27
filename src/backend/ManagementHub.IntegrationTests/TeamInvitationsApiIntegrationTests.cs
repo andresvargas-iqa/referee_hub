@@ -327,4 +327,46 @@ public class TeamInvitationsApiIntegrationTests : IClassFixture<TestWebApplicati
 		refereeProfile.TryGetProperty("playingTeam", out var playingTeamProperty).Should().BeTrue();
 		playingTeamProperty.ValueKind.Should().Be(System.Text.Json.JsonValueKind.Null);
 	}
+
+	[Fact]
+	public async Task UpdateReferee_WithYankeesRequest_ShouldAppearInYankeesTeamManagement()
+	{
+		await AuthenticationHelper.AuthenticateAsAsync(this.client, "referee@example.com", "password");
+
+		var clearResponse = await this.client.PutAsJsonAsync("/api/v2/Referees/me", new
+		{
+			primaryNgb = "USA",
+			secondaryNgb = (string?)null,
+			playingTeam = (object?)null,
+			coachingTeam = (object?)null,
+			nationalTeam = (object?)null,
+		});
+
+		clearResponse.StatusCode.Should().Be(HttpStatusCode.NoContent);
+
+		var requestResponse = await this.client.PutAsJsonAsync("/api/v2/Referees/me", new
+		{
+			primaryNgb = "USA",
+			secondaryNgb = (string?)null,
+			playingTeam = new { id = "TM_1" },
+			coachingTeam = (object?)null,
+			nationalTeam = (object?)null,
+		});
+
+		requestResponse.StatusCode.Should().Be(HttpStatusCode.NoContent);
+
+		var myInvitesResponse = await this.client.GetAsync("/api/v2/users/me/teamInvites");
+		myInvitesResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+		var myInvites = await myInvitesResponse.Content.ReadFromJsonAsync<List<CurrentUserTeamInviteViewModelDto>>();
+		myInvites.Should().NotBeNull();
+		myInvites!.Should().Contain(i => i.TeamId == "TM_1" && i.Email == "referee@example.com" && i.CanRespond == false);
+
+		await AuthenticationHelper.AuthenticateAsAsync(this.client, "team_manager@example.com", "password");
+
+		var managementResponse = await this.client.GetAsync("/api/v2/Teams/TM_1/management");
+		managementResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+		var team = await managementResponse.Content.ReadFromJsonAsync<TeamManagementViewModelDto>();
+		team.Should().NotBeNull();
+		team!.PendingInvites.Should().Contain(i => i.Email == "referee@example.com" && i.RequiresManagerDecision);
+	}
 }

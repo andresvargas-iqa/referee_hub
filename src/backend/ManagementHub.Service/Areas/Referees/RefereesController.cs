@@ -66,14 +66,9 @@ public class RefereesController : ControllerBase
 		long? currentPlayingTeamId = currentPlayingTeam == 0 ? null : currentPlayingTeam;
 
 		var requestedPlayingTeamId = refereeUpdate.PlayingTeam?.Id.Id;
-		if (currentPlayingTeamId != null &&
+		var shouldCreatePlayingTeamRequest =
 			requestedPlayingTeamId != null &&
-			requestedPlayingTeamId != currentPlayingTeamId.Value)
-		{
-			return this.BadRequest("Leave your current playing team before requesting a new one.");
-		}
-
-		var shouldCreatePlayingTeamRequest = currentPlayingTeamId == null && requestedPlayingTeamId != null;
+			(currentPlayingTeamId == null || requestedPlayingTeamId != currentPlayingTeamId.Value);
 
 		await this.updateRefereeRoleCommand.UpdateRefereeRoleAsync(userContext.UserId, refereeRole => new RefereeRole
 		{
