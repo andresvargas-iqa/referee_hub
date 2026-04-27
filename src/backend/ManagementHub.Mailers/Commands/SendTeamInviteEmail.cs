@@ -42,7 +42,7 @@ internal class SendTeamInviteEmail : ISendTeamInviteEmail
 		var team = await this.teamContextProvider.GetTeamAsync(teamId, NgbConstraint.Any);
 		if (team == null)
 		{
-			this.logger.LogWarning("Cannot send team invite email because team {TeamId} was not found.", teamId);
+			this.logger.LogWarning("Cannot send team invite email because team {TeamId} was not found.", SanitizeForLog(teamId.ToString()));
 			return;
 		}
 
@@ -80,14 +80,14 @@ IQA Referee Hub</p>
 		var team = await this.teamContextProvider.GetTeamAsync(teamId, NgbConstraint.Any);
 		if (team == null)
 		{
-			this.logger.LogWarning("Cannot send team invite response email because team {TeamId} was not found.", teamId);
+			this.logger.LogWarning("Cannot send team invite response email because team {TeamId} was not found.", SanitizeForLog(teamId.ToString()));
 			return;
 		}
 
 		var teamManagers = (await this.teamContextProvider.GetTeamManagersAsync(teamId, NgbConstraint.Any)).ToList();
 		if (teamManagers.Count == 0)
 		{
-			this.logger.LogWarning("Cannot send team invite response email because team {TeamId} has no managers.", teamId);
+			this.logger.LogWarning("Cannot send team invite response email because team {TeamId} has no managers.", SanitizeForLog(teamId.ToString()));
 			return;
 		}
 
@@ -116,5 +116,12 @@ IQA Referee Hub</p>
 				.SendAsync(cancellationToken));
 
 		await Task.WhenAll(tasks);
+	}
+
+	private static string SanitizeForLog(string value)
+	{
+		return value
+			.Replace("\r", string.Empty)
+			.Replace("\n", string.Empty);
 	}
 }

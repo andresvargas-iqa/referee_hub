@@ -479,11 +479,6 @@ public class TeamsController : ControllerBase
 		[FromRoute] TeamIdentifier teamId,
 		[FromBody] InvitePlayerRequest request)
 	{
-		if (request == null || string.IsNullOrWhiteSpace(request.Email))
-		{
-			return this.BadRequest("Invalid email address");
-		}
-
 		var userContext = await this.contextAccessor.GetCurrentUserContextAsync();
 		var isTeamManager = userContext.Roles
 			.OfType<TeamManagerRole>()
@@ -494,78 +489,31 @@ public class TeamsController : ControllerBase
 			return this.Forbid();
 		}
 
-		if (!Email.TryParse(request.Email, out var email))
+		if (!TryNormalizeInviteEmail(request?.Email, out var normalizedEmail))
 		{
 			return this.BadRequest("Invalid email address");
 		}
 
-		var teamExists = await this.dbContext.Teams.AnyAsync(t => t.Id == teamId.Id);
-		if (!teamExists)
+		if (!await this.TeamExistsAsync(teamId))
 		{
 			return this.NotFound();
 		}
 
-		var normalizedEmail = request.Email?.Trim().ToLowerInvariant();
-		if (string.IsNullOrWhiteSpace(normalizedEmail))
-		{
-			return this.BadRequest("Invalid email address");
-		}
-
-		var normalizedEmailValue = normalizedEmail!;
-		var currentUserDbId = await this.GetCurrentUserDbIdAsync(userContext.UserId);
-
-		var existingMember = await this.dbContext.RefereeTeams
-			.Where(rt => rt.TeamId == teamId.Id)
-			.AnyAsync(rt => rt.Referee != null && rt.Referee.Email.ToLower() == normalizedEmailValue);
-
-		if (existingMember)
+		if (await this.TeamHasMemberWithEmailAsync(teamId, normalizedEmail))
 		{
 			return this.BadRequest("User is already a team member");
 		}
 
-		var existingInvite = await this.dbContext.TeamInvitations
-			.AnyAsync(i => i.TeamId == teamId.Id && i.RevokedAt == null && i.AcceptedAt == null && i.DeclinedAt == null && i.Email.ToLower() == normalizedEmailValue);
-
-		if (existingInvite)
+		if (await this.HasPendingInviteAsync(teamId, normalizedEmail))
 		{
 			return this.BadRequest("A pending invitation already exists for that email address");
 		}
 
-		var invitation = new ManagementHub.Models.Data.TeamInvitation
-		{
-			TeamId = teamId.Id,
-			Email = normalizedEmailValue,
-			InitiatorUserId = currentUserDbId,
-			CreatedAt = DateTime.UtcNow,
-		};
+		var currentUserDbId = await this.GetCurrentUserDbIdAsync(userContext.UserId);
+		var invitation = await this.CreatePendingInviteAsync(teamId, normalizedEmail, currentUserDbId);
+		var invitedByName = BuildDisplayName(userContext.UserData.FirstName, userContext.UserData.LastName);
 
-		this.dbContext.TeamInvitations.Add(invitation);
-		this.dbContext.TeamPlayerActivities.Add(new ManagementHub.Models.Data.TeamPlayerActivity
-		{
-			TeamId = teamId.Id,
-			Email = normalizedEmailValue,
-			InitiatorUserId = currentUserDbId,
-			ActivityType = TeamPlayerActivityType.InviteCreated,
-			CreatedAt = invitation.CreatedAt,
-		});
-		await this.dbContext.SaveChangesAsync(this.HttpContext.RequestAborted);
-
-		var invitedByName = string.Join(" ", userContext.UserData.FirstName, userContext.UserData.LastName)
-			.Trim();
-
-		try
-		{
-			await this.sendTeamInviteEmail.SendTeamInviteEmailAsync(
-				teamId,
-				invitation.Email,
-				string.IsNullOrWhiteSpace(invitedByName) ? null : invitedByName,
-				this.GetHostBaseUri(),
-				this.HttpContext.RequestAborted);
-		}
-		catch (Exception ex)
-		{
-			this.logger.LogError(ex, "Failed to send team invite email for team {TeamId} to {Email}", teamId, invitation.Email);
-		}
+		await this.TrySendInviteEmailAsync(teamId, invitation.Email, invitedByName);
 
 		return this.CreatedAtAction(
 			nameof(GetTeamManagement),
@@ -575,7 +523,7 @@ public class TeamsController : ControllerBase
 				InvitationId = invitation.Id.ToString(),
 				Email = invitation.Email,
 				CreatedAt = invitation.CreatedAt,
-				InvitedByName = string.IsNullOrWhiteSpace(invitedByName) ? null : invitedByName
+				InvitedByName = invitedByName
 			});
 	}
 
@@ -698,6 +646,104 @@ public class TeamsController : ControllerBase
 			.WithIdentifier(userId)
 			.Select(user => user.Id)
 			.SingleAsync(this.HttpContext.RequestAborted);
+	}
+
+	private static bool TryNormalizeInviteEmail(string? rawEmail, out string normalizedEmail)
+	{
+		normalizedEmail = string.Empty;
+		if (string.IsNullOrWhiteSpace(rawEmail))
+		{
+			return false;
+		}
+
+		if (!Email.TryParse(rawEmail, out _))
+		{
+			return false;
+		}
+
+		normalizedEmail = rawEmail.Trim().ToLowerInvariant();
+		return !string.IsNullOrWhiteSpace(normalizedEmail);
+	}
+
+	private static string? BuildDisplayName(string? firstName, string? lastName)
+	{
+		var displayName = string.Join(" ", new[] { firstName, lastName }.Where(part => !string.IsNullOrWhiteSpace(part)));
+		return string.IsNullOrWhiteSpace(displayName) ? null : displayName;
+	}
+
+	private async Task<bool> TeamExistsAsync(TeamIdentifier teamId)
+	{
+		return await this.dbContext.Teams.AnyAsync(t => t.Id == teamId.Id, this.HttpContext.RequestAborted);
+	}
+
+	private async Task<bool> TeamHasMemberWithEmailAsync(TeamIdentifier teamId, string normalizedEmail)
+	{
+		return await this.dbContext.RefereeTeams
+			.Where(rt => rt.TeamId == teamId.Id)
+			.AnyAsync(rt => rt.Referee != null && rt.Referee.Email.ToLower() == normalizedEmail, this.HttpContext.RequestAborted);
+	}
+
+	private async Task<bool> HasPendingInviteAsync(TeamIdentifier teamId, string normalizedEmail)
+	{
+		return await this.dbContext.TeamInvitations
+			.AnyAsync(i =>
+				i.TeamId == teamId.Id &&
+				i.RevokedAt == null &&
+				i.AcceptedAt == null &&
+				i.DeclinedAt == null &&
+				i.Email.ToLower() == normalizedEmail,
+				this.HttpContext.RequestAborted);
+	}
+
+	private async Task<ManagementHub.Models.Data.TeamInvitation> CreatePendingInviteAsync(
+		TeamIdentifier teamId,
+		string normalizedEmail,
+		long currentUserDbId)
+	{
+		var invitation = new ManagementHub.Models.Data.TeamInvitation
+		{
+			TeamId = teamId.Id,
+			Email = normalizedEmail,
+			InitiatorUserId = currentUserDbId,
+			CreatedAt = DateTime.UtcNow,
+		};
+
+		this.dbContext.TeamInvitations.Add(invitation);
+		this.dbContext.TeamPlayerActivities.Add(new ManagementHub.Models.Data.TeamPlayerActivity
+		{
+			TeamId = teamId.Id,
+			Email = normalizedEmail,
+			InitiatorUserId = currentUserDbId,
+			ActivityType = TeamPlayerActivityType.InviteCreated,
+			CreatedAt = invitation.CreatedAt,
+		});
+
+		await this.dbContext.SaveChangesAsync(this.HttpContext.RequestAborted);
+		return invitation;
+	}
+
+	private async Task TrySendInviteEmailAsync(TeamIdentifier teamId, string inviteeEmail, string? invitedByName)
+	{
+		try
+		{
+			await this.sendTeamInviteEmail.SendTeamInviteEmailAsync(
+				teamId,
+				inviteeEmail,
+				invitedByName,
+				this.GetHostBaseUri(),
+				this.HttpContext.RequestAborted);
+		}
+		catch (Exception ex)
+		{
+			this.logger.LogError(ex, "Failed to send team invite email for team {TeamId}", SanitizeForLog(teamId.ToString()));
+		}
+	}
+
+	private static string SanitizeForLog(string value)
+	{
+		return value
+			.Replace("\r", string.Empty)
+			.Replace("\n", string.Empty);
 	}
 
 	private Uri GetHostBaseUri() => new($"{this.Request.Scheme}://{this.Request.Host}");
