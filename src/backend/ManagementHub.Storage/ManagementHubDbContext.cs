@@ -44,6 +44,7 @@ public partial class ManagementHubDbContext : DbContext, IDataProtectionKeyConte
 	public virtual DbSet<SchemaMigration> SchemaMigrations { get; set; } = null!;
 	public virtual DbSet<SocialAccount> SocialAccounts { get; set; } = null!;
 	public virtual DbSet<Team> Teams { get; set; } = null!;
+	public virtual DbSet<TeamInvitation> TeamInvitations { get; set; } = null!;
 	public virtual DbSet<TeamManager> TeamManagers { get; set; } = null!;
 	public virtual DbSet<TeamStatusChangeset> TeamStatusChangesets { get; set; } = null!;
 	public virtual DbSet<Test> Tests { get; set; } = null!;
@@ -1529,6 +1530,45 @@ public partial class ManagementHubDbContext : DbContext, IDataProtectionKeyConte
 				.HasForeignKey(d => d.AddedByUserId)
 				.OnDelete(DeleteBehavior.Restrict)
 				.HasConstraintName("fk_tournament_managers_added_by_user");
+		});
+
+		modelBuilder.Entity<TeamInvitation>(entity =>
+		{
+			entity.ToTable("team_invitations");
+
+			entity.HasIndex(e => new { e.TeamId, e.Email }, "index_team_invitations_on_team_id_and_email")
+				.IsUnique()
+				.HasFilter("revoked_at IS NULL");
+
+			entity.Property(e => e.Id).HasColumnName("id");
+
+			entity.Property(e => e.TeamId).HasColumnName("team_id");
+
+			entity.Property(e => e.Email)
+				.HasColumnType("character varying")
+				.HasColumnName("email");
+
+			entity.Property(e => e.InitiatorUserId).HasColumnName("initiator_user_id");
+
+			entity.Property(e => e.CreatedAt)
+				.HasColumnType("timestamp with time zone")
+				.HasColumnName("created_at");
+
+			entity.Property(e => e.RevokedAt)
+				.HasColumnType("timestamp with time zone")
+				.HasColumnName("revoked_at");
+
+			entity.HasOne(d => d.Team)
+				.WithMany(p => p.TeamInvitations)
+				.HasForeignKey(d => d.TeamId)
+				.OnDelete(DeleteBehavior.Cascade)
+				.HasConstraintName("fk_team_invitations_team");
+
+			entity.HasOne(d => d.Initiator)
+				.WithMany()
+				.HasForeignKey(d => d.InitiatorUserId)
+				.OnDelete(DeleteBehavior.Restrict)
+				.HasConstraintName("fk_team_invitations_initiator");
 		});
 
 		modelBuilder.Entity<TournamentInvite>(entity =>

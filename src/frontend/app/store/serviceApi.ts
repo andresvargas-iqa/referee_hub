@@ -375,6 +375,21 @@ const injectedRtkApi = api
         }),
         invalidatesTags: ["TeamManagement", "Team"],
       }),
+      createTeamInvite: build.mutation<CreateTeamInviteApiResponse, CreateTeamInviteApiArg>({
+        query: (queryArg) => ({
+          url: `/api/v2/Teams/${queryArg.teamId}/invites`,
+          method: "POST",
+          body: queryArg.invitePlayerRequest,
+        }),
+        invalidatesTags: ["TeamManagement"],
+      }),
+      revokeTeamInvite: build.mutation<RevokeTeamInviteApiResponse, RevokeTeamInviteApiArg>({
+        query: (queryArg) => ({
+          url: `/api/v2/Teams/${queryArg.teamId}/invites/${queryArg.invitationId}`,
+          method: "DELETE",
+        }),
+        invalidatesTags: ["TeamManagement"],
+      }),
       removePlayer: build.mutation<RemovePlayerApiResponse, RemovePlayerApiArg>({
         query: (queryArg) => ({
           url: `/api/v2/Teams/${queryArg.teamId}/players/${queryArg.playerId}`,
@@ -896,6 +911,18 @@ export type AddTeamManagerToTeamApiArg = {
   teamId: string;
   /** Request containing user email */
   addTeamManagerRequest: AddTeamManagerRequest;
+};
+export type CreateTeamInviteApiResponse = /** status 201 Success */ TeamInvitationViewModel;
+export type CreateTeamInviteApiArg = {
+  /** Team identifier */
+  teamId: string;
+  invitePlayerRequest: InvitePlayerRequest;
+};
+export type RevokeTeamInviteApiResponse = unknown;
+export type RevokeTeamInviteApiArg = {
+  /** Team identifier */
+  teamId: string;
+  invitationId: string;
 };
 export type RemovePlayerApiResponse = unknown;
 export type RemovePlayerApiArg = {
@@ -1540,6 +1567,10 @@ export type AddTeamManagerRequest = {
   /** Email address of the user to add as manager. */
   email: string;
 };
+export type InvitePlayerRequest = {
+  /** Email address of the player to invite. */
+  email: string;
+};
 export type RefereeTestDetailsViewModel = {
   testId?: string;
   title?: string | null;
@@ -1776,6 +1807,8 @@ export const {
   useGetTeamTournamentInvitesQuery,
   useGetTeamManagementQuery,
   useAddTeamManagerToTeamMutation,
+  useCreateTeamInviteMutation,
+  useRevokeTeamInviteMutation,
   useRemovePlayerMutation,
   useGetTestDetailsQuery,
   useCreateNewTestMutation,

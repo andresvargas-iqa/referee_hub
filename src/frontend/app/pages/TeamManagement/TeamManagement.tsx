@@ -1,8 +1,10 @@
 import React, { useState, useMemo } from "react";
 import { useNavigationParams } from "../../utils/navigationUtils";
 import { 
+  useCreateTeamInviteMutation,
   useGetTeamManagementQuery,
   useRemovePlayerMutation,
+  useRevokeTeamInviteMutation,
 } from "../../store/serviceApi";
 import { getErrorString } from "../../utils/errorUtils";
 import TeamEditModal from "../../components/modals/TeamEditModal/TeamEditModal";
@@ -12,13 +14,17 @@ const TeamManagement = () => {
   const { teamId } = useNavigationParams<"teamId">();
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isAddManagerModalOpen, setIsAddManagerModalOpen] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteError, setInviteError] = useState<string | null>(null);
   
   const { data: team, error: teamError, isLoading } = useGetTeamManagementQuery(
     { teamId: teamId! },
     { skip: !teamId }
   );
 
+  const [createTeamInvite, { isLoading: isCreatingInvite }] = useCreateTeamInviteMutation();
   const [removePlayer, { isLoading: isRemovingPlayer }] = useRemovePlayerMutation();
+  const [revokeTeamInvite, { isLoading: isRevokingInvite }] = useRevokeTeamInviteMutation();
 
   const handleRemovePlayer = async (playerId: string, playerName: string) => {
     if (!teamId) return;
@@ -31,6 +37,38 @@ const TeamManagement = () => {
       await removePlayer({ teamId, playerId }).unwrap();
     } catch (error: any) {
       alert(error?.data || "Failed to remove player. Please try again.");
+    }
+  };
+
+  const handleCreateInvite = async () => {
+    if (!teamId || !inviteEmail.trim()) {
+      return;
+    }
+
+    setInviteError(null);
+
+    try {
+      await createTeamInvite({
+        teamId,
+        invitePlayerRequest: { email: inviteEmail.trim() },
+      }).unwrap();
+      setInviteEmail("");
+    } catch (error: any) {
+      setInviteError(error?.data || "Failed to create invite. Please try again.");
+    }
+  };
+
+  const handleRevokeInvite = async (invitationId: string, email: string) => {
+    if (!teamId) return;
+
+    if (!confirm(`Revoke invitation for ${email}?`)) {
+      return;
+    }
+
+    try {
+      await revokeTeamInvite({ teamId, invitationId }).unwrap();
+    } catch (error: any) {
+      alert(error?.data || "Failed to revoke invite. Please try again.");
     }
   };
 
@@ -204,18 +242,44 @@ const TeamManagement = () => {
 
       {/* Pending Invites Section */}
       <div className="bg-gray-100 rounded-lg p-6">
-        <h2 className="text-2xl font-semibold mb-4 border-b-2 border-green pb-2">
-          Pending Invitations
-        </h2>
+        <div className="flex items-center justify-between mb-4 border-b-2 border-green pb-2 gap-4">
+          <h2 className="text-2xl font-semibold">Pending Invitations</h2>
+          <div className="flex gap-2 w-full max-w-lg">
+            <input
+              type="email"
+              className="flex-1 px-3 py-2 border border-gray-300 rounded"
+              placeholder="player@example.com"
+              value={inviteEmail}
+              onChange={(event) => setInviteEmail(event.target.value)}
+            />
+            <button
+              className="bg-green text-white px-4 py-2 rounded font-semibold hover:bg-green-700 disabled:opacity-50"
+              onClick={handleCreateInvite}
+              disabled={isCreatingInvite || !inviteEmail.trim()}
+            >
+              {isCreatingInvite ? "Inviting..." : "Invite Player"}
+            </button>
+          </div>
+        </div>
+        {inviteError && <p className="mb-4 text-sm text-red-600">{inviteError}</p>}
         {team.pendingInvites && team.pendingInvites.length > 0 ? (
           <div className="space-y-2">
             {team.pendingInvites.map((invite) => (
-              <div key={invite.invitationId} className="bg-white p-3 rounded">
-                <p className="font-medium">{invite.email}</p>
-                <p className="text-sm text-gray-600">
-                  Invited {invite.createdAt ? new Date(invite.createdAt).toLocaleDateString() : "recently"}
-                  {invite.invitedByName ? ` by ${invite.invitedByName}` : ""}
-                </p>
+              <div key={invite.invitationId} className="bg-white p-3 rounded flex items-center justify-between gap-4">
+                <div>
+                  <p className="font-medium">{invite.email}</p>
+                  <p className="text-sm text-gray-600">
+                    Invited {invite.createdAt ? new Date(invite.createdAt).toLocaleDateString() : "recently"}
+                    {invite.invitedByName ? ` by ${invite.invitedByName}` : ""}
+                  </p>
+                </div>
+                <button
+                  className="text-red-600 hover:underline disabled:opacity-50"
+                  onClick={() => handleRevokeInvite(invite.invitationId, invite.email)}
+                  disabled={isRevokingInvite}
+                >
+                  Revoke
+                </button>
               </div>
             ))}
           </div>

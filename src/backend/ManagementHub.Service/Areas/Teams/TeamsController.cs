@@ -347,8 +347,18 @@ public class TeamsController : ControllerBase
 		var membersQuery = this.teamContextProvider.QueryTeamMembers(teamId, NgbConstraint.Any);
 		var members = await membersQuery.ToListAsync();
 
-		// TODO: Get pending invites (Phase 3 - will be implemented separately)
-		var pendingInvites = Enumerable.Empty<TeamInvitationViewModel>();
+		var pendingInvites = await this.dbContext.TeamInvitations
+			.Where(i => i.TeamId == teamId.Id && i.RevokedAt == null)
+			.OrderByDescending(i => i.CreatedAt)
+			.Select(i => new TeamInvitationViewModel
+			{
+				InvitationId = i.Id.ToString(),
+				Email = i.Email,
+				CreatedAt = i.CreatedAt,
+				InvitedByName = string.Join(" ", new[] { i.Initiator.FirstName, i.Initiator.LastName }
+					.Where(part => !string.IsNullOrWhiteSpace(part)))
+			})
+			.ToListAsync();
 
 		return new TeamManagementViewModel
 		{
@@ -428,6 +438,122 @@ public class TeamsController : ControllerBase
 				this.Ok("User created and added as team manager"),
 			_ => this.StatusCode(500, "An unexpected error occurred")
 		};
+	}
+
+	/// <summary>
+	/// Create a pending invitation for a player to join the team.
+	/// </summary>
+	[HttpPost("{teamId}/invites")]
+	[Tags("TeamManagement")]
+	[Authorize]
+	public async Task<ActionResult<TeamInvitationViewModel>> InvitePlayer(
+		[FromRoute] TeamIdentifier teamId,
+		[FromBody] InvitePlayerRequest request)
+	{
+		var userContext = await this.contextAccessor.GetCurrentUserContextAsync();
+		var isTeamManager = userContext.Roles
+			.OfType<TeamManagerRole>()
+			.Any(role => role.Team.AppliesTo(teamId));
+
+		if (!isTeamManager)
+		{
+			return this.Forbid();
+		}
+
+		if (!Email.TryParse(request.Email, out var email))
+		{
+			return this.BadRequest("Invalid email address");
+		}
+
+		var teamExists = await this.dbContext.Teams.AnyAsync(t => t.Id == teamId.Id);
+		if (!teamExists)
+		{
+			return this.NotFound();
+		}
+
+		var normalizedEmail = request.Email?.Trim().ToLowerInvariant();
+		if (string.IsNullOrWhiteSpace(normalizedEmail))
+		{
+			return this.BadRequest("Invalid email address");
+		}
+
+		var normalizedEmailValue = normalizedEmail!;
+
+		var existingMember = await this.dbContext.RefereeTeams
+			.Where(rt => rt.TeamId == teamId.Id)
+			.AnyAsync(rt => rt.Referee.Email.ToLower() == normalizedEmailValue);
+
+		if (existingMember)
+		{
+			return this.BadRequest("User is already a team member");
+		}
+
+		var existingInvite = await this.dbContext.TeamInvitations
+			.AnyAsync(i => i.TeamId == teamId.Id && i.RevokedAt == null && i.Email.ToLower() == normalizedEmailValue);
+
+		if (existingInvite)
+		{
+			return this.BadRequest("A pending invitation already exists for that email address");
+		}
+
+		var invitation = new ManagementHub.Models.Data.TeamInvitation
+		{
+			TeamId = teamId.Id,
+			Email = normalizedEmailValue,
+			InitiatorUserId = userContext.UserId.Id,
+			CreatedAt = DateTime.UtcNow,
+		};
+
+		this.dbContext.TeamInvitations.Add(invitation);
+		await this.dbContext.SaveChangesAsync(this.HttpContext.RequestAborted);
+
+		var invitedByName = string.Join(" ", userContext.UserData.FirstName, userContext.UserData.LastName)
+			.Trim();
+
+		return this.CreatedAtAction(
+			nameof(GetTeamManagement),
+			new { teamId },
+			new TeamInvitationViewModel
+			{
+				InvitationId = invitation.Id.ToString(),
+				Email = invitation.Email,
+				CreatedAt = invitation.CreatedAt,
+				InvitedByName = string.IsNullOrWhiteSpace(invitedByName) ? null : invitedByName
+			});
+	}
+
+	/// <summary>
+	/// Revoke a pending player invitation for the team.
+	/// </summary>
+	[HttpDelete("{teamId}/invites/{invitationId:long}")]
+	[Tags("TeamManagement")]
+	[Authorize]
+	public async Task<IActionResult> RevokeInvite(
+		[FromRoute] TeamIdentifier teamId,
+		[FromRoute] long invitationId)
+	{
+		var userContext = await this.contextAccessor.GetCurrentUserContextAsync();
+		var isTeamManager = userContext.Roles
+			.OfType<TeamManagerRole>()
+			.Any(role => role.Team.AppliesTo(teamId));
+
+		if (!isTeamManager)
+		{
+			return this.Forbid();
+		}
+
+		var invitation = await this.dbContext.TeamInvitations
+			.FirstOrDefaultAsync(i => i.Id == invitationId && i.TeamId == teamId.Id && i.RevokedAt == null);
+
+		if (invitation == null)
+		{
+			return this.NotFound();
+		}
+
+		invitation.RevokedAt = DateTime.UtcNow;
+		await this.dbContext.SaveChangesAsync(this.HttpContext.RequestAborted);
+
+		return this.NoContent();
 	}
 
 	/// <summary>
