@@ -429,10 +429,14 @@ public class UsersController : ControllerBase
 			return this.BadRequest(new { error = "This request is waiting for team manager approval." });
 		}
 
-		var existingMembership = await this.dbContext.RefereeTeams
-			.AnyAsync(membership => membership.TeamId == invitation.TeamId && membership.RefereeId == currentUserDbId, this.HttpContext.RequestAborted);
+		var existingPlayerMembership = await this.dbContext.RefereeTeams
+			.FirstOrDefaultAsync(
+				membership =>
+					membership.RefereeId == currentUserDbId &&
+					membership.AssociationType == RefereeTeamAssociationType.Player,
+				this.HttpContext.RequestAborted);
 
-		if (response.Approved && existingMembership)
+		if (response.Approved && existingPlayerMembership?.TeamId == invitation.TeamId)
 		{
 			return this.BadRequest(new { error = "User is already a team member" });
 		}
@@ -443,14 +447,22 @@ public class UsersController : ControllerBase
 		if (response.Approved)
 		{
 			invitation.AcceptedAt = respondedAt;
-			this.dbContext.RefereeTeams.Add(new RefereeTeam
+			if (existingPlayerMembership == null)
 			{
-				AssociationType = RefereeTeamAssociationType.Player,
-				RefereeId = currentUserDbId,
-				TeamId = invitation.TeamId,
-				CreatedAt = respondedAt,
-				UpdatedAt = respondedAt,
-			});
+				this.dbContext.RefereeTeams.Add(new RefereeTeam
+				{
+					AssociationType = RefereeTeamAssociationType.Player,
+					RefereeId = currentUserDbId,
+					TeamId = invitation.TeamId,
+					CreatedAt = respondedAt,
+					UpdatedAt = respondedAt,
+				});
+			}
+			else
+			{
+				existingPlayerMembership.TeamId = invitation.TeamId;
+				existingPlayerMembership.UpdatedAt = respondedAt;
+			}
 		}
 		else
 		{

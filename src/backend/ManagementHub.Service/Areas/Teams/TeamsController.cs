@@ -648,12 +648,16 @@ public class TeamsController : ControllerBase
 				return this.BadRequest("Cannot approve request because the player account was not found.");
 			}
 
-			var existingMembership = await this.dbContext.RefereeTeams
-				.AnyAsync(rt => rt.TeamId == teamId.Id && rt.RefereeId == invitedUser.Id, this.HttpContext.RequestAborted);
+			var now = DateTime.UtcNow;
+			var existingPlayerMembership = await this.dbContext.RefereeTeams
+				.FirstOrDefaultAsync(
+					rt =>
+						rt.RefereeId == invitedUser.Id &&
+						rt.AssociationType == RefereeTeamAssociationType.Player,
+					this.HttpContext.RequestAborted);
 
-			if (!existingMembership)
+			if (existingPlayerMembership == null)
 			{
-				var now = DateTime.UtcNow;
 				this.dbContext.RefereeTeams.Add(new ManagementHub.Models.Data.RefereeTeam
 				{
 					AssociationType = RefereeTeamAssociationType.Player,
@@ -662,6 +666,11 @@ public class TeamsController : ControllerBase
 					CreatedAt = now,
 					UpdatedAt = now,
 				});
+			}
+			else if (existingPlayerMembership.TeamId != teamId.Id)
+			{
+				existingPlayerMembership.TeamId = teamId.Id;
+				existingPlayerMembership.UpdatedAt = now;
 			}
 		}
 
