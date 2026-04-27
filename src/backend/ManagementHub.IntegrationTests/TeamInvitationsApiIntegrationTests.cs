@@ -13,10 +13,12 @@ namespace ManagementHub.IntegrationTests;
 
 public class TeamInvitationsApiIntegrationTests : IClassFixture<TestWebApplicationFactory>
 {
+	private readonly TestWebApplicationFactory factory;
 	private readonly HttpClient client;
 
 	public TeamInvitationsApiIntegrationTests(TestWebApplicationFactory factory)
 	{
+		this.factory = factory;
 		this.client = factory.CreateClient();
 	}
 
@@ -107,5 +109,99 @@ public class TeamInvitationsApiIntegrationTests : IClassFixture<TestWebApplicati
 		});
 
 		response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+	}
+
+	[Fact]
+	public async Task RespondToInvite_Accept_ShouldCreateMembershipAndHistory()
+	{
+		this.factory.EmailSender.Clear();
+
+		await AuthenticationHelper.AuthenticateAsAsync(this.client, "team_manager@example.com", "password");
+
+		var createResponse = await this.client.PostAsJsonAsync("/api/v2/Teams/TM_1/invites", new
+		{
+			Email = "ngb_admin@example.com"
+		});
+
+		createResponse.StatusCode.Should().Be(HttpStatusCode.Created);
+		var invite = await createResponse.Content.ReadFromJsonAsync<TeamInvitationViewModelDto>();
+		invite.Should().NotBeNull();
+
+		await AuthenticationHelper.AuthenticateAsAsync(this.client, "ngb_admin@example.com", "password");
+
+		var myInvitesResponse = await this.client.GetAsync("/api/v2/users/me/teamInvites");
+		myInvitesResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+		var myInvites = await myInvitesResponse.Content.ReadFromJsonAsync<List<CurrentUserTeamInviteViewModelDto>>();
+		myInvites.Should().NotBeNull();
+		myInvites!.Should().Contain(i => i.InvitationId == invite!.InvitationId && i.TeamId == "TM_1");
+
+		var respondResponse = await this.client.PostAsJsonAsync(
+			$"/api/v2/users/me/teamInvites/{invite!.InvitationId}",
+			new { Approved = true });
+
+		respondResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+		var myInvitesAfterResponse = await this.client.GetAsync("/api/v2/users/me/teamInvites");
+		myInvitesAfterResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+		var pendingAfterResponse = await myInvitesAfterResponse.Content.ReadFromJsonAsync<List<CurrentUserTeamInviteViewModelDto>>();
+		pendingAfterResponse.Should().NotBeNull();
+		pendingAfterResponse!.Should().NotContain(i => i.InvitationId == invite.InvitationId);
+
+		await AuthenticationHelper.AuthenticateAsAsync(this.client, "team_manager@example.com", "password");
+
+		var managementResponse = await this.client.GetAsync("/api/v2/Teams/TM_1/management");
+		managementResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+		var team = await managementResponse.Content.ReadFromJsonAsync<TeamManagementViewModelDto>();
+		team.Should().NotBeNull();
+		team!.PendingInvites.Should().NotContain(i => i.InvitationId == invite.InvitationId);
+		team.Members.Should().Contain(m => m.Email == "ngb_admin@example.com");
+		team.PlayerHistory.Should().Contain(a => a.ActivityType == "inviteAccepted" && a.Email == "ngb_admin@example.com");
+
+		var sentEmails = this.factory.EmailSender.GetSentEmails();
+		sentEmails.Should().Contain(e => e.Subject.Contains("Team Invitation accepted") && e.To.Contains("team_manager@example.com"));
+	}
+
+	[Fact]
+	public async Task RespondToInvite_Decline_ShouldCloseInviteAndRecordHistory()
+	{
+		this.factory.EmailSender.Clear();
+
+		await AuthenticationHelper.AuthenticateAsAsync(this.client, "team_manager@example.com", "password");
+
+		var createResponse = await this.client.PostAsJsonAsync("/api/v2/Teams/TM_1/invites", new
+		{
+			Email = "team_manager@example.com"
+		});
+
+		createResponse.StatusCode.Should().Be(HttpStatusCode.Created);
+		var invite = await createResponse.Content.ReadFromJsonAsync<TeamInvitationViewModelDto>();
+		invite.Should().NotBeNull();
+
+		var respondResponse = await this.client.PostAsJsonAsync(
+			$"/api/v2/users/me/teamInvites/{invite!.InvitationId}",
+			new { Approved = false });
+
+		respondResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+		var myInvitesResponse = await this.client.GetAsync("/api/v2/users/me/teamInvites");
+		myInvitesResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+		var myInvites = await myInvitesResponse.Content.ReadFromJsonAsync<List<CurrentUserTeamInviteViewModelDto>>();
+		myInvites.Should().NotBeNull();
+		myInvites!.Should().NotContain(i => i.InvitationId == invite.InvitationId);
+
+		var managementResponse = await this.client.GetAsync("/api/v2/Teams/TM_1/management");
+		managementResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+		var team = await managementResponse.Content.ReadFromJsonAsync<TeamManagementViewModelDto>();
+		team.Should().NotBeNull();
+		team!.PendingInvites.Should().NotContain(i => i.InvitationId == invite.InvitationId);
+		team.PlayerHistory.Should().Contain(a => a.ActivityType == "inviteDeclined" && a.Email == "team_manager@example.com");
+
+		var sentEmails = this.factory.EmailSender.GetSentEmails();
+		sentEmails.Should().Contain(e => e.Subject.Contains("Team Invitation declined") && e.To.Contains("team_manager@example.com"));
 	}
 }

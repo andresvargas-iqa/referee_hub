@@ -479,6 +479,11 @@ public class TeamsController : ControllerBase
 		[FromRoute] TeamIdentifier teamId,
 		[FromBody] InvitePlayerRequest request)
 	{
+		if (request == null || string.IsNullOrWhiteSpace(request.Email))
+		{
+			return this.BadRequest("Invalid email address");
+		}
+
 		var userContext = await this.contextAccessor.GetCurrentUserContextAsync();
 		var isTeamManager = userContext.Roles
 			.OfType<TeamManagerRole>()
@@ -511,7 +516,7 @@ public class TeamsController : ControllerBase
 
 		var existingMember = await this.dbContext.RefereeTeams
 			.Where(rt => rt.TeamId == teamId.Id)
-			.AnyAsync(rt => rt.Referee.Email.ToLower() == normalizedEmailValue);
+			.AnyAsync(rt => rt.Referee != null && rt.Referee.Email.ToLower() == normalizedEmailValue);
 
 		if (existingMember)
 		{
@@ -663,6 +668,11 @@ public class TeamsController : ControllerBase
 		if (membership == null)
 		{
 			return this.NotFound("Player not found on this team");
+		}
+
+		if (membership.Referee == null)
+		{
+			return this.BadRequest("Player details are unavailable");
 		}
 
 		var currentUserDbId = await this.GetCurrentUserDbIdAsync(userContext.UserId);
