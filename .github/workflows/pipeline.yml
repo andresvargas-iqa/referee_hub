@@ -215,11 +215,11 @@ jobs:
       working-directory: src/backend
 
     - name: Build backend
-      run: dotnet build --no-restore -c Release
+      run: dotnet build ManagementHub.sln --no-restore -c Release
       working-directory: src/backend
 
     - name: Run integration tests
-      run: dotnet test ManagementHub.IntegrationTests/ManagementHub.IntegrationTests.csproj --no-build -c Release --verbosity normal --logger:"junit;LogFilePath=dotnet-integration-test-result.xml"
+      run: dotnet test ManagementHub.IntegrationTests/ManagementHub.IntegrationTests.csproj -c Release --verbosity normal --logger:"junit;LogFilePath=dotnet-integration-test-result.xml"
       working-directory: src/backend
 
     - name: Create placeholder test result if missing
