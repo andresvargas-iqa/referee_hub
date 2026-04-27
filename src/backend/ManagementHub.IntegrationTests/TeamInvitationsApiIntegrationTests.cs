@@ -204,4 +204,127 @@ public class TeamInvitationsApiIntegrationTests : IClassFixture<TestWebApplicati
 		var sentEmails = this.factory.EmailSender.GetSentEmails();
 		sentEmails.Should().Contain(e => e.Subject.Contains("Team Invitation declined") && e.To.Contains("team_manager@example.com"));
 	}
+
+	[Fact]
+	public async Task UpdateReferee_WithPlayingTeamRequest_ShouldCreatePendingManagerApprovalRequest()
+	{
+		await AuthenticationHelper.AuthenticateAsAsync(this.client, "referee@example.com", "password");
+
+		var updateResponse = await this.client.PutAsJsonAsync("/api/v2/Referees/me", new
+		{
+			primaryNgb = "USA",
+			secondaryNgb = (string?)null,
+			playingTeam = new { id = "TM_2" },
+			coachingTeam = (object?)null,
+			nationalTeam = (object?)null,
+		});
+
+		updateResponse.StatusCode.Should().Be(HttpStatusCode.NoContent);
+
+		var myInvitesResponse = await this.client.GetAsync("/api/v2/users/me/teamInvites");
+		myInvitesResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+		var myInvites = await myInvitesResponse.Content.ReadFromJsonAsync<List<CurrentUserTeamInviteViewModelDto>>();
+		myInvites.Should().NotBeNull();
+		myInvites!.Should().ContainSingle(i => i.TeamId == "TM_2" && i.CanRespond == false);
+
+		await AuthenticationHelper.AuthenticateAsAsync(this.client, "ngb_admin@example.com", "password");
+
+		var managementResponse = await this.client.GetAsync("/api/v2/Teams/TM_2/management");
+		managementResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+		var team = await managementResponse.Content.ReadFromJsonAsync<TeamManagementViewModelDto>();
+		team.Should().NotBeNull();
+		team!.PendingInvites.Should().ContainSingle(i => i.Email == "referee@example.com" && i.RequiresManagerDecision);
+	}
+
+	[Fact]
+	public async Task RespondToPendingInvite_Approve_ShouldAddMembershipAndClearPendingRequest()
+	{
+		await AuthenticationHelper.AuthenticateAsAsync(this.client, "referee@example.com", "password");
+
+		var updateResponse = await this.client.PutAsJsonAsync("/api/v2/Referees/me", new
+		{
+			primaryNgb = "USA",
+			secondaryNgb = (string?)null,
+			playingTeam = new { id = "TM_2" },
+			coachingTeam = (object?)null,
+			nationalTeam = (object?)null,
+		});
+
+		updateResponse.StatusCode.Should().Be(HttpStatusCode.NoContent);
+
+		var myInvitesResponse = await this.client.GetAsync("/api/v2/users/me/teamInvites");
+		var myInvites = await myInvitesResponse.Content.ReadFromJsonAsync<List<CurrentUserTeamInviteViewModelDto>>();
+		var pendingRequest = myInvites!.Should().ContainSingle(i => i.TeamId == "TM_2").Subject;
+
+		await AuthenticationHelper.AuthenticateAsAsync(this.client, "ngb_admin@example.com", "password");
+
+		var approveResponse = await this.client.PostAsJsonAsync(
+			$"/api/v2/Teams/TM_2/invites/{pendingRequest.InvitationId}/response",
+			new { Approved = true });
+
+		approveResponse.StatusCode.Should().Be(HttpStatusCode.NoContent);
+
+		var managementResponse = await this.client.GetAsync("/api/v2/Teams/TM_2/management");
+		var team = await managementResponse.Content.ReadFromJsonAsync<TeamManagementViewModelDto>();
+		team.Should().NotBeNull();
+		team!.PendingInvites.Should().NotContain(i => i.InvitationId == pendingRequest.InvitationId);
+		team.Members.Should().Contain(m => m.Email == "referee@example.com");
+		team.PlayerHistory.Should().Contain(a => a.ActivityType == "inviteAccepted" && a.Email == "referee@example.com");
+
+		await AuthenticationHelper.AuthenticateAsAsync(this.client, "referee@example.com", "password");
+
+		var myInvitesAfterResponse = await this.client.GetAsync("/api/v2/users/me/teamInvites");
+		var pendingAfterResponse = await myInvitesAfterResponse.Content.ReadFromJsonAsync<List<CurrentUserTeamInviteViewModelDto>>();
+		pendingAfterResponse.Should().NotContain(i => i.InvitationId == pendingRequest.InvitationId);
+	}
+
+	[Fact]
+	public async Task RespondToPendingInvite_Reject_ShouldClearPendingRequestWithoutMembership()
+	{
+		await AuthenticationHelper.AuthenticateAsAsync(this.client, "referee@example.com", "password");
+
+		var updateResponse = await this.client.PutAsJsonAsync("/api/v2/Referees/me", new
+		{
+			primaryNgb = "USA",
+			secondaryNgb = (string?)null,
+			playingTeam = new { id = "TM_2" },
+			coachingTeam = (object?)null,
+			nationalTeam = (object?)null,
+		});
+
+		updateResponse.StatusCode.Should().Be(HttpStatusCode.NoContent);
+
+		var myInvitesResponse = await this.client.GetAsync("/api/v2/users/me/teamInvites");
+		var myInvites = await myInvitesResponse.Content.ReadFromJsonAsync<List<CurrentUserTeamInviteViewModelDto>>();
+		var pendingRequest = myInvites!.Should().ContainSingle(i => i.TeamId == "TM_2").Subject;
+
+		await AuthenticationHelper.AuthenticateAsAsync(this.client, "ngb_admin@example.com", "password");
+
+		var rejectResponse = await this.client.PostAsJsonAsync(
+			$"/api/v2/Teams/TM_2/invites/{pendingRequest.InvitationId}/response",
+			new { Approved = false });
+
+		rejectResponse.StatusCode.Should().Be(HttpStatusCode.NoContent);
+
+		var managementResponse = await this.client.GetAsync("/api/v2/Teams/TM_2/management");
+		var team = await managementResponse.Content.ReadFromJsonAsync<TeamManagementViewModelDto>();
+		team.Should().NotBeNull();
+		team!.PendingInvites.Should().NotContain(i => i.InvitationId == pendingRequest.InvitationId);
+		team.Members.Should().NotContain(m => m.Email == "referee@example.com");
+		team.PlayerHistory.Should().Contain(a => a.ActivityType == "inviteDeclined" && a.Email == "referee@example.com");
+
+		await AuthenticationHelper.AuthenticateAsAsync(this.client, "referee@example.com", "password");
+
+		var myInvitesAfterResponse = await this.client.GetAsync("/api/v2/users/me/teamInvites");
+		var pendingAfterResponse = await myInvitesAfterResponse.Content.ReadFromJsonAsync<List<CurrentUserTeamInviteViewModelDto>>();
+		pendingAfterResponse.Should().NotContain(i => i.InvitationId == pendingRequest.InvitationId);
+
+		var refereeProfileResponse = await this.client.GetAsync("/api/v2/Referees/me");
+		refereeProfileResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+		var refereeProfile = await refereeProfileResponse.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>();
+		refereeProfile.TryGetProperty("playingTeam", out var playingTeamProperty).Should().BeTrue();
+		playingTeamProperty.ValueKind.Should().Be(System.Text.Json.JsonValueKind.Null);
+	}
 }

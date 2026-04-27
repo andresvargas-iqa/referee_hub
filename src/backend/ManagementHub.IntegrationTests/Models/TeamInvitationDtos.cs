@@ -8,6 +8,7 @@ public class TeamInvitationViewModelDto
 	public required string Email { get; set; }
 	public required DateTime CreatedAt { get; set; }
 	public string? InvitedByName { get; set; }
+	public bool RequiresManagerDecision { get; set; }
 }
 
 public class CurrentUserTeamInviteViewModelDto
@@ -18,4 +19,5 @@ public class CurrentUserTeamInviteViewModelDto
 	public required string Email { get; set; }
 	public required DateTime CreatedAt { get; set; }
 	public string? InvitedByName { get; set; }
+	public bool CanRespond { get; set; }
 }
