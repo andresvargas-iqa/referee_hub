@@ -231,6 +231,7 @@ public class TeamsController : ControllerBase
 			{
 				UserId = m.UserId,
 				Name = m.Name,
+				Email = m.Email,
 				PrimaryTeamName = m.PrimaryTeamName,
 				PrimaryTeamId = m.PrimaryTeamId?.ToString()
 			}),
@@ -440,6 +441,7 @@ public class TeamsController : ControllerBase
 			{
 				UserId = m.UserId,
 				Name = m.Name,
+				Email = m.Email,
 				PrimaryTeamName = m.PrimaryTeamName,
 				PrimaryTeamId = m.PrimaryTeamId?.ToString()
 			}),

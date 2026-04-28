@@ -253,6 +253,7 @@ public class DbTeamContextFactory
 					? UserIdentifier.Parse(x.User.UniqueId)
 					: UserIdentifier.FromLegacyUserId(x.User.Id),
 				Name = $"{x.User.FirstName} {x.User.LastName}",
+				Email = x.User.Email,
 				PrimaryTeamName = x.PrimaryTeam != null ? x.PrimaryTeam.TeamName : null,
 				PrimaryTeamId = x.PrimaryTeam != null ? new TeamIdentifier(x.PrimaryTeam.TeamId) : null
 			});
