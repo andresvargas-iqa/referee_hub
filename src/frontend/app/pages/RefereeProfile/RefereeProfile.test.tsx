@@ -12,11 +12,20 @@ jest.mock("../../utils/navigationUtils", () => ({
   useNavigationParams: () => ({ refereeId: "me" }),
 }));
 
-jest.mock("./RefereeHeader", () => () => <div>Referee Header</div>);
+jest.mock("./RefereeHeader", () => {
+  const MockComponent = () => <div>Referee Header</div>;
+  MockComponent.displayName = "MockRefereeHeader";
+  return MockComponent;
+});
 
-jest.mock("./RefereeLocation", () => () => <div>Referee Location</div>);
+jest.mock("./RefereeLocation", () => {
+  const MockComponent = () => <div>Referee Location</div>;
+  MockComponent.displayName = "MockRefereeLocation";
+  return MockComponent;
+});
 
-jest.mock("./RefereeTeam", () => (props: { onChange: (value: unknown) => void }) => (
+jest.mock("./RefereeTeam", () => {
+  const MockComponent = (props: { onChange: (value: unknown) => void }) => (
   <button
     type="button"
     onClick={() => props.onChange({
@@ -27,7 +36,10 @@ jest.mock("./RefereeTeam", () => (props: { onChange: (value: unknown) => void })
   >
     Set LA Bisons
   </button>
-));
+);
+  MockComponent.displayName = "MockRefereeTeam";
+  return MockComponent;
+});
 
 jest.mock("../../store/serviceApi", () => ({
   serviceApi: {
