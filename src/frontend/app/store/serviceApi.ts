@@ -190,7 +190,7 @@ const injectedRtkApi = api
           method: "PUT",
           body: queryArg.refereeUpdateViewModel,
         }),
-        invalidatesTags: ["Referee", "User"],
+        invalidatesTags: ["Referee", "User", "TeamManagement"],
       }),
       getCurrentReferee: build.query<GetCurrentRefereeApiResponse, GetCurrentRefereeApiArg>({
         query: () => ({ url: `/api/v2/Referees/me` }),
