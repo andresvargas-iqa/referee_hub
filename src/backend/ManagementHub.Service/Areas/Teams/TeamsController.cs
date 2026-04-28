@@ -247,7 +247,7 @@ public class TeamsController : ControllerBase
 	/// <returns>Updated team data</returns>
 	[HttpPut("{teamId}")]
 	[Tags("Team")]
-	[Authorize(AuthorizationPolicies.TeamManagerPolicy)]
+	[Authorize]
 	public async Task<ActionResult<NgbTeamViewModel>> UpdateTeam([FromRoute] TeamIdentifier teamId, [FromBody] NgbTeamViewModel viewModel)
 	{
 		try
@@ -258,22 +258,24 @@ public class TeamsController : ControllerBase
 				return this.BadRequest("Team id mismatch between URL and request body.");
 			}
 
-			// Authorization: user must be a team manager for the specified team
-			var userContext = await this.contextAccessor.GetCurrentUserContextAsync();
-			var isTeamManager = userContext.Roles
-				.OfType<TeamManagerRole>()
-				.Any(role => role.Team.AppliesTo(teamId));
-
-			if (!isTeamManager)
-			{
-				return this.Forbid();
-			}
-
-			// Get the team to find its NGB
+			// Authorization: user must be a team manager for the specified team or an NGB admin for the team's NGB
 			var existingTeam = await this.teamContextProvider.GetTeamAsync(teamId, NgbConstraint.Any);
 			if (existingTeam == null)
 			{
 				throw new ManagementHub.Models.Exceptions.NotFoundException($"Team {teamId} not found");
+			}
+
+			var userContext = await this.contextAccessor.GetCurrentUserContextAsync();
+			var isTeamManager = userContext.Roles
+				.OfType<TeamManagerRole>()
+				.Any(role => role.Team.AppliesTo(teamId));
+			var isNgbAdmin = userContext.Roles
+				.OfType<NgbAdminRole>()
+				.Any(role => role.Ngb.AppliesTo(existingTeam.NgbId));
+
+			if (!isTeamManager && !isNgbAdmin)
+			{
+				return this.Forbid();
 			}
 
 			var teamData = new TeamData
@@ -325,7 +327,7 @@ public class TeamsController : ControllerBase
 	/// <returns>Team management data</returns>
 	[HttpGet("{teamId}/management")]
 	[Tags("TeamManagement")]
-	[Authorize(AuthorizationPolicies.TeamManagerOrNgbAdminPolicy)]
+	[Authorize]
 	public async Task<ActionResult<TeamManagementViewModel>> GetTeamManagement([FromRoute] TeamIdentifier teamId)
 	{
 		var userContext = await this.contextAccessor.GetCurrentUserContextAsync();
@@ -565,7 +567,7 @@ public class TeamsController : ControllerBase
 	/// </summary>
 	[HttpDelete("{teamId}/invites/{invitationId:long}")]
 	[Tags("TeamManagement")]
-	[Authorize(AuthorizationPolicies.TeamManagerOrNgbAdminPolicy)]
+	[Authorize]
 	public async Task<IActionResult> RevokeInvite(
 		[FromRoute] TeamIdentifier teamId,
 		[FromRoute] long invitationId)
@@ -618,7 +620,7 @@ public class TeamsController : ControllerBase
 	/// </summary>
 	[HttpPost("{teamId}/invites/{invitationId:long}/response")]
 	[Tags("TeamManagement")]
-	[Authorize(AuthorizationPolicies.TeamManagerOrNgbAdminPolicy)]
+	[Authorize]
 	public async Task<IActionResult> RespondToPendingInvite(
 		[FromRoute] TeamIdentifier teamId,
 		[FromRoute] long invitationId,
