@@ -21,7 +21,7 @@ const TeamManagement = () => {
   
   const { data: team, error: teamError, isLoading } = useGetTeamManagementQuery(
     { teamId: teamId! },
-    { skip: !teamId }
+    { skip: !teamId, refetchOnMountOrArgChange: true }
   );
 
   const [createTeamInvite, { isLoading: isCreatingInvite }] = useCreateTeamInviteMutation();
@@ -64,14 +64,14 @@ const TeamManagement = () => {
   const handleRevokeInvite = async (invitationId: string, email: string) => {
     if (!teamId) return;
 
-    if (!confirm(`Revoke invitation for ${email}?`)) {
+    if (!confirm(`Revoke request for ${email}?`)) {
       return;
     }
 
     try {
       await revokeTeamInvite({ teamId, invitationId }).unwrap();
     } catch (error: any) {
-      alert(error?.data || "Failed to revoke invite. Please try again.");
+      alert(error?.data || "Failed to revoke request. Please try again.");
     }
   };
 
@@ -257,10 +257,10 @@ const TeamManagement = () => {
         )}
       </div>
 
-      {/* Pending Invites Section */}
+      {/* Pending Requests Section */}
       <div className="bg-gray-100 rounded-lg p-6">
         <div className="flex items-center justify-between mb-4 border-b-2 border-green pb-2 gap-4">
-          <h2 className="text-2xl font-semibold">Pending Invitations</h2>
+          <h2 className="text-2xl font-semibold">Pending Requests</h2>
           <div className="flex gap-2 w-full max-w-lg">
             <input
               type="email"
@@ -310,7 +310,7 @@ const TeamManagement = () => {
             ))}
           </div>
         ) : (
-          <p className="text-gray-500">No pending invitations</p>
+          <p className="text-gray-500">No pending requests</p>
         )}
       </div>
 

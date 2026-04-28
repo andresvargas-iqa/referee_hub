@@ -14,6 +14,7 @@ import {
   useGetMyTeamInvitesQuery,
   useRespondToTeamInviteMutation,
   useGetMyUpcomingTournamentsQuery,
+  useGetManagedTeamsQuery,
   useGetTestAttemptsQuery,
   UserDataViewModel,
   TestAttemptViewModelRead,
@@ -157,6 +158,9 @@ const PlayerDetails = () => {
   const isOwnProfile = refereeId === "me";
   const refereeQueryUserId = refereeId ?? "";
   const [isEditing, setIsEditing] = useState(false);
+  const { data: managedTeams } = useGetManagedTeamsQuery(undefined, {
+    skip: !isOwnProfile,
+  });
 
   const { currentData: currentReferee } = useGetCurrentRefereeQuery(undefined, {
     skip: !isOwnProfile,
@@ -169,6 +173,14 @@ const PlayerDetails = () => {
   const [editableReferee, setReferee] = useState<RefereeLocationOptions & RefereeTeamOptions>(referee);
   const editableRefereeRef = useRef<RefereeLocationOptions & RefereeTeamOptions>(editableReferee);
   const [updateReferee, { error: updateRefereeError }] = useUpdateCurrentRefereeMutation();
+
+  const fallbackPrimaryNgb = editableReferee?.primaryNgb ?? referee?.primaryNgb ?? managedTeams?.[0]?.ngb ?? null;
+  const fallbackPlayingTeam =
+    editableReferee?.playingTeam ??
+    referee?.playingTeam ??
+    (managedTeams?.length === 1 && managedTeams[0]?.teamId
+      ? { id: managedTeams[0].teamId, name: managedTeams[0].teamName ?? undefined }
+      : null);
 
   useEffect(() => {
     if (!isEditing && referee) {
@@ -204,7 +216,17 @@ const PlayerDetails = () => {
       }
     } else {
       if (referee) {
-        setReferee(referee);
+        const prefilledReferee = {
+          ...referee,
+          primaryNgb: referee.primaryNgb ?? managedTeams?.[0]?.ngb ?? null,
+          playingTeam: referee.playingTeam ?? (
+            managedTeams?.length === 1 && managedTeams[0]?.teamId
+              ? { id: managedTeams[0].teamId, name: managedTeams[0].teamName ?? undefined }
+              : null
+          ),
+        };
+        setReferee(prefilledReferee);
+        editableRefereeRef.current = prefilledReferee;
       }
       setIsEditing(true);
     }
@@ -236,7 +258,7 @@ const PlayerDetails = () => {
       <div className="flex flex-col lg:flex-row">
         <RefereeLocation
           locations={{
-            primaryNgb: editableReferee?.primaryNgb,
+            primaryNgb: fallbackPrimaryNgb,
             secondaryNgb: editableReferee?.secondaryNgb,
           }}
           isEditing={isEditing}
@@ -245,11 +267,11 @@ const PlayerDetails = () => {
         <RefereeTeam
           teams={{
             coachingTeam: editableReferee?.coachingTeam,
-            playingTeam: editableReferee?.playingTeam,
+            playingTeam: fallbackPlayingTeam,
             nationalTeam: editableReferee?.nationalTeam,
           }}
           locations={{
-            primaryNgb: editableReferee?.primaryNgb,
+            primaryNgb: fallbackPrimaryNgb,
             secondaryNgb: editableReferee?.secondaryNgb,
           }}
           isEditing={isEditing}
@@ -321,7 +343,7 @@ const TeamInvites = () => {
         invitationId,
         inviteResponseModel: { approved },
       }).unwrap();
-      showAlert(approved ? "Successfully accepted invite." : "Invite declined.", "success");
+      showAlert(approved ? "Successfully accepted request." : "Request declined.", "success");
     } catch (error) {
       console.error("Failed to respond to team invite", error);
       showAlert("Failed to respond. Please try again.", "error");
@@ -335,10 +357,10 @@ const TeamInvites = () => {
       {alertState.isVisible && (
         <CustomAlert message={alertState.message} type={alertState.type} onClose={hideAlert} />
       )}
-      <h3 className="card-title">Team Invitations</h3>
+      <h3 className="card-title">Team Requests</h3>
       {isLoading && <p className="card-description">Loading…</p>}
       {!isLoading && (!invites || invites.length === 0) && (
-        <p className="card-description">No pending team invitations.</p>
+        <p className="card-description">No pending team requests.</p>
       )}
       {!isLoading && invites && invites.length > 0 && (
         <div className="invite-list">

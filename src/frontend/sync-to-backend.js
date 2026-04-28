@@ -74,31 +74,24 @@ function syncToBackend() {
     fs.mkdirSync(backendWwwroot, { recursive: true });
   }
 
-  // Copy CSS files
-  const cssFiles = fs.readdirSync(frontendDist).filter(f => f.endsWith('.css'));
-  cssFiles.forEach(file => {
-    const src = path.join(frontendDist, file);
-    const dest = path.join(backendWwwroot, file);
+  // Copy all build artifacts (js/css/html/images/chunks) so backend never serves stale frontend code.
+  const distEntries = fs.readdirSync(frontendDist);
+  distEntries.forEach(entry => {
+    const srcPath = path.join(frontendDist, entry);
+    const destPath = path.join(backendWwwroot, entry);
+
     try {
-      fs.copyFileSync(src, dest);
-      console.log('✓ Copied', file);
+      if (fs.statSync(srcPath).isDirectory()) {
+        copyDirSync(srcPath, destPath);
+        console.log('✓ Copied directory', entry);
+      } else {
+        fs.copyFileSync(srcPath, destPath);
+        console.log('✓ Copied', entry);
+      }
     } catch (err) {
-      console.error('✗ Failed to copy', file, ':', err.message);
+      console.error('✗ Failed to copy', entry, ':', err.message);
     }
   });
-
-  // Copy images folder
-  const imagesSource = path.join(frontendDist, 'images');
-  const imagesDest = path.join(backendWwwroot, 'images');
-  
-  if (fs.existsSync(imagesSource)) {
-    try {
-      copyDirSync(imagesSource, imagesDest);
-      console.log('✓ Copied images directory');
-    } catch (err) {
-      console.error('✗ Failed to copy images:', err.message);
-    }
-  }
 
   console.log('✅ Static assets synced to backend wwwroot');
 }

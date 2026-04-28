@@ -107,133 +107,101 @@ public class RefereesController : ControllerBase
 
 		if (shouldCreatePlayingTeamRequest)
 		{
-			var requestedPlayingTeamIdValue = requestedPlayingTeamId!.Value;
-			var teamExists = await this.dbContext.Teams
-				.AnyAsync(team => team.Id == requestedPlayingTeamIdValue, this.HttpContext.RequestAborted);
-			if (!teamExists)
+			var result = await this.CreateOrUpdateTeamInviteAsync(
+				requestedPlayingTeamId!.Value,
+				normalizedEmail,
+				currentUserDbId);
+			if (result != null)
 			{
-				return this.BadRequest("Selected team was not found.");
-			}
-
-			// Revoke any existing pending requests to OTHER playing teams
-			var otherPendingInvites = await this.dbContext.TeamInvitations
-				.Where(invite =>
-					invite.TeamId != requestedPlayingTeamIdValue &&
-					invite.Email.ToLower() == normalizedEmail &&
-					invite.RevokedAt == null &&
-					invite.AcceptedAt == null &&
-					invite.DeclinedAt == null)
-				.ToListAsync(this.HttpContext.RequestAborted);
-
-			foreach (var oldInvite in otherPendingInvites)
-			{
-				oldInvite.RevokedAt = DateTime.UtcNow;
-			}
-
-			var hasPendingRequest = await this.dbContext.TeamInvitations
-				.AnyAsync(invite =>
-					invite.TeamId == requestedPlayingTeamIdValue &&
-					invite.Email.ToLower() == normalizedEmail &&
-					invite.RevokedAt == null &&
-					invite.AcceptedAt == null &&
-					invite.DeclinedAt == null,
-					this.HttpContext.RequestAborted);
-
-			if (!hasPendingRequest)
-			{
-				var requestedAt = DateTime.UtcNow;
-				this.dbContext.TeamInvitations.Add(new ManagementHub.Models.Data.TeamInvitation
-				{
-					TeamId = requestedPlayingTeamIdValue,
-					Email = normalizedEmail,
-					InitiatorUserId = currentUserDbId,
-					CreatedAt = requestedAt,
-				});
-
-				this.dbContext.TeamPlayerActivities.Add(new ManagementHub.Models.Data.TeamPlayerActivity
-				{
-					TeamId = requestedPlayingTeamIdValue,
-					UserId = currentUserDbId,
-					Email = normalizedEmail,
-					InitiatorUserId = currentUserDbId,
-					ActivityType = TeamPlayerActivityType.InviteCreated,
-					CreatedAt = requestedAt,
-				});
-
-				await this.dbContext.SaveChangesAsync(this.HttpContext.RequestAborted);
-			}
-			else if (otherPendingInvites.Count > 0)
-			{
-				// Save only the revocations if there's already a pending request to the requested team
-				await this.dbContext.SaveChangesAsync(this.HttpContext.RequestAborted);
+				return result;
 			}
 		}
 
 		if (shouldCreateCoachingTeamRequest)
 		{
-			var requestedCoachingTeamIdValue = requestedCoachingTeamId!.Value;
-			var teamExists = await this.dbContext.Teams
-				.AnyAsync(team => team.Id == requestedCoachingTeamIdValue, this.HttpContext.RequestAborted);
-			if (!teamExists)
+			var result = await this.CreateOrUpdateTeamInviteAsync(
+				requestedCoachingTeamId!.Value,
+				normalizedEmail,
+				currentUserDbId);
+			if (result != null)
 			{
-				return this.BadRequest("Selected team was not found.");
-			}
-
-			// Revoke any existing pending requests to OTHER coaching teams
-			var otherPendingInvites = await this.dbContext.TeamInvitations
-				.Where(invite =>
-					invite.TeamId != requestedCoachingTeamIdValue &&
-					invite.Email.ToLower() == normalizedEmail &&
-					invite.RevokedAt == null &&
-					invite.AcceptedAt == null &&
-					invite.DeclinedAt == null)
-				.ToListAsync(this.HttpContext.RequestAborted);
-
-			foreach (var oldInvite in otherPendingInvites)
-			{
-				oldInvite.RevokedAt = DateTime.UtcNow;
-			}
-
-			var hasPendingRequest = await this.dbContext.TeamInvitations
-				.AnyAsync(invite =>
-					invite.TeamId == requestedCoachingTeamIdValue &&
-					invite.Email.ToLower() == normalizedEmail &&
-					invite.RevokedAt == null &&
-					invite.AcceptedAt == null &&
-					invite.DeclinedAt == null,
-					this.HttpContext.RequestAborted);
-
-			if (!hasPendingRequest)
-			{
-				var requestedAt = DateTime.UtcNow;
-				this.dbContext.TeamInvitations.Add(new ManagementHub.Models.Data.TeamInvitation
-				{
-					TeamId = requestedCoachingTeamIdValue,
-					Email = normalizedEmail,
-					InitiatorUserId = currentUserDbId,
-					CreatedAt = requestedAt,
-				});
-
-				this.dbContext.TeamPlayerActivities.Add(new ManagementHub.Models.Data.TeamPlayerActivity
-				{
-					TeamId = requestedCoachingTeamIdValue,
-					UserId = currentUserDbId,
-					Email = normalizedEmail,
-					InitiatorUserId = currentUserDbId,
-					ActivityType = TeamPlayerActivityType.InviteCreated,
-					CreatedAt = requestedAt,
-				});
-
-				await this.dbContext.SaveChangesAsync(this.HttpContext.RequestAborted);
-			}
-			else if (otherPendingInvites.Count > 0)
-			{
-				// Save only the revocations if there's already a pending request to the requested team
-				await this.dbContext.SaveChangesAsync(this.HttpContext.RequestAborted);
+				return result;
 			}
 		}
 
 		return this.NoContent();
+	}
+
+	/// <summary>
+	/// Creates a team invitation for a referee or revokes existing pending invites to other teams.
+	/// Handles duplicate request prevention and auditing.
+	/// </summary>
+	private async Task<IActionResult?> CreateOrUpdateTeamInviteAsync(
+		long requestedTeamId,
+		string normalizedEmail,
+		long currentUserDbId)
+	{
+		var teamExists = await this.dbContext.Teams
+			.AnyAsync(team => team.Id == requestedTeamId, this.HttpContext.RequestAborted);
+		if (!teamExists)
+		{
+			return this.BadRequest("Selected team was not found.");
+		}
+
+		// Revoke any existing pending requests to OTHER teams
+		var otherPendingInvites = await this.dbContext.TeamInvitations
+			.Where(invite =>
+				invite.TeamId != requestedTeamId &&
+				invite.Email.ToLower() == normalizedEmail &&
+				invite.RevokedAt == null &&
+				invite.AcceptedAt == null &&
+				invite.DeclinedAt == null)
+			.ToListAsync(this.HttpContext.RequestAborted);
+
+		foreach (var oldInvite in otherPendingInvites)
+		{
+			oldInvite.RevokedAt = DateTime.UtcNow;
+		}
+
+		var hasPendingRequest = await this.dbContext.TeamInvitations
+			.AnyAsync(invite =>
+				invite.TeamId == requestedTeamId &&
+				invite.Email.ToLower() == normalizedEmail &&
+				invite.RevokedAt == null &&
+				invite.AcceptedAt == null &&
+				invite.DeclinedAt == null,
+				this.HttpContext.RequestAborted);
+
+		if (!hasPendingRequest)
+		{
+			var requestedAt = DateTime.UtcNow;
+			this.dbContext.TeamInvitations.Add(new ManagementHub.Models.Data.TeamInvitation
+			{
+				TeamId = requestedTeamId,
+				Email = normalizedEmail,
+				InitiatorUserId = currentUserDbId,
+				CreatedAt = requestedAt,
+			});
+
+			this.dbContext.TeamPlayerActivities.Add(new ManagementHub.Models.Data.TeamPlayerActivity
+			{
+				TeamId = requestedTeamId,
+				UserId = currentUserDbId,
+				Email = normalizedEmail,
+				InitiatorUserId = currentUserDbId,
+				ActivityType = TeamPlayerActivityType.InviteCreated,
+				CreatedAt = requestedAt,
+			});
+
+			await this.dbContext.SaveChangesAsync(this.HttpContext.RequestAborted);
+		}
+		else if (otherPendingInvites.Count > 0)
+		{
+			// Save only the revocations if there's already a pending request to the requested team
+			await this.dbContext.SaveChangesAsync(this.HttpContext.RequestAborted);
+		}
+
+		return null;
 	}
 
 	/// <summary>
