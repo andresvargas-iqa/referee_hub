@@ -4,7 +4,6 @@ const path = require('path');
 
 const frontendDist = path.resolve(__dirname, 'dist');
 const backendWwwroots = [
-  path.resolve(__dirname, '..', 'backend', 'ManagementHub.Service', 'wwwroot'),
   path.resolve(__dirname, '..', 'backend', 'ManagementHub.Service', 'bin', 'Debug', 'net8.0', 'wwwroot'),
   path.resolve(__dirname, '..', 'backend', 'ManagementHub.Service', 'bin', 'Release', 'net8.0', 'wwwroot'),
 ];
