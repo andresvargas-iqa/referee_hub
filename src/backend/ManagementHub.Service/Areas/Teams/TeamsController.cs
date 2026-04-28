@@ -325,25 +325,28 @@ public class TeamsController : ControllerBase
 	/// <returns>Team management data</returns>
 	[HttpGet("{teamId}/management")]
 	[Tags("TeamManagement")]
-	[Authorize(AuthorizationPolicies.TeamManagerPolicy)]
+	[Authorize(AuthorizationPolicies.TeamManagerOrNgbAdminPolicy)]
 	public async Task<ActionResult<TeamManagementViewModel>> GetTeamManagement([FromRoute] TeamIdentifier teamId)
 	{
-		// Verify user is a manager of this team
 		var userContext = await this.contextAccessor.GetCurrentUserContextAsync();
-		var isTeamManager = userContext.Roles
-			.OfType<TeamManagerRole>()
-			.Any(role => role.Team.AppliesTo(teamId));
-
-		if (!isTeamManager)
-		{
-			return this.Forbid();
-		}
 
 		// Get team details
 		var team = await this.teamContextProvider.GetTeamAsync(teamId, NgbConstraint.Any);
 		if (team == null)
 		{
 			return this.NotFound();
+		}
+
+		var isTeamManager = userContext.Roles
+			.OfType<TeamManagerRole>()
+			.Any(role => role.Team.AppliesTo(teamId));
+		var isNgbAdmin = userContext.Roles
+			.OfType<NgbAdminRole>()
+			.Any(role => role.Ngb.AppliesTo(team.NgbId));
+
+		if (!isTeamManager && !isNgbAdmin)
+		{
+			return this.Forbid();
 		}
 
 		// Get social accounts
@@ -562,17 +565,26 @@ public class TeamsController : ControllerBase
 	/// </summary>
 	[HttpDelete("{teamId}/invites/{invitationId:long}")]
 	[Tags("TeamManagement")]
-	[Authorize]
+	[Authorize(AuthorizationPolicies.TeamManagerOrNgbAdminPolicy)]
 	public async Task<IActionResult> RevokeInvite(
 		[FromRoute] TeamIdentifier teamId,
 		[FromRoute] long invitationId)
 	{
 		var userContext = await this.contextAccessor.GetCurrentUserContextAsync();
+		var team = await this.teamContextProvider.GetTeamAsync(teamId, NgbConstraint.Any);
+		if (team == null)
+		{
+			return this.NotFound();
+		}
+
 		var isTeamManager = userContext.Roles
 			.OfType<TeamManagerRole>()
 			.Any(role => role.Team.AppliesTo(teamId));
+		var isNgbAdmin = userContext.Roles
+			.OfType<NgbAdminRole>()
+			.Any(role => role.Ngb.AppliesTo(team.NgbId));
 
-		if (!isTeamManager)
+		if (!isTeamManager && !isNgbAdmin)
 		{
 			return this.Forbid();
 		}
@@ -606,18 +618,27 @@ public class TeamsController : ControllerBase
 	/// </summary>
 	[HttpPost("{teamId}/invites/{invitationId:long}/response")]
 	[Tags("TeamManagement")]
-	[Authorize]
+	[Authorize(AuthorizationPolicies.TeamManagerOrNgbAdminPolicy)]
 	public async Task<IActionResult> RespondToPendingInvite(
 		[FromRoute] TeamIdentifier teamId,
 		[FromRoute] long invitationId,
 		[FromBody] InviteResponseModel response)
 	{
 		var userContext = await this.contextAccessor.GetCurrentUserContextAsync();
+		var team = await this.teamContextProvider.GetTeamAsync(teamId, NgbConstraint.Any);
+		if (team == null)
+		{
+			return this.NotFound();
+		}
+
 		var isTeamManager = userContext.Roles
 			.OfType<TeamManagerRole>()
 			.Any(role => role.Team.AppliesTo(teamId));
+		var isNgbAdmin = userContext.Roles
+			.OfType<NgbAdminRole>()
+			.Any(role => role.Ngb.AppliesTo(team.NgbId));
 
-		if (!isTeamManager)
+		if (!isTeamManager && !isNgbAdmin)
 		{
 			return this.Forbid();
 		}
