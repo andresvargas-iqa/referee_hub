@@ -135,13 +135,14 @@
     "lint:ci": "eslint -f ./node_modules/eslint-junit/index.js .",
     "swaggergen": "rtk-query-codegen-openapi openapi-config.js",
     "start:dev": "webpack serve --config webpack.config.dev.js",
-    "build:dev": "yarn build:app:dev && yarn styles && yarn images:copy",
-    "build:prod": "yarn build:app:prod && yarn styles && yarn images:copy",
+    "build:dev": "yarn build:app:dev && yarn styles && yarn images:copy && yarn sync:backend",
+    "build:prod": "yarn build:app:prod && yarn styles && yarn images:copy && yarn sync:backend",
     "build:app:dev": "webpack --config webpack.config.dev.js",
     "build:app:prod": "webpack --config webpack.config.prod.js",
     "styles": "yarn styles:common && yarn styles:app",
     "styles:common": "postcss ./assets/stylesheets/application.css -o dist/management_hub.css",
     "styles:app": "sass ./app/assets/stylesheets/app.scss dist/management_hub_app.css",
-    "images:copy": "shx cp -R ./assets/images ./dist/"
+    "images:copy": "shx cp -R ./assets/images ./dist/",
+    "sync:backend": "node sync-to-backend.js"
   }
 }

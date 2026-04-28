@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 import RefereeHeader from "./RefereeHeader";
 import RefereeLocation from "./RefereeLocation";
@@ -167,21 +167,31 @@ const PlayerDetails = () => {
   );
   const referee = isOwnProfile ? currentReferee : viewedReferee;
   const [editableReferee, setReferee] = useState<RefereeLocationOptions & RefereeTeamOptions>(referee);
+  const editableRefereeRef = useRef<RefereeLocationOptions & RefereeTeamOptions>(editableReferee);
   const [updateReferee, { error: updateRefereeError }] = useUpdateCurrentRefereeMutation();
 
   useEffect(() => {
     if (!isEditing && referee) {
       setReferee(referee);
+      editableRefereeRef.current = referee;
     }
   }, [referee, isEditing]);
 
+  useEffect(() => {
+    editableRefereeRef.current = editableReferee;
+  }, [editableReferee]);
+
   const handleChange = (newState: RefereeLocationOptions | RefereeTeamOptions) => {
-    setReferee((prev) => ({ ...(prev ?? {}), ...newState }));
+    setReferee((prev) => {
+      const updated = { ...(prev ?? {}), ...newState };
+      editableRefereeRef.current = updated;
+      return updated;
+    });
   };
 
   const buttonClick = async () => {
     if (isEditing) {
-      const payload = editableReferee ?? referee;
+      const payload = editableRefereeRef.current ?? editableReferee ?? referee;
       if (!payload) {
         return;
       }

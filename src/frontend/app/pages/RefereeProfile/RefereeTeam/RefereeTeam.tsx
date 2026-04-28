@@ -93,13 +93,15 @@ const RefereeTeam = (props: RefereeTeamProps) => {
     value: SelectOption | MultiValue<SelectOption>,
     action: ActionMeta<SelectOption>
   ) => {
-    switch (action.action) {
-      case "clear":
-        handleSelect(type, { value: "-1", label: "" });
-        break;
-      case "select-option":
-        handleSelect(type, value as SelectOption); // cast only works while isMulti={false} below
-        break;
+    if (action.action === "clear") {
+      handleSelect(type, { value: "-1", label: "" });
+      return;
+    }
+
+    // isMulti={false}, but react-select may report different action types for selection
+    const selectedValue = Array.isArray(value) ? value[0] : value;
+    if (selectedValue) {
+      handleSelect(type, selectedValue);
     }
   };
 

@@ -190,7 +190,11 @@ const injectedRtkApi = api
           method: "PUT",
           body: queryArg.refereeUpdateViewModel,
         }),
-        invalidatesTags: ["Referee", "User", "TeamManagement"],
+        invalidatesTags: (result, error, arg) => [
+          "Referee",
+          "User",
+          { type: "TeamManagement" },
+        ],
       }),
       getCurrentReferee: build.query<GetCurrentRefereeApiResponse, GetCurrentRefereeApiArg>({
         query: () => ({ url: `/api/v2/Referees/me` }),
@@ -362,7 +366,7 @@ const injectedRtkApi = api
       }),
       getTeamManagement: build.query<GetTeamManagementApiResponse, GetTeamManagementApiArg>({
         query: (queryArg) => ({ url: `/api/v2/Teams/${queryArg.teamId}/management` }),
-        providesTags: ["TeamManagement"],
+        providesTags: (result, error, arg) => [{ type: "TeamManagement", id: arg.teamId }],
       }),
       addTeamManagerToTeam: build.mutation<
         AddTeamManagerToTeamApiResponse,
@@ -381,14 +385,14 @@ const injectedRtkApi = api
           method: "POST",
           body: queryArg.invitePlayerRequest,
         }),
-        invalidatesTags: ["TeamManagement"],
+        invalidatesTags: (result, error, arg) => [{ type: "TeamManagement", id: arg.teamId }],
       }),
       revokeTeamInvite: build.mutation<RevokeTeamInviteApiResponse, RevokeTeamInviteApiArg>({
         query: (queryArg) => ({
           url: `/api/v2/Teams/${queryArg.teamId}/invites/${queryArg.invitationId}`,
           method: "DELETE",
         }),
-        invalidatesTags: ["TeamManagement"],
+        invalidatesTags: (result, error, arg) => [{ type: "TeamManagement", id: arg.teamId }],
       }),
       respondToPendingTeamInvite: build.mutation<
         RespondToPendingTeamInviteApiResponse,
@@ -399,14 +403,18 @@ const injectedRtkApi = api
           method: "POST",
           body: queryArg.inviteResponseModel,
         }),
-        invalidatesTags: ["TeamManagement", "User", "Team"],
+        invalidatesTags: (result, error, arg) => [
+          { type: "TeamManagement", id: arg.teamId },
+          "User",
+          "Team",
+        ],
       }),
       removePlayer: build.mutation<RemovePlayerApiResponse, RemovePlayerApiArg>({
         query: (queryArg) => ({
           url: `/api/v2/Teams/${queryArg.teamId}/players/${queryArg.playerId}`,
           method: "DELETE",
         }),
-        invalidatesTags: ["TeamManagement", "Team"],
+        invalidatesTags: (result, error, arg) => [{ type: "TeamManagement", id: arg.teamId }, "Team"],
       }),
       getTestDetails: build.query<GetTestDetailsApiResponse, GetTestDetailsApiArg>({
         query: (queryArg) => ({ url: `/api/v2/referees/me/tests/${queryArg.testId}/details` }),

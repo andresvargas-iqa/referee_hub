@@ -3,6 +3,19 @@ const Dotenv = require('dotenv-webpack');
 const { merge } = require('webpack-merge');
 const common = require('./webpack.config.common.js');
 
+// Custom plugin to sync assets to backend after build
+class SyncToBackendPlugin {
+  apply(compiler) {
+    compiler.hooks.done.tap('SyncToBackendPlugin', () => {
+      try {
+        require('./sync-to-backend.js');
+      } catch (err) {
+        console.error('Failed to sync assets to backend:', err.message);
+      }
+    });
+  }
+}
+
 module.exports = merge(common, {
   // Enable filesystem cache for faster rebuilds
   cache: {
@@ -19,6 +32,7 @@ module.exports = merge(common, {
   },
   plugins: [
     new Dotenv(),
+    new SyncToBackendPlugin(),
   ],
   devServer: {
     // Write files to disk so backend can serve them
