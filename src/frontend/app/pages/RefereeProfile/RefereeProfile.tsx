@@ -67,7 +67,15 @@ const PronounsRow = ({ isEditing, pronouns, showPronouns, onPronounsChange, onSh
     editContent={
       <div className="flex items-center gap-3 w-full">
         <Toggle name="showPronouns" label="Show?" onChange={onShowPronounsChange} checked={showPronouns ?? false} />
-        <input className="form-input flex-1" type="text" value={pronouns ?? ""} onChange={onPronounsChange} placeholder="Pronouns" />
+        <input
+          id="referee-pronouns"
+          name="pronouns"
+          className="form-input flex-1"
+          type="text"
+          value={pronouns ?? ""}
+          onChange={onPronounsChange}
+          placeholder="Pronouns"
+        />
       </div>
     }
   />
@@ -124,8 +132,15 @@ const BasicDetails = ({ userData, isEditing, isEditable, onChange, onEdit, onSav
         isEditing={isEditing}
         value={userData.bio}
         editContent={
-          <textarea className="bg-gray-100 rounded p-2 text-sm w-full" style={{ resize: "vertical", minHeight: "4rem" }}
-            onChange={handleStringChange("bio")} value={userData.bio ?? ""} placeholder="Tell us about yourself…" />
+          <textarea
+            id="referee-bio"
+            name="bio"
+            className="bg-gray-100 rounded p-2 text-sm w-full"
+            style={{ resize: "vertical", minHeight: "4rem" }}
+            onChange={handleStringChange("bio")}
+            value={userData.bio ?? ""}
+            placeholder="Tell us about yourself…"
+          />
         }
       />
 
