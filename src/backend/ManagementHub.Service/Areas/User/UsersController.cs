@@ -409,15 +409,7 @@ public class UsersController : ControllerBase
 			.SingleAsync(this.HttpContext.RequestAborted);
 		var normalizedEmail = currentUser.UserData.Email.Value.Trim().ToLowerInvariant();
 
-		var invitation = await this.dbContext.TeamInvitations
-			.Include(invite => invite.Team)
-			.FirstOrDefaultAsync(invite =>
-				invite.Id == invitationId &&
-				invite.Email.ToLower() == normalizedEmail &&
-				invite.RevokedAt == null &&
-				invite.AcceptedAt == null &&
-				invite.DeclinedAt == null,
-				this.HttpContext.RequestAborted);
+		var invitation = await this.GetPendingTeamInvitationAsync(invitationId, normalizedEmail);
 
 		if (invitation == null)
 		{
@@ -428,17 +420,12 @@ public class UsersController : ControllerBase
 			.OfType<TeamManagerRole>()
 			.Any(role => role.Team.AppliesTo(new TeamIdentifier(invitation.TeamId)));
 
-		if (invitation.InitiatorUserId == currentUserDbId && !canSelfApproveInvite)
+		if (RequiresManagerApproval(invitation, currentUserDbId, canSelfApproveInvite))
 		{
 			return this.BadRequest(new { error = "This request is waiting for team manager approval." });
 		}
 
-		var existingPlayerMembership = await this.dbContext.RefereeTeams
-			.FirstOrDefaultAsync(
-				membership =>
-					membership.RefereeId == currentUserDbId &&
-					membership.AssociationType == RefereeTeamAssociationType.Player,
-				this.HttpContext.RequestAborted);
+		var existingPlayerMembership = await this.GetExistingPlayerMembershipAsync(currentUserDbId);
 
 		if (response.Approved && existingPlayerMembership?.TeamId == invitation.TeamId)
 		{
@@ -446,55 +433,102 @@ public class UsersController : ControllerBase
 		}
 
 		var respondedAt = DateTime.UtcNow;
-		invitation.RespondedByUserId = currentUserDbId;
-
-		if (response.Approved)
-		{
-			invitation.AcceptedAt = respondedAt;
-			if (existingPlayerMembership == null)
-			{
-				this.dbContext.RefereeTeams.Add(new RefereeTeam
-				{
-					AssociationType = RefereeTeamAssociationType.Player,
-					RefereeId = currentUserDbId,
-					TeamId = invitation.TeamId,
-					CreatedAt = respondedAt,
-					UpdatedAt = respondedAt,
-				});
-			}
-			else
-			{
-				existingPlayerMembership.TeamId = invitation.TeamId;
-				existingPlayerMembership.UpdatedAt = respondedAt;
-			}
-		}
-		else
-		{
-			invitation.DeclinedAt = respondedAt;
-		}
-
-		this.dbContext.TeamPlayerActivities.Add(new TeamPlayerActivity
-		{
-			TeamId = invitation.TeamId,
-			UserId = currentUserDbId,
-			Email = invitation.Email,
-			InitiatorUserId = currentUserDbId,
-			ActivityType = response.Approved ? TeamPlayerActivityType.InviteAccepted : TeamPlayerActivityType.InviteDeclined,
-			CreatedAt = respondedAt,
-		});
+		this.ApplyTeamInviteResponse(invitation, response.Approved, currentUserDbId, existingPlayerMembership, respondedAt);
+		this.AddTeamInviteActivity(invitation, response.Approved, currentUserDbId, respondedAt);
 
 		await this.dbContext.SaveChangesAsync(this.HttpContext.RequestAborted);
 
 		var responderName = string.Join(" ", new[] { currentUser.UserData.FirstName, currentUser.UserData.LastName }
 			.Where(part => !string.IsNullOrWhiteSpace(part)));
 
+		await this.SendTeamInviteResponseEmailAsync(invitation, invitationId, response.Approved, responderName);
+
+		return this.Ok();
+	}
+
+	private async Task<TeamInvitation?> GetPendingTeamInvitationAsync(long invitationId, string normalizedEmail)
+	{
+		return await this.dbContext.TeamInvitations
+			.Include(invite => invite.Team)
+			.FirstOrDefaultAsync(invite =>
+				invite.Id == invitationId &&
+				invite.Email.ToLower() == normalizedEmail &&
+				invite.RevokedAt == null &&
+				invite.AcceptedAt == null &&
+				invite.DeclinedAt == null,
+				this.HttpContext.RequestAborted);
+	}
+
+	private static bool RequiresManagerApproval(TeamInvitation invitation, long currentUserDbId, bool canSelfApproveInvite)
+	{
+		if (invitation.InitiatorUserId != currentUserDbId)
+		{
+			return false;
+		}
+
+		return !canSelfApproveInvite;
+	}
+
+	private async Task<RefereeTeam?> GetExistingPlayerMembershipAsync(long currentUserDbId)
+	{
+		return await this.dbContext.RefereeTeams
+			.FirstOrDefaultAsync(
+				membership =>
+					membership.RefereeId == currentUserDbId &&
+					membership.AssociationType == RefereeTeamAssociationType.Player,
+				this.HttpContext.RequestAborted);
+	}
+
+	private void ApplyTeamInviteResponse(TeamInvitation invitation, bool approved, long currentUserDbId, RefereeTeam? existingPlayerMembership, DateTime respondedAt)
+	{
+		invitation.RespondedByUserId = currentUserDbId;
+
+		if (!approved)
+		{
+			invitation.DeclinedAt = respondedAt;
+			return;
+		}
+
+		invitation.AcceptedAt = respondedAt;
+		if (existingPlayerMembership == null)
+		{
+			this.dbContext.RefereeTeams.Add(new RefereeTeam
+			{
+				AssociationType = RefereeTeamAssociationType.Player,
+				RefereeId = currentUserDbId,
+				TeamId = invitation.TeamId,
+				CreatedAt = respondedAt,
+				UpdatedAt = respondedAt,
+			});
+			return;
+		}
+
+		existingPlayerMembership.TeamId = invitation.TeamId;
+		existingPlayerMembership.UpdatedAt = respondedAt;
+	}
+
+	private void AddTeamInviteActivity(TeamInvitation invitation, bool approved, long currentUserDbId, DateTime respondedAt)
+	{
+		this.dbContext.TeamPlayerActivities.Add(new TeamPlayerActivity
+		{
+			TeamId = invitation.TeamId,
+			UserId = currentUserDbId,
+			Email = invitation.Email,
+			InitiatorUserId = currentUserDbId,
+			ActivityType = approved ? TeamPlayerActivityType.InviteAccepted : TeamPlayerActivityType.InviteDeclined,
+			CreatedAt = respondedAt,
+		});
+	}
+
+	private async Task SendTeamInviteResponseEmailAsync(TeamInvitation invitation, long invitationId, bool approved, string responderName)
+	{
 		try
 		{
 			await this.sendTeamInviteEmail.SendTeamInviteResponseEmailAsync(
 				new TeamIdentifier(invitation.TeamId),
 				invitation.Email,
 				string.IsNullOrWhiteSpace(responderName) ? null : responderName,
-				response.Approved,
+				approved,
 				this.GetHostBaseUri(),
 				this.HttpContext.RequestAborted);
 		}
@@ -502,8 +536,6 @@ public class UsersController : ControllerBase
 		{
 			this.logger.LogError(ex, "Failed to send team invite response email for invitation {InvitationId}", invitationId);
 		}
-
-		return this.Ok();
 	}
 
 	private Uri GetHostBaseUri() => new($"{this.Request.Scheme}://{this.Request.Host}");
