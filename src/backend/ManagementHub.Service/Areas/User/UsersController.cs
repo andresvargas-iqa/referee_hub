@@ -424,7 +424,11 @@ public class UsersController : ControllerBase
 			return this.NotFound(new { error = "No pending invite found" });
 		}
 
-		if (invitation.InitiatorUserId == currentUserDbId)
+		var canSelfApproveInvite = currentUser.Roles
+			.OfType<TeamManagerRole>()
+			.Any(role => role.Team.AppliesTo(new TeamIdentifier(invitation.TeamId)));
+
+		if (invitation.InitiatorUserId == currentUserDbId && !canSelfApproveInvite)
 		{
 			return this.BadRequest(new { error = "This request is waiting for team manager approval." });
 		}
