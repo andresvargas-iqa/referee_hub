@@ -329,6 +329,29 @@ public class TeamInvitationsApiIntegrationTests : IClassFixture<TestWebApplicati
 	}
 
 	[Fact]
+	public async Task UpdateReferee_WithExistingYankeesMembershipAndNoInviteHistory_ShouldCreatePendingManagerApprovalRequest()
+	{
+		await AuthenticationHelper.AuthenticateAsAsync(this.client, "referee@example.com", "password");
+
+		var requestResponse = await this.client.PutAsJsonAsync("/api/v2/Referees/me", new
+		{
+			primaryNgb = "USA",
+			secondaryNgb = (string?)null,
+			playingTeam = new { id = "TM_1" },
+			coachingTeam = (object?)null,
+			nationalTeam = (object?)null,
+		});
+
+		requestResponse.StatusCode.Should().Be(HttpStatusCode.NoContent);
+
+		var myInvitesResponse = await this.client.GetAsync("/api/v2/users/me/teamInvites");
+		myInvitesResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+		var myInvites = await myInvitesResponse.Content.ReadFromJsonAsync<List<CurrentUserTeamInviteViewModelDto>>();
+		myInvites.Should().NotBeNull();
+		myInvites!.Should().Contain(i => i.TeamId == "TM_1" && i.Email == "referee@example.com" && i.CanRespond == false);
+	}
+
+	[Fact]
 	public async Task UpdateReferee_WithYankeesRequest_ShouldAppearInYankeesTeamManagement()
 	{
 		await AuthenticationHelper.AuthenticateAsAsync(this.client, "referee@example.com", "password");

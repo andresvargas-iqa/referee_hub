@@ -66,9 +66,15 @@ public class RefereesController : ControllerBase
 		long? currentPlayingTeamId = currentPlayingTeam == 0 ? null : currentPlayingTeam;
 
 		var requestedPlayingTeamId = refereeUpdate.PlayingTeam?.Id.Id;
+		var normalizedEmail = userContext.UserData.Email.Value.Trim().ToLowerInvariant();
+		var hasAnyTeamInviteRecord = requestedPlayingTeamId != null && await this.dbContext.TeamInvitations
+			.AnyAsync(invite =>
+				invite.TeamId == requestedPlayingTeamId.Value &&
+				invite.Email.ToLower() == normalizedEmail,
+				this.HttpContext.RequestAborted);
 		var shouldCreatePlayingTeamRequest =
 			requestedPlayingTeamId != null &&
-			(currentPlayingTeamId == null || requestedPlayingTeamId != currentPlayingTeamId.Value);
+			(currentPlayingTeamId == null || requestedPlayingTeamId != currentPlayingTeamId.Value || !hasAnyTeamInviteRecord);
 
 		await this.updateRefereeRoleCommand.UpdateRefereeRoleAsync(userContext.UserId, refereeRole => new RefereeRole
 		{
@@ -92,7 +98,6 @@ public class RefereesController : ControllerBase
 				return this.BadRequest("Selected team was not found.");
 			}
 
-			var normalizedEmail = userContext.UserData.Email.Value.Trim().ToLowerInvariant();
 			var hasPendingRequest = await this.dbContext.TeamInvitations
 				.AnyAsync(invite =>
 					invite.TeamId == requestedPlayingTeamIdValue &&
