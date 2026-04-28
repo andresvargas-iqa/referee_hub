@@ -59,36 +59,21 @@ public class RefereesController : ControllerBase
 			.Select(user => user.Id)
 			.SingleAsync(this.HttpContext.RequestAborted);
 
-		var currentPlayingTeam = await this.dbContext.RefereeTeams
-			.Where(team => team.RefereeId == currentUserDbId && team.AssociationType == RefereeTeamAssociationType.Player)
-			.Select(team => team.TeamId)
-			.FirstOrDefaultAsync(this.HttpContext.RequestAborted);
-		long? currentPlayingTeamId = currentPlayingTeam == 0 ? null : currentPlayingTeam;
-
-		var currentCoachingTeam = await this.dbContext.RefereeTeams
-			.Where(team => team.RefereeId == currentUserDbId && team.AssociationType == RefereeTeamAssociationType.Coach)
-			.Select(team => team.TeamId)
-			.FirstOrDefaultAsync(this.HttpContext.RequestAborted);
-		long? currentCoachingTeamId = currentCoachingTeam == 0 ? null : currentCoachingTeam;
+		var currentPlayingTeamId = await this.GetCurrentRefereeTeamIdAsync(currentUserDbId, RefereeTeamAssociationType.Player);
+		var currentCoachingTeamId = await this.GetCurrentRefereeTeamIdAsync(currentUserDbId, RefereeTeamAssociationType.Coach);
 
 		var requestedPlayingTeamId = refereeUpdate.PlayingTeam?.Id.Id;
 		var requestedCoachingTeamId = refereeUpdate.CoachingTeam?.Id.Id;
 		var normalizedEmail = userContext.UserData.Email.Value.Trim().ToLowerInvariant();
 		
-		var hasAnyPlayingTeamInviteRecord = requestedPlayingTeamId != null && await this.dbContext.TeamInvitations
-			.AnyAsync(invite =>
-				invite.TeamId == requestedPlayingTeamId.Value &&
-				invite.Email.ToLower() == normalizedEmail,
-				this.HttpContext.RequestAborted);
+		var hasAnyPlayingTeamInviteRecord = requestedPlayingTeamId != null
+			&& await this.HasAnyTeamInviteRecordAsync(requestedPlayingTeamId.Value, normalizedEmail);
 		var shouldCreatePlayingTeamRequest =
 			requestedPlayingTeamId != null &&
 			(currentPlayingTeamId == null || requestedPlayingTeamId != currentPlayingTeamId.Value || !hasAnyPlayingTeamInviteRecord);
 
-		var hasAnyCoachingTeamInviteRecord = requestedCoachingTeamId != null && await this.dbContext.TeamInvitations
-			.AnyAsync(invite =>
-				invite.TeamId == requestedCoachingTeamId.Value &&
-				invite.Email.ToLower() == normalizedEmail,
-				this.HttpContext.RequestAborted);
+		var hasAnyCoachingTeamInviteRecord = requestedCoachingTeamId != null
+			&& await this.HasAnyTeamInviteRecordAsync(requestedCoachingTeamId.Value, normalizedEmail);
 		var shouldCreateCoachingTeamRequest =
 			requestedCoachingTeamId != null &&
 			(currentCoachingTeamId == null || requestedCoachingTeamId != currentCoachingTeamId.Value || !hasAnyCoachingTeamInviteRecord);
@@ -105,93 +90,120 @@ public class RefereesController : ControllerBase
 			SecondaryNgb = refereeUpdate.SecondaryNgb,
 		}, this.HttpContext.RequestAborted);
 
-		if (shouldCreatePlayingTeamRequest && requestedPlayingTeamId.HasValue)
+		if (shouldCreatePlayingTeamRequest)
 		{
-			var teamExists = await this.dbContext.Teams
-				.AnyAsync(team => team.Id == requestedPlayingTeamId.Value, this.HttpContext.RequestAborted);
-			if (!teamExists)
-				return this.BadRequest("Selected team was not found.");
-
-			var otherInvites = await this.dbContext.TeamInvitations
-				.Where(i => i.TeamId != requestedPlayingTeamId && i.Email.ToLower() == normalizedEmail &&
-					i.RevokedAt == null && i.AcceptedAt == null && i.DeclinedAt == null)
-				.ToListAsync(this.HttpContext.RequestAborted);
-			otherInvites.ForEach(i => i.RevokedAt = DateTime.UtcNow);
-
-			var hasPending = await this.dbContext.TeamInvitations
-				.AnyAsync(i => i.TeamId == requestedPlayingTeamId && i.Email.ToLower() == normalizedEmail &&
-					i.RevokedAt == null && i.AcceptedAt == null && i.DeclinedAt == null,
-					this.HttpContext.RequestAborted);
-
-			if (!hasPending)
+			var result = await this.CreateOrUpdateTeamInviteAsync(
+				requestedPlayingTeamId!.Value,
+				normalizedEmail,
+				currentUserDbId);
+			if (result != null)
 			{
-				var now = DateTime.UtcNow;
-				this.dbContext.TeamInvitations.Add(new ManagementHub.Models.Data.TeamInvitation
-				{
-					TeamId = requestedPlayingTeamId.Value,
-					Email = normalizedEmail,
-					InitiatorUserId = currentUserDbId,
-					CreatedAt = now,
-				});
-				this.dbContext.TeamPlayerActivities.Add(new ManagementHub.Models.Data.TeamPlayerActivity
-				{
-					TeamId = requestedPlayingTeamId.Value,
-					UserId = currentUserDbId,
-					Email = normalizedEmail,
-					InitiatorUserId = currentUserDbId,
-					ActivityType = TeamPlayerActivityType.InviteCreated,
-					CreatedAt = now,
-				});
-				await this.dbContext.SaveChangesAsync(this.HttpContext.RequestAborted);
+				return result;
 			}
-			else if (otherInvites.Count > 0)
-				await this.dbContext.SaveChangesAsync(this.HttpContext.RequestAborted);
 		}
 
-		if (shouldCreateCoachingTeamRequest && requestedCoachingTeamId.HasValue)
+		if (shouldCreateCoachingTeamRequest)
 		{
-			var teamExists = await this.dbContext.Teams
-				.AnyAsync(team => team.Id == requestedCoachingTeamId.Value, this.HttpContext.RequestAborted);
-			if (!teamExists)
-				return this.BadRequest("Selected team was not found.");
-
-			var otherInvites = await this.dbContext.TeamInvitations
-				.Where(i => i.TeamId != requestedCoachingTeamId && i.Email.ToLower() == normalizedEmail &&
-					i.RevokedAt == null && i.AcceptedAt == null && i.DeclinedAt == null)
-				.ToListAsync(this.HttpContext.RequestAborted);
-			otherInvites.ForEach(i => i.RevokedAt = DateTime.UtcNow);
-
-			var hasPending = await this.dbContext.TeamInvitations
-				.AnyAsync(i => i.TeamId == requestedCoachingTeamId && i.Email.ToLower() == normalizedEmail &&
-					i.RevokedAt == null && i.AcceptedAt == null && i.DeclinedAt == null,
-					this.HttpContext.RequestAborted);
-
-			if (!hasPending)
+			var result = await this.CreateOrUpdateTeamInviteAsync(
+				requestedCoachingTeamId!.Value,
+				normalizedEmail,
+				currentUserDbId);
+			if (result != null)
 			{
-				var now = DateTime.UtcNow;
-				this.dbContext.TeamInvitations.Add(new ManagementHub.Models.Data.TeamInvitation
-				{
-					TeamId = requestedCoachingTeamId.Value,
-					Email = normalizedEmail,
-					InitiatorUserId = currentUserDbId,
-					CreatedAt = now,
-				});
-				this.dbContext.TeamPlayerActivities.Add(new ManagementHub.Models.Data.TeamPlayerActivity
-				{
-					TeamId = requestedCoachingTeamId.Value,
-					UserId = currentUserDbId,
-					Email = normalizedEmail,
-					InitiatorUserId = currentUserDbId,
-					ActivityType = TeamPlayerActivityType.InviteCreated,
-					CreatedAt = now,
-				});
-				await this.dbContext.SaveChangesAsync(this.HttpContext.RequestAborted);
+				return result;
 			}
-			else if (otherInvites.Count > 0)
-				await this.dbContext.SaveChangesAsync(this.HttpContext.RequestAborted);
 		}
 
 		return this.NoContent();
+	}
+
+	private async Task<long?> GetCurrentRefereeTeamIdAsync(long refereeDbId, RefereeTeamAssociationType associationType)
+	{
+		var teamId = await this.dbContext.RefereeTeams
+			.Where(team => team.RefereeId == refereeDbId && team.AssociationType == associationType)
+			.Select(team => team.TeamId)
+			.FirstOrDefaultAsync(this.HttpContext.RequestAborted);
+
+		return teamId == 0 ? null : teamId;
+	}
+
+	private Task<bool> HasAnyTeamInviteRecordAsync(long teamId, string normalizedEmail)
+	{
+		return this.dbContext.TeamInvitations
+			.AnyAsync(invite =>
+				invite.TeamId == teamId &&
+				invite.Email.ToLower() == normalizedEmail,
+				this.HttpContext.RequestAborted);
+	}
+
+	/// <summary>
+	/// Creates a team invitation for a referee or revokes existing pending invites to other teams.
+	/// Handles duplicate request prevention and auditing.
+	/// </summary>
+	private async Task<IActionResult?> CreateOrUpdateTeamInviteAsync(
+		long requestedTeamId,
+		string normalizedEmail,
+		long currentUserDbId)
+	{
+		var teamExists = await this.dbContext.Teams
+			.AnyAsync(team => team.Id == requestedTeamId, this.HttpContext.RequestAborted);
+		if (!teamExists)
+		{
+			return this.BadRequest("Selected team was not found.");
+		}
+
+		var otherPendingInvites = await this.dbContext.TeamInvitations
+			.Where(invite =>
+				invite.TeamId != requestedTeamId &&
+				invite.Email.ToLower() == normalizedEmail &&
+				invite.RevokedAt == null &&
+				invite.AcceptedAt == null &&
+				invite.DeclinedAt == null)
+			.ToListAsync(this.HttpContext.RequestAborted);
+
+		foreach (var oldInvite in otherPendingInvites)
+		{
+			oldInvite.RevokedAt = DateTime.UtcNow;
+		}
+
+		var hasPendingRequest = await this.dbContext.TeamInvitations
+			.AnyAsync(invite =>
+				invite.TeamId == requestedTeamId &&
+				invite.Email.ToLower() == normalizedEmail &&
+				invite.RevokedAt == null &&
+				invite.AcceptedAt == null &&
+				invite.DeclinedAt == null,
+				this.HttpContext.RequestAborted);
+
+		if (!hasPendingRequest)
+		{
+			var requestedAt = DateTime.UtcNow;
+			this.dbContext.TeamInvitations.Add(new ManagementHub.Models.Data.TeamInvitation
+			{
+				TeamId = requestedTeamId,
+				Email = normalizedEmail,
+				InitiatorUserId = currentUserDbId,
+				CreatedAt = requestedAt,
+			});
+
+			this.dbContext.TeamPlayerActivities.Add(new ManagementHub.Models.Data.TeamPlayerActivity
+			{
+				TeamId = requestedTeamId,
+				UserId = currentUserDbId,
+				Email = normalizedEmail,
+				InitiatorUserId = currentUserDbId,
+				ActivityType = TeamPlayerActivityType.InviteCreated,
+				CreatedAt = requestedAt,
+			});
+
+			await this.dbContext.SaveChangesAsync(this.HttpContext.RequestAborted);
+		}
+		else if (otherPendingInvites.Count > 0)
+		{
+			await this.dbContext.SaveChangesAsync(this.HttpContext.RequestAborted);
+		}
+
+		return null;
 	}
 
 	/// <summary>
