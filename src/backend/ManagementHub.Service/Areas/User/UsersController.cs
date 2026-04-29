@@ -359,11 +359,8 @@ public class UsersController : ControllerBase
 	public async Task<List<CurrentUserTeamInviteViewModel>> GetMyTeamInvites()
 	{
 		var currentUser = await this.contextAccessor.GetCurrentUserContextAsync();
-		var currentUserDbId = await this.dbContext.Users
-			.WithIdentifier(currentUser.UserId)
-			.Select(user => user.Id)
-			.SingleAsync(this.HttpContext.RequestAborted);
-		var normalizedEmail = currentUser.UserData.Email.Value.Trim().ToLowerInvariant();
+		var currentUserDbId = await this.GetCurrentUserDbIdAsync(currentUser.UserId);
+		var normalizedEmail = TeamInviteHelpers.NormalizeEmail(currentUser.UserData.Email.Value);
 
 		var pendingInvites = await this.dbContext.TeamInvitations
 			.Where(invite => invite.Email.ToLower() == normalizedEmail && invite.RevokedAt == null && invite.AcceptedAt == null && invite.DeclinedAt == null)
@@ -389,7 +386,7 @@ public class UsersController : ControllerBase
 				TeamName = invite.TeamName,
 				Email = invite.Email,
 				CreatedAt = invite.CreatedAt,
-				InvitedByName = BuildDisplayName(invite.InitiatorFirstName, invite.InitiatorLastName),
+				InvitedByName = TeamInviteHelpers.BuildDisplayName(invite.InitiatorFirstName, invite.InitiatorLastName),
 				CanRespond = invite.InitiatorUserId != currentUserDbId
 			})
 			.ToList();
@@ -403,11 +400,8 @@ public class UsersController : ControllerBase
 	public async Task<IActionResult> RespondToTeamInvite([FromRoute] long invitationId, [FromBody] InviteResponseModel response)
 	{
 		var currentUser = await this.contextAccessor.GetCurrentUserContextAsync();
-		var currentUserDbId = await this.dbContext.Users
-			.WithIdentifier(currentUser.UserId)
-			.Select(user => user.Id)
-			.SingleAsync(this.HttpContext.RequestAborted);
-		var normalizedEmail = currentUser.UserData.Email.Value.Trim().ToLowerInvariant();
+		var currentUserDbId = await this.GetCurrentUserDbIdAsync(currentUser.UserId);
+		var normalizedEmail = TeamInviteHelpers.NormalizeEmail(currentUser.UserData.Email.Value);
 
 		var invitation = await this.GetPendingTeamInvitationAsync(invitationId, normalizedEmail);
 
@@ -538,13 +532,15 @@ public class UsersController : ControllerBase
 		}
 	}
 
-	private Uri GetHostBaseUri() => new($"{this.Request.Scheme}://{this.Request.Host}");
-
-	private static string? BuildDisplayName(string? firstName, string? lastName)
+	private async Task<long> GetCurrentUserDbIdAsync(UserIdentifier userId)
 	{
-		var displayName = string.Join(" ", new[] { firstName, lastName }.Where(part => !string.IsNullOrWhiteSpace(part)));
-		return string.IsNullOrWhiteSpace(displayName) ? null : displayName;
+		return await this.dbContext.Users
+			.WithIdentifier(userId)
+			.Select(user => user.Id)
+			.SingleAsync(this.HttpContext.RequestAborted);
 	}
+
+	private Uri GetHostBaseUri() => new($"{this.Request.Scheme}://{this.Request.Host}");
 
 	/// <summary>
 	/// Get upcoming tournaments for the currently signed-in user based on team roster entries.

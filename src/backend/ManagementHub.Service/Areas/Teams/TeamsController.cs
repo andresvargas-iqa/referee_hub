@@ -381,7 +381,7 @@ public class TeamsController : ControllerBase
 				InvitationId = i.Id.ToString(),
 				Email = i.Email,
 				CreatedAt = i.CreatedAt,
-				InvitedByName = BuildDisplayName(i.InitiatorFirstName, i.InitiatorLastName),
+				InvitedByName = TeamInviteHelpers.BuildDisplayName(i.InitiatorFirstName, i.InitiatorLastName),
 				RequiresManagerDecision = string.Equals(i.InitiatorEmail, i.Email, StringComparison.OrdinalIgnoreCase)
 			})
 			.ToList();
@@ -416,8 +416,8 @@ public class TeamsController : ControllerBase
 					: !string.IsNullOrWhiteSpace(activity.UserUniqueId)
 						? UserIdentifier.Parse(activity.UserUniqueId)
 						: UserIdentifier.FromLegacyUserId(activity.UserId.Value),
-				UserName = BuildDisplayName(activity.UserFirstName, activity.UserLastName),
-				InitiatorName = BuildDisplayName(activity.InitiatorFirstName, activity.InitiatorLastName),
+				UserName = TeamInviteHelpers.BuildDisplayName(activity.UserFirstName, activity.UserLastName),
+				InitiatorName = TeamInviteHelpers.BuildDisplayName(activity.InitiatorFirstName, activity.InitiatorLastName),
 				CreatedAt = activity.CreatedAt,
 			})
 			.ToList();
@@ -546,7 +546,7 @@ public class TeamsController : ControllerBase
 
 		var currentUserDbId = await this.GetCurrentUserDbIdAsync(userContext.UserId);
 		var invitation = await this.CreatePendingInviteAsync(teamId, normalizedEmail, currentUserDbId);
-		var invitedByName = BuildDisplayName(userContext.UserData.FirstName, userContext.UserData.LastName);
+		var invitedByName = TeamInviteHelpers.BuildDisplayName(userContext.UserData.FirstName, userContext.UserData.LastName);
 
 		await this.TrySendInviteEmailAsync(teamId, invitation.Email, invitedByName);
 
@@ -660,11 +660,13 @@ public class TeamsController : ControllerBase
 		}
 
 		var currentUserDbId = await this.GetCurrentUserDbIdAsync(userContext.UserId);
-		var invitationEmail = invitation.Email.ToLower();
+		var invitationEmail = TeamInviteHelpers.NormalizeEmail(invitation.Email);
 		var invitedUser = await this.dbContext.Users
 			.Where(user => user.Email.ToLower() == invitationEmail)
 			.Select(user => new { user.Id, user.Email })
 			.FirstOrDefaultAsync(this.HttpContext.RequestAborted);
+
+		var respondedAt = DateTime.UtcNow;
 
 		if (response.Approved)
 		{
@@ -673,7 +675,6 @@ public class TeamsController : ControllerBase
 				return this.BadRequest("Cannot approve request because the player account was not found.");
 			}
 
-			var now = DateTime.UtcNow;
 			var existingPlayerMembership = await this.dbContext.RefereeTeams
 				.FirstOrDefaultAsync(
 					rt =>
@@ -688,18 +689,17 @@ public class TeamsController : ControllerBase
 					AssociationType = RefereeTeamAssociationType.Player,
 					RefereeId = invitedUser.Id,
 					TeamId = teamId.Id,
-					CreatedAt = now,
-					UpdatedAt = now,
+					CreatedAt = respondedAt,
+					UpdatedAt = respondedAt,
 				});
 			}
 			else if (existingPlayerMembership.TeamId != teamId.Id)
 			{
 				existingPlayerMembership.TeamId = teamId.Id;
-				existingPlayerMembership.UpdatedAt = now;
+				existingPlayerMembership.UpdatedAt = respondedAt;
 			}
 		}
 
-		var respondedAt = DateTime.UtcNow;
 		invitation.RespondedByUserId = currentUserDbId;
 		if (response.Approved)
 		{
@@ -816,12 +816,6 @@ public class TeamsController : ControllerBase
 
 		normalizedEmail = rawEmail.Trim().ToLowerInvariant();
 		return !string.IsNullOrWhiteSpace(normalizedEmail);
-	}
-
-	private static string? BuildDisplayName(string? firstName, string? lastName)
-	{
-		var displayName = string.Join(" ", new[] { firstName, lastName }.Where(part => !string.IsNullOrWhiteSpace(part)));
-		return string.IsNullOrWhiteSpace(displayName) ? null : displayName;
 	}
 
 	private async Task<bool> TeamExistsAsync(TeamIdentifier teamId)
