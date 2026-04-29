@@ -68,6 +68,20 @@ jobs:
       run: dotnet restore
       working-directory: src/backend
 
+    - name: Create .env file for frontend build
+      run: |
+        if [ ! -f ".env" ]; then
+          echo "Creating .env file for CI build..."
+          cat > .env << 'EOF'
+BASE_URL=/
+BUGSNAG_API_KEY=
+STRIPE_PUBLISHABLE_KEY=pk_test_stub
+NODE_ENV=development
+REACT_APP_API_URL=http://localhost:5000
+EOF
+        fi
+      working-directory: src/frontend
+
     - name: Build frontend
       run: yarn build:dev
       working-directory: src/frontend

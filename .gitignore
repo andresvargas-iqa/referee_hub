@@ -38,7 +38,8 @@
 yarn-debug.log*
 .yarn-integrity
 
-.env
+# Note: .env is now committed with default/test values
+# For sensitive production values, use GitHub Actions secrets instead
 /public/packs
 /public/packs-test
 node_modules
