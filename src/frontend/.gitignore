@@ -1,0 +1,25 @@
+# Yarn generated files (PnP)
+.pnp
+.pnp.cjs
+.pnp.loader.mjs
+
+# Yarn cache and plugins
+.yarn/
+
+# Yarn RC file (auto-generated based on system)
+.yarnrc.yml
+
+# Build artifacts
+dist/
+coverage/
+
+# Node modules
+node_modules/
+
+# IDE
+.vscode/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
