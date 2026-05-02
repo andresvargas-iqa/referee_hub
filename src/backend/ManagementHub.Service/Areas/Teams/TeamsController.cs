@@ -663,72 +663,28 @@ public class TeamsController : ControllerBase
 		var invitationEmail = TeamInviteHelpers.NormalizeEmail(invitation.Email);
 		var invitedUser = await this.dbContext.Users
 			.Where(user => user.Email.ToLower() == invitationEmail)
-			.Select(user => new { user.Id, user.Email })
+			.Select(user => new InvitedUserLookup(user.Id, user.Email))
 			.FirstOrDefaultAsync(this.HttpContext.RequestAborted);
 
 		var respondedAt = DateTime.UtcNow;
 
 		if (response.Approved)
 		{
-			if (invitedUser == null)
-			{
-				return this.BadRequest("Cannot approve request because the player account was not found.");
-			}
+			var approvalError = await this.TryApplyApprovedInviteResponseAsync(
+				teamId,
+				invitation,
+				invitedUser,
+				currentUserDbId,
+				respondedAt);
 
-			var existingPlayerMembership = await this.dbContext.RefereeTeams
-				.FirstOrDefaultAsync(
-					rt =>
-						rt.RefereeId == invitedUser.Id &&
-						rt.AssociationType == RefereeTeamAssociationType.Player,
-					this.HttpContext.RequestAborted);
-
-			if (existingPlayerMembership == null)
+			if (approvalError != null)
 			{
-				this.dbContext.RefereeTeams.Add(new ManagementHub.Models.Data.RefereeTeam
-				{
-					AssociationType = RefereeTeamAssociationType.Player,
-					RefereeId = invitedUser.Id,
-					TeamId = teamId.Id,
-					CreatedAt = respondedAt,
-					UpdatedAt = respondedAt,
-				});
-			}
-			else if (existingPlayerMembership.TeamId != teamId.Id && existingPlayerMembership.TeamId.HasValue)
-			{
-				this.dbContext.TeamPlayerActivities.Add(new ManagementHub.Models.Data.TeamPlayerActivity
-				{
-					TeamId = existingPlayerMembership.TeamId.Value,
-					UserId = invitedUser.Id,
-					Email = invitation.Email,
-					InitiatorUserId = currentUserDbId,
-					ActivityType = TeamPlayerActivityType.PlayerRemoved,
-					CreatedAt = respondedAt,
-				});
-
-				existingPlayerMembership.TeamId = teamId.Id;
-				existingPlayerMembership.UpdatedAt = respondedAt;
+				return approvalError;
 			}
 		}
 
-		invitation.RespondedByUserId = currentUserDbId;
-		if (response.Approved)
-		{
-			invitation.AcceptedAt = respondedAt;
-		}
-		else
-		{
-			invitation.DeclinedAt = respondedAt;
-		}
-
-		this.dbContext.TeamPlayerActivities.Add(new ManagementHub.Models.Data.TeamPlayerActivity
-		{
-			TeamId = teamId.Id,
-			UserId = invitedUser?.Id,
-			Email = invitation.Email,
-			InitiatorUserId = currentUserDbId,
-			ActivityType = response.Approved ? TeamPlayerActivityType.InviteAccepted : TeamPlayerActivityType.InviteDeclined,
-			CreatedAt = respondedAt,
-		});
+		this.RecordInviteResponse(invitation, response.Approved, currentUserDbId, respondedAt);
+		this.AddInviteResponseActivity(teamId, invitation, invitedUser?.Id, currentUserDbId, response.Approved, respondedAt);
 
 		await this.dbContext.SaveChangesAsync(this.HttpContext.RequestAborted);
 		return this.NoContent();
@@ -851,6 +807,95 @@ public class TeamsController : ControllerBase
 				i.Email.ToLower() == normalizedEmail,
 				this.HttpContext.RequestAborted);
 	}
+
+	private async Task<IActionResult?> TryApplyApprovedInviteResponseAsync(
+		TeamIdentifier teamId,
+		ManagementHub.Models.Data.TeamInvitation invitation,
+		InvitedUserLookup? invitedUser,
+		long currentUserDbId,
+		DateTime respondedAt)
+	{
+		if (invitedUser == null)
+		{
+			return this.BadRequest("Cannot approve request because the player account was not found.");
+		}
+
+		var invitedUserId = invitedUser.Id;
+		var existingPlayerMembership = await this.dbContext.RefereeTeams
+			.FirstOrDefaultAsync(
+				rt =>
+					rt.RefereeId == invitedUserId &&
+					rt.AssociationType == RefereeTeamAssociationType.Player,
+				this.HttpContext.RequestAborted);
+
+		if (existingPlayerMembership == null)
+		{
+			this.dbContext.RefereeTeams.Add(new ManagementHub.Models.Data.RefereeTeam
+			{
+				AssociationType = RefereeTeamAssociationType.Player,
+				RefereeId = invitedUserId,
+				TeamId = teamId.Id,
+				CreatedAt = respondedAt,
+				UpdatedAt = respondedAt,
+			});
+			return null;
+		}
+
+		if (existingPlayerMembership.TeamId != teamId.Id && existingPlayerMembership.TeamId.HasValue)
+		{
+			this.dbContext.TeamPlayerActivities.Add(new ManagementHub.Models.Data.TeamPlayerActivity
+			{
+				TeamId = existingPlayerMembership.TeamId.Value,
+				UserId = invitedUserId,
+				Email = invitation.Email,
+				InitiatorUserId = currentUserDbId,
+				ActivityType = TeamPlayerActivityType.PlayerRemoved,
+				CreatedAt = respondedAt,
+			});
+
+			existingPlayerMembership.TeamId = teamId.Id;
+			existingPlayerMembership.UpdatedAt = respondedAt;
+		}
+
+		return null;
+	}
+
+	private void RecordInviteResponse(
+		ManagementHub.Models.Data.TeamInvitation invitation,
+		bool approved,
+		long currentUserDbId,
+		DateTime respondedAt)
+	{
+		invitation.RespondedByUserId = currentUserDbId;
+		if (approved)
+		{
+			invitation.AcceptedAt = respondedAt;
+			return;
+		}
+
+		invitation.DeclinedAt = respondedAt;
+	}
+
+	private void AddInviteResponseActivity(
+		TeamIdentifier teamId,
+		ManagementHub.Models.Data.TeamInvitation invitation,
+		long? invitedUserId,
+		long currentUserDbId,
+		bool approved,
+		DateTime respondedAt)
+	{
+		this.dbContext.TeamPlayerActivities.Add(new ManagementHub.Models.Data.TeamPlayerActivity
+		{
+			TeamId = teamId.Id,
+			UserId = invitedUserId,
+			Email = invitation.Email,
+			InitiatorUserId = currentUserDbId,
+			ActivityType = approved ? TeamPlayerActivityType.InviteAccepted : TeamPlayerActivityType.InviteDeclined,
+			CreatedAt = respondedAt,
+		});
+	}
+
+	private sealed record InvitedUserLookup(long Id, string Email);
 
 	private async Task<ManagementHub.Models.Data.TeamInvitation> CreatePendingInviteAsync(
 		TeamIdentifier teamId,
