@@ -693,11 +693,11 @@ public class TeamsController : ControllerBase
 					UpdatedAt = respondedAt,
 				});
 			}
-			else if (existingPlayerMembership.TeamId != teamId.Id)
+			else if (existingPlayerMembership.TeamId != teamId.Id && existingPlayerMembership.TeamId.HasValue)
 			{
 				this.dbContext.TeamPlayerActivities.Add(new ManagementHub.Models.Data.TeamPlayerActivity
 				{
-					TeamId = existingPlayerMembership.TeamId,
+					TeamId = existingPlayerMembership.TeamId.Value,
 					UserId = invitedUser.Id,
 					Email = invitation.Email,
 					InitiatorUserId = currentUserDbId,

@@ -14,10 +14,11 @@ import {
   useGetMyTeamInvitesQuery,
   useRespondToTeamInviteMutation,
   useCancelMyTeamInviteMutation,
-  useGetMyTeamHistoryQuery,
   useGetMyUpcomingTournamentsQuery,
   useGetManagedTeamsQuery,
   useGetTestAttemptsQuery,
+  useGetMyTeamHistoryQuery,
+  useGetUserTeamHistoryQuery,
   UserDataViewModel,
   TestAttemptViewModelRead,
 } from "../../store/serviceApi";
@@ -430,10 +431,20 @@ const TeamInvites = () => {
   );
 };
 
-const TeamTransferHistory = () => {
-  const { data: history, isLoading } = useGetMyTeamHistoryQuery();
+const TeamTransferHistory = ({ userId, isOwnProfile }: { userId?: string; isOwnProfile: boolean }) => {
+  // Use own history hook if viewing own profile
+  const myHistoryQuery = useGetMyTeamHistoryQuery(undefined, { skip: !isOwnProfile });
+  
+  // Use other user's history hook if viewing someone else and have userId
+  const otherHistoryQuery = useGetUserTeamHistoryQuery(
+    { userId: userId || "" },
+    { skip: isOwnProfile || !userId }
+  );
 
-  const formatSummary = (activity: { activityType?: string; teamName?: string | null; teamId?: string; }) => {
+  const isLoading = isOwnProfile ? myHistoryQuery.isLoading : otherHistoryQuery.isLoading;
+  const history = isOwnProfile ? (myHistoryQuery.data || []) : (otherHistoryQuery.data || []);
+
+  const formatSummary = (activity: any) => {
     const teamLabel = activity.teamName || activity.teamId || "Unknown team";
 
     if (activity.activityType === "inviteAccepted") {
@@ -636,8 +647,8 @@ const RefereeProfile = () => {
           <div>
             <PlayerDetails />
             {isEditable && <TeamInvites />}
-            {isEditable && <TeamTransferHistory />}
-            {isEditable && <UpcomingEvents />}
+            <TeamTransferHistory userId={refereeQueryUserId} isOwnProfile={isOwnProfile} />
+            {isOwnProfile && <UpcomingEvents />}
           </div>
 
           {/* Column 2: Basic Details + Certification History */}

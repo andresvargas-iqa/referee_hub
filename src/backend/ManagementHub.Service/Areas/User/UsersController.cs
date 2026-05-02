@@ -529,11 +529,11 @@ public class UsersController : ControllerBase
 			return;
 		}
 
-		if (existingPlayerMembership.TeamId != invitation.TeamId)
+		if (existingPlayerMembership.TeamId != invitation.TeamId && existingPlayerMembership.TeamId.HasValue)
 		{
 			this.dbContext.TeamPlayerActivities.Add(new TeamPlayerActivity
 			{
-				TeamId = existingPlayerMembership.TeamId,
+				TeamId = existingPlayerMembership.TeamId.Value,
 				UserId = currentUserDbId,
 				Email = invitation.Email,
 				InitiatorUserId = currentUserDbId,
@@ -601,6 +601,66 @@ public class UsersController : ControllerBase
 		var historyRows = await this.dbContext.TeamPlayerActivities
 			.Where(activity =>
 				activity.UserId == currentUserDbId &&
+				(activity.ActivityType == TeamPlayerActivityType.InviteAccepted || activity.ActivityType == TeamPlayerActivityType.PlayerRemoved))
+			.OrderByDescending(activity => activity.CreatedAt)
+			.Take(50)
+			.Select(activity => new
+			{
+				activity.TeamId,
+				TeamName = activity.Team.Name,
+				activity.ActivityType,
+				activity.Email,
+				activity.UserId,
+				UserUniqueId = activity.User != null ? activity.User.UniqueId : null,
+				UserFirstName = activity.User != null ? activity.User.FirstName : null,
+				UserLastName = activity.User != null ? activity.User.LastName : null,
+				InitiatorFirstName = activity.Initiator.FirstName,
+				InitiatorLastName = activity.Initiator.LastName,
+				activity.CreatedAt,
+			})
+			.ToListAsync(this.HttpContext.RequestAborted);
+
+		return historyRows
+			.Select(activity => new TeamPlayerActivityViewModel
+			{
+				TeamId = new TeamIdentifier(activity.TeamId),
+				TeamName = activity.TeamName,
+				ActivityType = activity.ActivityType,
+				Email = activity.Email,
+				UserId = activity.UserId == null
+					? null
+					: !string.IsNullOrWhiteSpace(activity.UserUniqueId)
+						? UserIdentifier.Parse(activity.UserUniqueId)
+						: UserIdentifier.FromLegacyUserId(activity.UserId.Value),
+				UserName = TeamInviteHelpers.BuildDisplayName(activity.UserFirstName, activity.UserLastName),
+				InitiatorName = TeamInviteHelpers.BuildDisplayName(activity.InitiatorFirstName, activity.InitiatorLastName),
+				CreatedAt = activity.CreatedAt,
+			})
+			.ToList();
+	}
+
+	/// <summary>
+	/// Get team transfer history for a specific user (authorized for managers viewing team members).
+	/// Includes team joins and leaves ordered from newest to oldest.
+	/// </summary>
+	[HttpGet("{userId}/teamHistory")]
+	[Tags("User")]
+	[Authorize(AuthorizationPolicies.NgbAdminPolicy)]
+	public async Task<List<TeamPlayerActivityViewModel>> GetUserTeamHistory([FromRoute] UserIdentifier userId)
+	{
+		var targetUserDbId = await this.dbContext.Users
+			.WithIdentifier(userId)
+			.Select(u => u.Id)
+			.FirstOrDefaultAsync(this.HttpContext.RequestAborted);
+
+		if (targetUserDbId == null)
+		{
+			return new List<TeamPlayerActivityViewModel>();
+		}
+
+		var historyRows = await this.dbContext.TeamPlayerActivities
+			.Where(activity =>
+				activity.UserId == targetUserDbId &&
 				(activity.ActivityType == TeamPlayerActivityType.InviteAccepted || activity.ActivityType == TeamPlayerActivityType.PlayerRemoved))
 			.OrderByDescending(activity => activity.CreatedAt)
 			.Take(50)
