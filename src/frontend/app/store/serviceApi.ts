@@ -659,7 +659,7 @@ const injectedRtkApi = api
       }),
       cancelMyTeamInvite: build.mutation<CancelMyTeamInviteApiResponse, CancelMyTeamInviteApiArg>({
         query: (queryArg) => ({
-          url: /api/v2/Users/me/teamInvites/,
+          url: `/api/v2/Users/me/teamInvites/${queryArg.invitationId}`, 
           method: "DELETE",
         }),
         invalidatesTags: ["User", "TeamManagement", "Team"],

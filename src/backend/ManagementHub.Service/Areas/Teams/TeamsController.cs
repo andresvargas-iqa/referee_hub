@@ -695,6 +695,16 @@ public class TeamsController : ControllerBase
 			}
 			else if (existingPlayerMembership.TeamId != teamId.Id)
 			{
+				this.dbContext.TeamPlayerActivities.Add(new ManagementHub.Models.Data.TeamPlayerActivity
+				{
+					TeamId = existingPlayerMembership.TeamId,
+					UserId = invitedUser.Id,
+					Email = invitation.Email,
+					InitiatorUserId = currentUserDbId,
+					ActivityType = TeamPlayerActivityType.PlayerRemoved,
+					CreatedAt = respondedAt,
+				});
+
 				existingPlayerMembership.TeamId = teamId.Id;
 				existingPlayerMembership.UpdatedAt = respondedAt;
 			}

@@ -336,6 +336,46 @@ public class TeamInvitationsApiIntegrationTests : IClassFixture<TestWebApplicati
 	}
 
 	[Fact]
+	public async Task GetMyTeamHistory_AfterApprovedTransfer_ShouldIncludeJoinAndLeaveActivities()
+	{
+		await AuthenticationHelper.AuthenticateAsAsync(this.client, "referee@example.com", "password");
+
+		var requestResponse = await this.client.PutAsJsonAsync("/api/v2/Referees/me", new
+		{
+			primaryNgb = "USA",
+			secondaryNgb = (string?)null,
+			playingTeam = new { id = "TM_2" },
+			coachingTeam = (object?)null,
+			nationalTeam = (object?)null,
+		});
+
+		requestResponse.StatusCode.Should().Be(HttpStatusCode.NoContent);
+
+		var myInvitesResponse = await this.client.GetAsync("/api/v2/users/me/teamInvites");
+		myInvitesResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+		var myInvites = await myInvitesResponse.Content.ReadFromJsonAsync<List<CurrentUserTeamInviteViewModelDto>>();
+		var pendingRequest = myInvites!.Should().ContainSingle(i => i.TeamId == "TM_2").Subject;
+
+		await AuthenticationHelper.AuthenticateAsAsync(this.client, "ngb_admin@example.com", "password");
+
+		var approveResponse = await this.client.PostAsJsonAsync(
+			$"/api/v2/Teams/TM_2/invites/{pendingRequest.InvitationId}/response",
+			new { Approved = true });
+
+		approveResponse.StatusCode.Should().Be(HttpStatusCode.NoContent);
+
+		await AuthenticationHelper.AuthenticateAsAsync(this.client, "referee@example.com", "password");
+
+		var historyResponse = await this.client.GetAsync("/api/v2/users/me/teamHistory");
+		historyResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+		var history = await historyResponse.Content.ReadFromJsonAsync<List<TeamTransferHistoryItemViewModelDto>>();
+		history.Should().NotBeNull();
+		history!.Should().Contain(a => a.ActivityType == "inviteAccepted" && a.TeamId == "TM_2");
+		history.Should().Contain(a => a.ActivityType == "playerRemoved");
+	}
+
+	[Fact]
 	public async Task UpdateReferee_WithExistingYankeesMembershipAndNoInviteHistory_ShouldCreatePendingManagerApprovalRequest()
 	{
 		await AuthenticationHelper.AuthenticateAsAsync(this.client, "referee@example.com", "password");

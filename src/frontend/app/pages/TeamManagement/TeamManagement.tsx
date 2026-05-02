@@ -321,10 +321,18 @@ const TeamManagement = () => {
             {team.playerHistory.map((activity, index) => (
               <div key={`${activity.createdAt || "unknown"}-${index}`} className="bg-white p-3 rounded">
                 <p className="font-medium">
-                  {activity.activityType === "inviteCreated" && `Invite sent to ${activity.email || "unknown"}`}
+                  {activity.activityType === "inviteCreated" && (
+                    activity.userId
+                      ? `${activity.userName || activity.email || "A player"} requested to join`
+                      : `Invite sent to ${activity.email || "unknown"}`
+                  )}
                   {activity.activityType === "inviteRevoked" && `Invite revoked for ${activity.email || "unknown"}`}
-                  {activity.activityType === "inviteAccepted" && `${activity.userName || activity.email || "A user"} accepted invitation`}
-                  {activity.activityType === "inviteDeclined" && `${activity.userName || activity.email || "A user"} declined invitation`}
+                  {activity.activityType === "inviteAccepted" && `${activity.userName || activity.email || "A user"} joined team`}
+                  {activity.activityType === "inviteDeclined" && (
+                    activity.userId && activity.initiatorName && activity.userName && activity.initiatorName !== activity.userName
+                      ? `Join request declined for ${activity.userName || activity.email || "a user"}`
+                      : `${activity.userName || activity.email || "A user"} declined invitation`
+                  )}
                   {activity.activityType === "playerRemoved" && `${activity.userName || activity.email || "A user"} removed from team`}
                 </p>
                 <p className="text-sm text-gray-600">

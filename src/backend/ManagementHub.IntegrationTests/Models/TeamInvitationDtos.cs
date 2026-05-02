@@ -21,3 +21,11 @@ public class CurrentUserTeamInviteViewModelDto
 	public string? InvitedByName { get; set; }
 	public bool CanRespond { get; set; }
 }
+
+public class TeamTransferHistoryItemViewModelDto
+{
+	public required string TeamId { get; set; }
+	public required string ActivityType { get; set; }
+	public string? TeamName { get; set; }
+	public required DateTime CreatedAt { get; set; }
+}

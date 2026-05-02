@@ -69,6 +69,7 @@ jest.mock("../../store/serviceApi", () => ({
   useGetMyTeamInvitesQuery: () => ({ data: [], isLoading: false }),
   useRespondToTeamInviteMutation: () => [mockRespondToTeamInvite],
   useCancelMyTeamInviteMutation: () => [jest.fn()],
+  useGetMyTeamHistoryQuery: () => ({ data: [], isLoading: false }),
   useGetManagedTeamsQuery: () => ({ data: [], isLoading: false }),
   useGetMyUpcomingTournamentsQuery: () => ({ data: [], isLoading: false }),
   useGetTestAttemptsQuery: () => ({ data: [], isLoading: false }),

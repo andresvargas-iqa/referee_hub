@@ -529,6 +529,19 @@ public class UsersController : ControllerBase
 			return;
 		}
 
+		if (existingPlayerMembership.TeamId != invitation.TeamId)
+		{
+			this.dbContext.TeamPlayerActivities.Add(new TeamPlayerActivity
+			{
+				TeamId = existingPlayerMembership.TeamId,
+				UserId = currentUserDbId,
+				Email = invitation.Email,
+				InitiatorUserId = currentUserDbId,
+				ActivityType = TeamPlayerActivityType.PlayerRemoved,
+				CreatedAt = respondedAt,
+			});
+		}
+
 		existingPlayerMembership.TeamId = invitation.TeamId;
 		existingPlayerMembership.UpdatedAt = respondedAt;
 	}
@@ -573,6 +586,58 @@ public class UsersController : ControllerBase
 	}
 
 	private Uri GetHostBaseUri() => new($"{this.Request.Scheme}://{this.Request.Host}");
+
+	/// <summary>
+	/// Get team transfer history for the currently signed-in user.
+	/// Includes team joins and leaves ordered from newest to oldest.
+	/// </summary>
+	[HttpGet("me/teamHistory")]
+	[Tags("User")]
+	public async Task<List<TeamPlayerActivityViewModel>> GetMyTeamHistory()
+	{
+		var currentUser = await this.contextAccessor.GetCurrentUserContextAsync();
+		var currentUserDbId = await this.GetCurrentUserDbIdAsync(currentUser.UserId);
+
+		var historyRows = await this.dbContext.TeamPlayerActivities
+			.Where(activity =>
+				activity.UserId == currentUserDbId &&
+				(activity.ActivityType == TeamPlayerActivityType.InviteAccepted || activity.ActivityType == TeamPlayerActivityType.PlayerRemoved))
+			.OrderByDescending(activity => activity.CreatedAt)
+			.Take(50)
+			.Select(activity => new
+			{
+				activity.TeamId,
+				TeamName = activity.Team.Name,
+				activity.ActivityType,
+				activity.Email,
+				activity.UserId,
+				UserUniqueId = activity.User != null ? activity.User.UniqueId : null,
+				UserFirstName = activity.User != null ? activity.User.FirstName : null,
+				UserLastName = activity.User != null ? activity.User.LastName : null,
+				InitiatorFirstName = activity.Initiator.FirstName,
+				InitiatorLastName = activity.Initiator.LastName,
+				activity.CreatedAt,
+			})
+			.ToListAsync(this.HttpContext.RequestAborted);
+
+		return historyRows
+			.Select(activity => new TeamPlayerActivityViewModel
+			{
+				TeamId = new TeamIdentifier(activity.TeamId),
+				TeamName = activity.TeamName,
+				ActivityType = activity.ActivityType,
+				Email = activity.Email,
+				UserId = activity.UserId == null
+					? null
+					: !string.IsNullOrWhiteSpace(activity.UserUniqueId)
+						? UserIdentifier.Parse(activity.UserUniqueId)
+						: UserIdentifier.FromLegacyUserId(activity.UserId.Value),
+				UserName = TeamInviteHelpers.BuildDisplayName(activity.UserFirstName, activity.UserLastName),
+				InitiatorName = TeamInviteHelpers.BuildDisplayName(activity.InitiatorFirstName, activity.InitiatorLastName),
+				CreatedAt = activity.CreatedAt,
+			})
+			.ToList();
+	}
 
 	/// <summary>
 	/// Get upcoming tournaments for the currently signed-in user based on team roster entries.

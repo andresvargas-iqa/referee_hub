@@ -14,6 +14,7 @@ import {
   useGetMyTeamInvitesQuery,
   useRespondToTeamInviteMutation,
   useCancelMyTeamInviteMutation,
+  useGetMyTeamHistoryQuery,
   useGetMyUpcomingTournamentsQuery,
   useGetManagedTeamsQuery,
   useGetTestAttemptsQuery,
@@ -429,6 +430,50 @@ const TeamInvites = () => {
   );
 };
 
+const TeamTransferHistory = () => {
+  const { data: history, isLoading } = useGetMyTeamHistoryQuery();
+
+  const formatSummary = (activity: { activityType?: string; teamName?: string | null; teamId?: string; }) => {
+    const teamLabel = activity.teamName || activity.teamId || "Unknown team";
+
+    if (activity.activityType === "inviteAccepted") {
+      return `Joined ${teamLabel}`;
+    }
+
+    if (activity.activityType === "playerRemoved") {
+      return `Left ${teamLabel}`;
+    }
+
+    return teamLabel;
+  };
+
+  return (
+    <div className="card card-mb">
+      <h3 className="card-title">Team Transfer History</h3>
+      {isLoading && <p className="card-description">Loading…</p>}
+      {!isLoading && (!history || history.length === 0) && (
+        <p className="card-description">No transfer activity yet.</p>
+      )}
+      {!isLoading && history && history.length > 0 && (
+        <div className="invite-list">
+          {history.map((activity, index) => (
+            <div
+              key={`${activity.createdAt || "unknown"}-${activity.teamId || "team"}-${index}`}
+              className="invite-item"
+              style={{ justifyContent: "space-between", cursor: "default" }}
+            >
+              <div style={{ fontWeight: 500 }}>{formatSummary(activity)}</div>
+              <div style={{ fontSize: "0.875rem", color: "#4b5563" }}>
+                {activity.createdAt ? new Date(activity.createdAt).toLocaleString() : "Unknown time"}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 // ──────────────────────────────────────────────────────────────────────────────
 // Certification Attempt History section (only shown on own profile)
 // ──────────────────────────────────────────────────────────────────────────────
@@ -591,6 +636,7 @@ const RefereeProfile = () => {
           <div>
             <PlayerDetails />
             {isEditable && <TeamInvites />}
+            {isEditable && <TeamTransferHistory />}
             {isEditable && <UpcomingEvents />}
           </div>
 
