@@ -278,6 +278,13 @@ public class TeamInvitationsApiIntegrationTests : IClassFixture<TestWebApplicati
 		var myInvitesAfterResponse = await this.client.GetAsync("/api/v2/users/me/teamInvites");
 		var pendingAfterResponse = await myInvitesAfterResponse.Content.ReadFromJsonAsync<List<CurrentUserTeamInviteViewModelDto>>();
 		pendingAfterResponse.Should().NotContain(i => i.InvitationId == pendingRequest.InvitationId);
+
+		var refereeProfileResponse = await this.client.GetAsync("/api/v2/Referees/me");
+		refereeProfileResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+		var refereeProfile = await refereeProfileResponse.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>();
+		refereeProfile.TryGetProperty("playingTeam", out var playingTeamProperty).Should().BeTrue();
+		playingTeamProperty.ValueKind.Should().Be(System.Text.Json.JsonValueKind.Object);
+		playingTeamProperty.GetProperty("id").GetString().Should().Be("TM_2");
 	}
 
 	[Fact]
