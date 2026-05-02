@@ -4,6 +4,7 @@ import RefereeHeader from "./RefereeHeader";
 import RefereeLocation from "./RefereeLocation";
 import RefereeTeam from "./RefereeTeam";
 import { capitalize } from "lodash";
+import * as serviceApiModule from "../../store/serviceApi";
 import {
   useGetRefereeQuery,
   useGetCurrentRefereeQuery,
@@ -17,8 +18,6 @@ import {
   useGetMyUpcomingTournamentsQuery,
   useGetManagedTeamsQuery,
   useGetTestAttemptsQuery,
-  useGetMyTeamHistoryQuery,
-  useGetUserTeamHistoryQuery,
   UserDataViewModel,
   TestAttemptViewModelRead,
 } from "../../store/serviceApi";
@@ -431,20 +430,48 @@ const TeamInvites = () => {
   );
 };
 
+type TeamTransferHistoryItem = {
+  activityType?: string;
+  createdAt?: string;
+  teamId?: string;
+  teamName?: string | null;
+};
+
+type TeamHistoryQueryResult = {
+  data?: TeamTransferHistoryItem[];
+  isLoading?: boolean;
+};
+
 const TeamTransferHistory = ({ userId, isOwnProfile }: { userId?: string; isOwnProfile: boolean }) => {
-  // Use own history hook if viewing own profile
-  const myHistoryQuery = useGetMyTeamHistoryQuery(undefined, { skip: !isOwnProfile });
-  
-  // Use other user's history hook if viewing someone else and have userId
-  const otherHistoryQuery = useGetUserTeamHistoryQuery(
-    { userId: userId || "" },
-    { skip: isOwnProfile || !userId }
-  );
+  const myHistoryQueryHook = (serviceApiModule as {
+    useGetMyTeamHistoryQuery?: (
+      arg?: void,
+      options?: { skip?: boolean }
+    ) => TeamHistoryQueryResult;
+  }).useGetMyTeamHistoryQuery;
+
+  const otherHistoryQueryHook = (serviceApiModule as {
+    useGetUserTeamHistoryQuery?: (
+      arg: { userId: string },
+      options?: { skip?: boolean }
+    ) => TeamHistoryQueryResult;
+  }).useGetUserTeamHistoryQuery;
+
+  const myHistoryQuery = myHistoryQueryHook
+    ? myHistoryQueryHook(undefined, { skip: !isOwnProfile })
+    : { data: [], isLoading: false };
+
+  const otherHistoryQuery = otherHistoryQueryHook
+    ? otherHistoryQueryHook(
+        { userId: userId || "" },
+        { skip: isOwnProfile || !userId }
+      )
+    : { data: [], isLoading: false };
 
   const isLoading = isOwnProfile ? myHistoryQuery.isLoading : otherHistoryQuery.isLoading;
   const history = isOwnProfile ? (myHistoryQuery.data || []) : (otherHistoryQuery.data || []);
 
-  const formatSummary = (activity: any) => {
+  const formatSummary = (activity: TeamTransferHistoryItem) => {
     const teamLabel = activity.teamName || activity.teamId || "Unknown team";
 
     if (activity.activityType === "inviteAccepted") {
