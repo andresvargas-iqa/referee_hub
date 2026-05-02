@@ -471,6 +471,7 @@ const injectedRtkApi = api
             Page: queryArg.page,
             PageSize: queryArg.pageSize,
             SkipPaging: queryArg.skipPaging,
+            TournamentTypeFilter: queryArg.tournamentType,
           },
         }),
         providesTags: ["Tournament"],
@@ -572,6 +573,13 @@ const injectedRtkApi = api
           url: `/api/v2/Tournaments/${queryArg.tournamentId}/invites/${queryArg.participantId}`,
           method: "POST",
           body: queryArg.inviteResponseModel,
+        }),
+        invalidatesTags: ["Tournament"],
+      }),
+      deleteInvite: build.mutation<DeleteInviteApiResponse, DeleteInviteApiArg>({
+        query: (queryArg) => ({
+          url: `/api/v2/Tournaments/${queryArg.tournamentId}/invites/${queryArg.participantId}`,
+          method: "DELETE",
         }),
         invalidatesTags: ["Tournament"],
       }),
@@ -1011,6 +1019,7 @@ export type GetTournamentsApiArg = {
   page?: number;
   pageSize?: number;
   skipPaging?: boolean;
+  tournamentType?: string;
 };
 export type CreateTournamentApiResponse = /** status 200 Success */ TournamentIdResponse;
 export type CreateTournamentApiArg = {
@@ -1070,6 +1079,11 @@ export type RespondToInviteApiArg = {
   tournamentId: string;
   participantId: string;
   inviteResponseModel: InviteResponseModel;
+};
+export type DeleteInviteApiResponse = /** status 200 Success */ void;
+export type DeleteInviteApiArg = {
+  tournamentId: string;
+  participantId: string;
 };
 export type GetParticipantsApiResponse = /** status 200 Success */ TournamentParticipantViewModel[];
 export type GetParticipantsApiArg = {
@@ -1916,6 +1930,7 @@ export const {
   useGetTournamentInvitesQuery,
   useCreateInviteMutation,
   useRespondToInviteMutation,
+  useDeleteInviteMutation,
   useGetParticipantsQuery,
   useRemoveParticipantMutation,
   useUpdateParticipantRosterMutation,
