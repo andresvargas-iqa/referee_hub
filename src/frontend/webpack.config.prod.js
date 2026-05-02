@@ -23,8 +23,6 @@ module.exports = merge(common, {
       systemvars: true,
       path: './.env.prod',
       silent: true,
-      safe: false,
-      allowEmptyValues: true,
     }),
     new SyncToBackendPlugin(),
   ],
