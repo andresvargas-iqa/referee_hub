@@ -12,10 +12,11 @@ interface RefereeTeamProps {
   locations: RefereeLocationOptions;
   isEditing: boolean;
   onChange: (newTeams: RefereeTeamOptions) => void;
+  pendingPlayingTeamId?: string | null;
 }
 
 const RefereeTeam = (props: RefereeTeamProps) => {
-  const { isEditing, onChange, teams, locations } = props;
+  const { isEditing, onChange, teams, locations, pendingPlayingTeamId } = props;
   const isDisabled = !locations.primaryNgb && !locations.secondaryNgb;
   
   const { data: primaryNgbTeams, error: getPrimaryNgbTeamsError } = useGetNgbTeamsQuery({ ngb: locations.primaryNgb, skipPaging: true }, {skip: !locations.primaryNgb});
@@ -133,9 +134,19 @@ const RefereeTeam = (props: RefereeTeamProps) => {
     }
 
     const teamName = getTeamName(type);
+    const isPending = type === "playingTeam" && pendingPlayingTeamId && teams[type]?.id === pendingPlayingTeamId;
 
     // Always display the name as plain text (privacy)
-    return <span>{teamName}</span>;
+    return (
+      <span>
+        {teamName}
+        {isPending && (
+          <span style={{ marginLeft: "0.5rem", fontSize: "0.75rem", fontWeight: 600, color: "#d97706", background: "#fef3c7", borderRadius: "0.25rem", padding: "0.125rem 0.4rem" }}>
+            Pending approval
+          </span>
+        )}
+      </span>
+    );
   };
 
   return (

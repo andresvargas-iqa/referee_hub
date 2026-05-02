@@ -393,6 +393,38 @@ public class UsersController : ControllerBase
 	}
 
 	/// <summary>
+	/// Cancel a pending team join request that the current user initiated.
+	/// </summary>
+	[HttpDelete("me/teamInvites/{invitationId:long}")]
+	[Tags("User")]
+	public async Task<IActionResult> CancelMyTeamInvite([FromRoute] long invitationId)
+	{
+		var currentUser = await this.contextAccessor.GetCurrentUserContextAsync();
+		var currentUserDbId = await this.GetCurrentUserDbIdAsync(currentUser.UserId);
+		var normalizedEmail = TeamInviteHelpers.NormalizeEmail(currentUser.UserData.Email.Value);
+
+		// Only allow cancelling requests the player themselves initiated (CanRespond == false case)
+		var invitation = await this.dbContext.TeamInvitations
+			.FirstOrDefaultAsync(
+				i => i.Id == invitationId
+					&& i.Email.ToLower() == normalizedEmail
+					&& i.InitiatorUserId == currentUserDbId
+					&& i.RevokedAt == null
+					&& i.AcceptedAt == null
+					&& i.DeclinedAt == null,
+				this.HttpContext.RequestAborted);
+
+		if (invitation == null)
+		{
+			return this.NotFound();
+		}
+
+		invitation.RevokedAt = DateTime.UtcNow;
+		await this.dbContext.SaveChangesAsync(this.HttpContext.RequestAborted);
+		return this.NoContent();
+	}
+
+	/// <summary>
 	/// Accept or decline a pending team invitation for the current user.
 	/// </summary>
 	[HttpPost("me/teamInvites/{invitationId:long}")]

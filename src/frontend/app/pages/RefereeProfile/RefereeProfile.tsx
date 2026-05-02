@@ -13,6 +13,7 @@ import {
   useUpdateCurrentUserDataMutation,
   useGetMyTeamInvitesQuery,
   useRespondToTeamInviteMutation,
+  useCancelMyTeamInviteMutation,
   useGetMyUpcomingTournamentsQuery,
   useGetManagedTeamsQuery,
   useGetTestAttemptsQuery,
@@ -161,6 +162,12 @@ const PlayerDetails = () => {
   const { data: managedTeams } = useGetManagedTeamsQuery(undefined, {
     skip: !isOwnProfile,
   });
+  const { data: myInvites } = useGetMyTeamInvitesQuery(undefined, {
+    skip: !isOwnProfile,
+  });
+
+  // A pending join request is one the player initiated themselves (canRespond === false)
+  const pendingPlayingTeamId = myInvites?.find((i) => i.canRespond === false)?.teamId ?? null;
 
   const { currentData: currentReferee } = useGetCurrentRefereeQuery(undefined, {
     skip: !isOwnProfile,
@@ -276,6 +283,7 @@ const PlayerDetails = () => {
           }}
           isEditing={isEditing}
           onChange={handleChange}
+          pendingPlayingTeamId={pendingPlayingTeamId}
         />
       </div>
     </div>
@@ -333,7 +341,9 @@ const UpcomingEvents = () => {
 const TeamInvites = () => {
   const { data: invites, isLoading } = useGetMyTeamInvitesQuery();
   const [respondToTeamInvite] = useRespondToTeamInviteMutation();
+  const [cancelMyTeamInvite] = useCancelMyTeamInviteMutation();
   const [respondingTo, setRespondingTo] = useState<string | null>(null);
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
   const { alertState, showAlert, hideAlert } = useAlert();
 
   const handleRespond = async (invitationId: string, approved: boolean) => {
@@ -349,6 +359,19 @@ const TeamInvites = () => {
       showAlert("Failed to respond. Please try again.", "error");
     } finally {
       setRespondingTo(null);
+    }
+  };
+
+  const handleCancel = async (invitationId: string) => {
+    setCancellingId(invitationId);
+    try {
+      await cancelMyTeamInvite({ invitationId }).unwrap();
+      showAlert("Join request cancelled.", "success");
+    } catch (error) {
+      console.error("Failed to cancel join request", error);
+      showAlert("Failed to cancel request. Please try again.", "error");
+    } finally {
+      setCancellingId(null);
     }
   };
 
@@ -387,7 +410,15 @@ const TeamInvites = () => {
                     size="sm"
                   />
                 ) : (
-                  <span className="text-sm text-gray-500">Pending</span>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    style={{ fontSize: "0.75rem", padding: "0.25rem 0.75rem" }}
+                    disabled={cancellingId === invite.invitationId}
+                    onClick={() => handleCancel(invite.invitationId!)}
+                  >
+                    {cancellingId === invite.invitationId ? "Cancelling…" : "Cancel request"}
+                  </button>
                 )}
               </div>
             );

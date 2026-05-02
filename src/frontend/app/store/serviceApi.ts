@@ -657,6 +657,13 @@ const injectedRtkApi = api
         }),
         invalidatesTags: ["User", "TeamManagement", "Team"],
       }),
+      cancelMyTeamInvite: build.mutation<CancelMyTeamInviteApiResponse, CancelMyTeamInviteApiArg>({
+        query: (queryArg) => ({
+          url: /api/v2/Users/me/teamInvites/,
+          method: "DELETE",
+        }),
+        invalidatesTags: ["User", "TeamManagement", "Team"],
+      }),
       getMyUpcomingTournaments: build.query<
         GetMyUpcomingTournamentsApiResponse,
         GetMyUpcomingTournamentsApiArg
@@ -1113,6 +1120,10 @@ export type RespondToTeamInviteApiResponse = /** status 200 Success */ void;
 export type RespondToTeamInviteApiArg = {
   invitationId: string;
   inviteResponseModel: InviteResponseModel;
+};
+export type CancelMyTeamInviteApiResponse = void;
+export type CancelMyTeamInviteApiArg = {
+  invitationId: string;
 };
 export type GetMyUpcomingTournamentsApiResponse =
   /** status 200 Success */ TournamentReferenceViewModel[];
@@ -1918,6 +1929,7 @@ export const {
   useGetManagedTeamsQuery,
   useGetMyTeamInvitesQuery,
   useRespondToTeamInviteMutation,
+  useCancelMyTeamInviteMutation,
   useGetMyUpcomingTournamentsQuery,
   useGetCurrentUserAvatarQuery,
   useUpdateCurrentUserAvatarMutation,
