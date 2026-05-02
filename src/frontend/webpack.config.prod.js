@@ -22,6 +22,7 @@ module.exports = merge(common, {
     new Dotenv({
       systemvars: true,
       path: './.env.prod',
+      silent: true,
     }),
     new SyncToBackendPlugin(),
   ],
