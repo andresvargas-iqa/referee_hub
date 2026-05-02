@@ -72,13 +72,13 @@ jobs:
       run: |
         if [ ! -f ".env" ]; then
           echo "Creating .env file for CI build..."
-          cat > .env << 'EOF'
-BASE_URL=/
-BUGSNAG_API_KEY=
-STRIPE_PUBLISHABLE_KEY=pk_test_stub
-NODE_ENV=development
-REACT_APP_API_URL=http://localhost:5000
-EOF
+          {
+            echo "BASE_URL=/"
+            echo "BUGSNAG_API_KEY="
+            echo "STRIPE_PUBLISHABLE_KEY=pk_test_stub"
+            echo "NODE_ENV=development"
+            echo "REACT_APP_API_URL=http://localhost:5000"
+          } > .env
         fi
       working-directory: src/frontend
 
@@ -107,14 +107,14 @@ EOF
         if [ ! -f "ManagementHub.UnitTests/dotnet-test-result.xml" ]; then
           echo "Test result file not found, creating placeholder..."
           mkdir -p ManagementHub.UnitTests
-          cat > ManagementHub.UnitTests/dotnet-test-result.xml << 'EOF'
-        <?xml version="1.0" encoding="UTF-8"?>
-        <testsuites tests="0" failures="0" errors="0" time="0">
-          <testsuite name="Placeholder" tests="0" failures="0" errors="0" time="0">
-            <properties/>
-          </testsuite>
-        </testsuites>
-        EOF
+          {
+            echo '<?xml version="1.0" encoding="UTF-8"?>'
+            echo '<testsuites tests="0" failures="0" errors="0" time="0">'
+            echo '  <testsuite name="Placeholder" tests="0" failures="0" errors="0" time="0">'
+            echo '    <properties/>'
+            echo '  </testsuite>'
+            echo '</testsuites>'
+          } > ManagementHub.UnitTests/dotnet-test-result.xml
           echo "Placeholder test result created"
         fi
 
@@ -243,14 +243,14 @@ EOF
         if [ ! -f "ManagementHub.IntegrationTests/dotnet-integration-test-result.xml" ]; then
           echo "Test result file not found, creating placeholder..."
           mkdir -p ManagementHub.IntegrationTests
-          cat > ManagementHub.IntegrationTests/dotnet-integration-test-result.xml << 'EOF'
-        <?xml version="1.0" encoding="UTF-8"?>
-        <testsuites tests="0" failures="0" errors="0" time="0">
-          <testsuite name="Placeholder" tests="0" failures="0" errors="0" time="0">
-            <properties/>
-          </testsuite>
-        </testsuites>
-        EOF
+          {
+            echo '<?xml version="1.0" encoding="UTF-8"?>'
+            echo '<testsuites tests="0" failures="0" errors="0" time="0">'
+            echo '  <testsuite name="Placeholder" tests="0" failures="0" errors="0" time="0">'
+            echo '    <properties/>'
+            echo '  </testsuite>'
+            echo '</testsuites>'
+          } > ManagementHub.IntegrationTests/dotnet-integration-test-result.xml
           echo "Placeholder test result created"
         fi
 
