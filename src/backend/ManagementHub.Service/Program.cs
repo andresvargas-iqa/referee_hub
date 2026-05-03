@@ -380,6 +380,7 @@ public partial class Program
 				"Failed to apply volunteer-registration-column startup hotfix for tournaments. Runtime errors may occur if schema is out of date.");
 		}
 	}
+
 	private static readonly Dictionary<Type, int> ExceptionStatusCodes = new()
 	{
 		[typeof(NotFoundException)] = StatusCodes.Status404NotFound,
