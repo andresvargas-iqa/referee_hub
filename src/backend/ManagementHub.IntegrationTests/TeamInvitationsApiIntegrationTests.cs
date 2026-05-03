@@ -340,11 +340,26 @@ public class TeamInvitationsApiIntegrationTests : IClassFixture<TestWebApplicati
 	{
 		await AuthenticationHelper.AuthenticateAsAsync(this.client, "referee@example.com", "password");
 
+		var currentProfileResponse = await this.client.GetAsync("/api/v2/Referees/me");
+		currentProfileResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+		var currentProfile = await currentProfileResponse.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>();
+
+		string? currentPlayingTeamId = null;
+		if (currentProfile.TryGetProperty("playingTeam", out var currentPlayingTeam)
+			&& currentPlayingTeam.ValueKind == System.Text.Json.JsonValueKind.Object
+			&& currentPlayingTeam.TryGetProperty("id", out var currentPlayingTeamValue)
+			&& currentPlayingTeamValue.ValueKind == System.Text.Json.JsonValueKind.String)
+		{
+			currentPlayingTeamId = currentPlayingTeamValue.GetString();
+		}
+
+		var targetTeamId = currentPlayingTeamId == "TM_2" ? "TM_1" : "TM_2";
+
 		var requestResponse = await this.client.PutAsJsonAsync("/api/v2/Referees/me", new
 		{
 			primaryNgb = "USA",
 			secondaryNgb = (string?)null,
-			playingTeam = new { id = "TM_2" },
+			playingTeam = new { id = targetTeamId },
 			coachingTeam = (object?)null,
 			nationalTeam = (object?)null,
 		});
@@ -354,12 +369,12 @@ public class TeamInvitationsApiIntegrationTests : IClassFixture<TestWebApplicati
 		var myInvitesResponse = await this.client.GetAsync("/api/v2/users/me/teamInvites");
 		myInvitesResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 		var myInvites = await myInvitesResponse.Content.ReadFromJsonAsync<List<CurrentUserTeamInviteViewModelDto>>();
-		var pendingRequest = myInvites!.Should().ContainSingle(i => i.TeamId == "TM_2").Subject;
+		var pendingRequest = myInvites!.Should().ContainSingle(i => i.TeamId == targetTeamId).Subject;
 
 		await AuthenticationHelper.AuthenticateAsAsync(this.client, "ngb_admin@example.com", "password");
 
 		var approveResponse = await this.client.PostAsJsonAsync(
-			$"/api/v2/Teams/TM_2/invites/{pendingRequest.InvitationId}/response",
+			$"/api/v2/Teams/{targetTeamId}/invites/{pendingRequest.InvitationId}/response",
 			new { Approved = true });
 
 		approveResponse.StatusCode.Should().Be(HttpStatusCode.NoContent);
@@ -371,7 +386,7 @@ public class TeamInvitationsApiIntegrationTests : IClassFixture<TestWebApplicati
 
 		var history = await historyResponse.Content.ReadFromJsonAsync<List<TeamTransferHistoryItemViewModelDto>>();
 		history.Should().NotBeNull();
-		history!.Should().Contain(a => a.ActivityType == "inviteAccepted" && a.TeamId == "TM_2");
+		history!.Should().Contain(a => a.ActivityType == "inviteAccepted" && a.TeamId == targetTeamId);
 		history.Should().Contain(a => a.ActivityType == "playerRemoved");
 	}
 
