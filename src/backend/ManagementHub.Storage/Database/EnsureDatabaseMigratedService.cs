@@ -41,6 +41,15 @@ public class EnsureDatabaseMigratedService : DatabaseStartupService
 				this.logger.LogInformation(0x5225da03, "Database already up to date.");
 			}
 
+			// Safety net for environments with migration drift: make sure invite observations column exists.
+			if (string.Equals(dbContext.Database.ProviderName, "Npgsql.EntityFrameworkCore.PostgreSQL", StringComparison.Ordinal))
+			{
+				dbContext.Database.ExecuteSqlRaw(@"
+					ALTER TABLE tournament_invites
+					ADD COLUMN IF NOT EXISTS observations text;
+				");
+			}
+
 			return Task.CompletedTask;
 		}
 		catch (Exception ex)
