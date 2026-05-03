@@ -1500,6 +1500,10 @@ namespace ManagementHub.Storage.Migrations
                         .HasColumnType("INTEGER")
                         .HasColumnName("initiator_user_id");
 
+                    b.Property<string>("Observations")
+                        .HasColumnType("text")
+                        .HasColumnName("observations");
+
                     b.Property<int>("ParticipantApproval")
                         .HasColumnType("INTEGER")
                         .HasColumnName("participant_approval");
