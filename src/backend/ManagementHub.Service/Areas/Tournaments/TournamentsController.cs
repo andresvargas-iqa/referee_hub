@@ -480,8 +480,28 @@ public class TournamentsController : ControllerBase
 			return validationError;
 		}
 
-		// Check authorization
-		if (!this.IsAuthorizedToCreateInvite(userContext, tournamentId, teamId))
+		var actingUserDbId = await this.dbContext.Users
+			.WithIdentifier(userContext.UserId)
+			.Select(u => (long?)u.Id)
+			.FirstOrDefaultAsync(this.HttpContext.RequestAborted);
+
+		if (!actingUserDbId.HasValue)
+		{
+			return this.Forbid();
+		}
+
+		var isTournamentManager = await this.dbContext.TournamentManagers
+			.AnyAsync(
+				tm => tm.Tournament.UniqueId == tournamentId.ToString() && tm.UserId == actingUserDbId.Value,
+				this.HttpContext.RequestAborted);
+
+		var isTeamManager = await this.dbContext.TeamManagers
+			.AnyAsync(
+				tm => tm.TeamId == teamId.Id && tm.UserId == actingUserDbId.Value,
+				this.HttpContext.RequestAborted);
+
+		// Check authorization using persisted DB relationships.
+		if (!isTournamentManager && !isTeamManager)
 		{
 			return this.Forbid();
 		}
@@ -610,19 +630,6 @@ public class TournamentsController : ControllerBase
 		}
 
 		return null;
-	}
-
-	private bool IsAuthorizedToCreateInvite(
-		IUserContext userContext,
-		TournamentIdentifier tournamentId,
-		TeamIdentifier teamId)
-	{
-		var isTournamentManager = userContext.Roles.OfType<TournamentManagerRole>()
-			.Any(r => r.Tournament.AppliesTo(tournamentId));
-		var isTeamManager = userContext.Roles.OfType<TeamManagerRole>()
-			.Any(r => r.Team.AppliesTo(teamId));
-
-		return isTournamentManager || isTeamManager;
 	}
 
 	private ActionResult? ValidateTournamentForInvite(ITournamentContext tournament)
