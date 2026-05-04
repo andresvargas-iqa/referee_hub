@@ -4,6 +4,9 @@ import ContactOrganizerModal, { ContactOrganizerModalRef } from "./ContactOrgani
 import AddTournamentModal, { AddTournamentModalRef } from "../components/AddTournamentModal";
 import RegistrationsModal, { RegistrationsModalRef } from "./RegistrationsModal";
 import InviteTeamsModal, { InviteTeamsModalRef } from "./InviteTeamsModal";
+import VolunteerRegistrationModal, {
+  VolunteerRegistrationModalRef,
+} from "./VolunteerRegistrationModal";
 import AddTournamentManagerModal from "./AddTournamentManagerModal";
 import ActionButtonPair from "../../../components/ActionButtonPair";
 import CustomAlert from "../../../components/CustomAlert";
@@ -23,6 +26,7 @@ import {
   useGetManagedTeamsQuery,
   useGetParticipantsQuery,
   useDeleteTournamentMutation,
+  useUpdateTournamentMutation,
   TournamentInviteViewModel,
 } from "../../../store/serviceApi";
 import { useNavigationParams, useNavigate } from "../../../utils/navigationUtils";
@@ -34,6 +38,7 @@ const TournamentDetails = () => {
   const editModalRef = useRef<AddTournamentModalRef>(null);
   const registrationsModalRef = useRef<RegistrationsModalRef>(null);
   const inviteTeamsModalRef = useRef<InviteTeamsModalRef>(null);
+  const volunteerModalRef = useRef<VolunteerRegistrationModalRef>(null);
   const rosterSectionRef = useRef<HTMLDivElement>(null);
   const [respondingTo, setRespondingTo] = useState<string | null>(null);
   const [isAddManagerModalOpen, setIsAddManagerModalOpen] = useState(false);
@@ -81,6 +86,7 @@ const TournamentDetails = () => {
 
   const [respondToInvite] = useRespondToInviteMutation();
   const [deleteTournament] = useDeleteTournamentMutation();
+  const [updateTournament] = useUpdateTournamentMutation();
   const navigate = useNavigate();
 
   // Get team IDs from the managed teams endpoint
@@ -222,6 +228,41 @@ const TournamentDetails = () => {
     }
   }
 
+  async function handleToggleVolunteerRegistration() {
+    if (!tournamentId || !tournament) return;
+
+    try {
+      await updateTournament({
+        tournamentId,
+        tournamentModel: {
+          name: tournament.name,
+          description: tournament.description,
+          startDate: tournament.startDate,
+          endDate: tournament.endDate,
+          registrationEndsDate: tournament.registrationEndsDate,
+          type: tournament.type,
+          country: tournament.country,
+          city: tournament.city,
+          place: tournament.place,
+          organizer: tournament.organizer,
+          isPrivate: tournament.isPrivate,
+          isRegistrationOpen: tournament.isRegistrationOpen,
+          isVolunteerRegistrationOpen: !(tournament.isVolunteerRegistrationOpen ?? false),
+        },
+      }).unwrap();
+
+      showAlert(
+        tournament.isVolunteerRegistrationOpen
+          ? "Volunteer registration is now closed."
+          : "Volunteer registration is now open.",
+        "success"
+      );
+    } catch (error) {
+      console.error("Failed to toggle volunteer registration:", error);
+      showAlert("Failed to update volunteer registration settings.", "error");
+    }
+  }
+
   if (isLoading) {
     return (
       <div className="tournament-details-loading">
@@ -282,6 +323,7 @@ const TournamentDetails = () => {
       organizer: tournament.organizer || "",
       isPrivate: tournament.isPrivate || false,
       isRegistrationOpen: tournament.isRegistrationOpen ?? true,
+      isVolunteerRegistrationOpen: tournament.isVolunteerRegistrationOpen ?? false,
       bannerImageUrl: tournament.bannerImageUrl || "",
     });
   };
@@ -378,7 +420,41 @@ const TournamentDetails = () => {
                       Delete Tournament
                     </button>
                   </div>
-
+                  <div className="card card-mb">
+                    <h3 className="card-title">Accepted Volunteers</h3>
+                    <p className="card-description">
+                      Review referee volunteers and approve or deny new volunteer requests.
+                    </p>
+                    <button
+                      onClick={handleToggleVolunteerRegistration}
+                      className="btn btn-outline btn-full-width card-mb"
+                    >
+                      {tournament.isVolunteerRegistrationOpen
+                        ? "Close Volunteer Registration"
+                        : "Open Volunteer Registration"}
+                    </button>
+                    <div className="stats-list card-mb">
+                      <div className="stats-item">
+                        <span className="stats-label">Accepted Volunteers</span>
+                        <span className="stats-value">{volunteerRegistrations.length}</span>
+                      </div>
+                      <div className="stats-item">
+                        <span className="stats-label">Awaiting Review</span>
+                        <span className="stats-value">{pendingVolunteerRegistrations.length}</span>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() =>
+                        registrationsModalRef.current?.open(
+                          tournament.id || "",
+                          tournament.name || "Unknown Tournament"
+                        )
+                      }
+                      className="btn btn-secondary btn-full-width"
+                    >
+                      Review Volunteer Registrations
+                    </button>
+                  </div>
                   {/* Tournament Stats Card */}
                   <div className="card">
                     <h3 className="card-title">Tournament Stats</h3>
@@ -441,6 +517,41 @@ const TournamentDetails = () => {
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                           </svg>
                           <p className="text-sm font-medium text-gray-700">Registration is now closed</p>
+                        <div className="card card-mb">
+                          <h3 className="card-title">Accepted Volunteers</h3>
+                          <p className="card-description">
+                            Review referee volunteers and approve or deny new volunteer requests.
+                          </p>
+                          <button
+                            onClick={handleToggleVolunteerRegistration}
+                            className="btn btn-outline btn-full-width card-mb"
+                          >
+                            {tournament.isVolunteerRegistrationOpen
+                              ? "Close Volunteer Registration"
+                              : "Open Volunteer Registration"}
+                          </button>
+                          <div className="stats-list card-mb">
+                            <div className="stats-item">
+                              <span className="stats-label">Accepted Volunteers</span>
+                              <span className="stats-value">{volunteerRegistrations.length}</span>
+                            </div>
+                            <div className="stats-item">
+                              <span className="stats-label">Awaiting Review</span>
+                              <span className="stats-value">{pendingVolunteerRegistrations.length}</span>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() =>
+                              registrationsModalRef.current?.open(
+                                tournament.id || "",
+                                tournament.name || "Unknown Tournament"
+                              )
+                            }
+                            className="btn btn-secondary btn-full-width"
+                          >
+                            Review Volunteer Registrations
+                          </button>
+                        </div>
                         </div>
                       </>
                     ) : approvedTeamsForUser.length > 0 ? (
@@ -500,6 +611,26 @@ const TournamentDetails = () => {
                     )}
                   </div>
 
+                  {!isRegistrationClosed && tournament.isVolunteerRegistrationOpen && (
+                    <div className="card card-mb">
+                      <h3 className="card-title">Volunteer</h3>
+                      <p className="card-description">
+                        Interested in helping officiate? Submit your volunteer availability.
+                      </p>
+                      <button
+                        onClick={() =>
+                          volunteerModalRef.current?.open(
+                            tournament.id || "",
+                            currentUser?.userId || ""
+                          )
+                        }
+                        className="btn btn-secondary btn-full-width"
+                      >
+                        Register as Volunteer
+                      </button>
+                    </div>
+                  )}
+
                   {/* Need Help Card */}
                   <div className="card">
                     <h3 className="card-title">Need Help?</h3>
@@ -549,6 +680,7 @@ const TournamentDetails = () => {
       <AddTournamentModal ref={editModalRef} />
       <RegistrationsModal ref={registrationsModalRef} />
       <InviteTeamsModal ref={inviteTeamsModalRef} />
+      <VolunteerRegistrationModal ref={volunteerModalRef} teams={participants || []} onSaved={refetchInvites} />
       {isAddManagerModalOpen && tournamentId && (
         <AddTournamentManagerModal
           tournamentId={tournamentId}

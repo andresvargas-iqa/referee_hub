@@ -36,6 +36,7 @@ public record DbTournamentContext(
 	string Organizer,
 	bool IsPrivate,
 	bool IsRegistrationOpen,
+	bool IsVolunteerRegistrationOpen,
 	bool IsCurrentUserInvolved) : ITournamentContext;
 
 public class DbTournamentContextProvider : ITournamentContextProvider
@@ -146,6 +147,7 @@ public class DbTournamentContextProvider : ITournamentContextProvider
 			Organizer = tournamentData.Organizer,
 			IsPrivate = tournamentData.IsPrivate,
 			IsRegistrationOpen = tournamentData.IsRegistrationOpen,
+			IsVolunteerRegistrationOpen = tournamentData.IsVolunteerRegistrationOpen,
 			CreatedAt = now,
 			UpdatedAt = now,
 		};
@@ -198,6 +200,7 @@ public class DbTournamentContextProvider : ITournamentContextProvider
 		tournament.Organizer = tournamentData.Organizer;
 		tournament.IsPrivate = tournamentData.IsPrivate;
 		tournament.IsRegistrationOpen = tournamentData.IsRegistrationOpen;
+		tournament.IsVolunteerRegistrationOpen = tournamentData.IsVolunteerRegistrationOpen;
 		tournament.UpdatedAt = DateTime.UtcNow;
 
 		await this.dbContext.SaveChangesAsync(cancellationToken);
@@ -485,6 +488,7 @@ public class DbTournamentContextProvider : ITournamentContextProvider
 				t.Organizer,
 				t.IsPrivate,
 				t.IsRegistrationOpen,
+				t.IsVolunteerRegistrationOpen,
 				// IsCurrentUserInvolved: computed via database join
 				// User is involved if they manage this tournament OR manage a participating team
 				// Phase 4 will extend: || user is on a roster
@@ -516,6 +520,7 @@ public class DbTournamentContextProvider : ITournamentContextProvider
 				t.Organizer,
 				t.IsPrivate,
 				t.IsRegistrationOpen,
+				t.IsVolunteerRegistrationOpen,
 				// IsCurrentUserInvolved: computed via database join
 				// User is involved if they:
 				// - Manage this tournament OR
@@ -802,6 +807,77 @@ public class DbTournamentContextProvider : ITournamentContextProvider
 
 		// Fetch the created invite to return with proper team name
 		var createdInvite = await this.GetTeamInviteAsync(tournamentId, teamId, cancellationToken);
+		return createdInvite!;
+	}
+
+	public async Task<InviteInfo> CreateRefereeInviteAsync(
+		TournamentIdentifier tournamentId,
+		UserIdentifier refereeUserId,
+		UserIdentifier initiatorUserId,
+		string? observations = null,
+		CancellationToken cancellationToken = default)
+	{
+		var tournamentIdString = tournamentId.ToString();
+		var participantId = refereeUserId.ToString();
+
+		var tournament = await this.QueryActiveTournament(tournamentIdString)
+			.Select(t => new { t.Id })
+			.FirstOrDefaultAsync(cancellationToken);
+
+		if (tournament == null)
+		{
+			throw new NotFoundException(tournamentId.ToString());
+		}
+
+		var initiator = await this.dbContext.Users
+			.WithIdentifier(initiatorUserId)
+			.Select(u => new { u.Id })
+			.FirstOrDefaultAsync(cancellationToken);
+
+		if (initiator == null)
+		{
+			throw new NotFoundException(initiatorUserId.ToString());
+		}
+
+		var referee = await this.dbContext.Users
+			.WithIdentifier(refereeUserId)
+			.Select(u => new { u.Id })
+			.FirstOrDefaultAsync(cancellationToken);
+
+		if (referee == null)
+		{
+			throw new NotFoundException(refereeUserId.ToString());
+		}
+
+		var isTournamentManager = await this.dbContext.TournamentManagers
+			.AnyAsync(tm => tm.TournamentId == tournament.Id && tm.UserId == initiator.Id, cancellationToken);
+
+		var isSelfRegistration = initiatorUserId.Equals(refereeUserId);
+		var now = DateTime.UtcNow;
+
+		var invite = new TournamentInvite
+		{
+			TournamentId = tournament.Id,
+			ParticipantType = "referee",
+			ParticipantId = participantId,
+			Observations = observations,
+			InitiatorUserId = initiator.Id,
+			CreatedAt = now,
+			TournamentManagerApproval = isTournamentManager ? ApprovalStatus.Approved : ApprovalStatus.Pending,
+			TournamentManagerApprovalDate = isTournamentManager ? now : null,
+			ParticipantApproval = isSelfRegistration ? ApprovalStatus.Approved : ApprovalStatus.Pending,
+			ParticipantApprovalDate = isSelfRegistration ? now : null,
+		};
+
+		this.dbContext.TournamentInvites.Add(invite);
+		await this.dbContext.SaveChangesAsync(cancellationToken);
+
+		this.logger.LogInformation(
+			"Created volunteer invite for tournament {TournamentId} referee {RefereeId}",
+			tournamentId,
+			refereeUserId);
+
+		var createdInvite = await this.GetInviteByParticipantIdAsync(tournamentId, participantId, cancellationToken);
 		return createdInvite!;
 	}
 

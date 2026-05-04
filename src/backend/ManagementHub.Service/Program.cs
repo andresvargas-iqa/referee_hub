@@ -278,6 +278,7 @@ public partial class Program
 
 	public static void ConfigureWebApp(WebHostBuilderContext context, IApplicationBuilder app)
 	{
+		EnsureTournamentVolunteerRegistrationOpenColumnExists(app);
 		var exceptionHandlerPipeline = app.New();
 		exceptionHandlerPipeline.Run(HandleRequestError);
 		app.UseExceptionHandler(new ExceptionHandlerOptions
@@ -327,6 +328,30 @@ public partial class Program
 		app.UseSwaggerUI();
 	}
 
+	private static void EnsureTournamentVolunteerRegistrationOpenColumnExists(IApplicationBuilder app)
+	{
+		using var scope = app.ApplicationServices.CreateScope();
+		var dbContext = scope.ServiceProvider.GetRequiredService<ManagementHubDbContext>();
+		var logger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("SchemaHotfix");
+
+		if (!string.Equals(dbContext.Database.ProviderName, "Npgsql.EntityFrameworkCore.PostgreSQL", StringComparison.Ordinal))
+		{
+			return;
+		}
+
+		try
+		{
+			dbContext.Database.ExecuteSqlRaw(@"
+				ALTER TABLE tournaments
+				ADD COLUMN IF NOT EXISTS is_volunteer_registration_open boolean NOT NULL DEFAULT FALSE;
+			");
+		}
+		catch (Exception ex)
+		{
+			logger.LogWarning(ex,
+				"Failed to apply volunteer-registration-column startup hotfix for tournaments. Runtime errors may occur if schema is out of date.");
+		}
+	}
 	private static readonly Dictionary<Type, int> ExceptionStatusCodes = new()
 	{
 		[typeof(NotFoundException)] = StatusCodes.Status404NotFound,

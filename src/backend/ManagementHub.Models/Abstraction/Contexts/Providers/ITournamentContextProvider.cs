@@ -44,6 +44,8 @@ public interface ITournamentContextProvider
 
 	Task<InviteInfo> CreateTeamInviteAsync(TournamentIdentifier tournamentId, TeamIdentifier teamId, UserIdentifier initiatorUserId, string? observations = null, CancellationToken cancellationToken = default);
 
+	Task<InviteInfo> CreateRefereeInviteAsync(TournamentIdentifier tournamentId, UserIdentifier refereeUserId, UserIdentifier initiatorUserId, string? observations = null, CancellationToken cancellationToken = default);
+
 	Task<InviteInfo?> GetTeamInviteAsync(TournamentIdentifier tournamentId, TeamIdentifier teamId, CancellationToken cancellationToken = default);
 
 	Task<InviteInfo?> GetInviteByParticipantIdAsync(TournamentIdentifier tournamentId, string participantId, CancellationToken cancellationToken = default);

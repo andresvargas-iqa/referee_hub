@@ -115,6 +115,7 @@ public class TournamentsController : ControllerBase
 			Organizer = t.Organizer,
 			IsPrivate = t.IsPrivate,
 			IsRegistrationOpen = t.IsRegistrationOpen,
+			IsVolunteerRegistrationOpen = t.IsVolunteerRegistrationOpen,
 			BannerImageUrl = bannerUrls.TryGetValue(t.Id, out var uri) ? uri?.ToString() : null,
 			IsCurrentUserInvolved = t.IsCurrentUserInvolved
 		}).ToList();
@@ -160,6 +161,7 @@ public class TournamentsController : ControllerBase
 			Organizer = tournament.Organizer,
 			IsPrivate = tournament.IsPrivate,
 			IsRegistrationOpen = tournament.IsRegistrationOpen,
+			IsVolunteerRegistrationOpen = tournament.IsVolunteerRegistrationOpen,
 			BannerImageUrl = bannerUri?.ToString(),
 			IsCurrentUserInvolved = tournament.IsCurrentUserInvolved
 		};
@@ -188,7 +190,8 @@ public class TournamentsController : ControllerBase
 			Place = model.Place,
 			Organizer = model.Organizer,
 			IsPrivate = model.IsPrivate,
-			IsRegistrationOpen = model.IsRegistrationOpen
+			IsRegistrationOpen = model.IsRegistrationOpen,
+			IsVolunteerRegistrationOpen = model.IsVolunteerRegistrationOpen
 		};
 
 		var tournamentId = await this.tournamentContextProvider
@@ -221,7 +224,8 @@ public class TournamentsController : ControllerBase
 			Place = model.Place,
 			Organizer = model.Organizer,
 			IsPrivate = model.IsPrivate,
-			IsRegistrationOpen = model.IsRegistrationOpen
+			IsRegistrationOpen = model.IsRegistrationOpen,
+			IsVolunteerRegistrationOpen = model.IsVolunteerRegistrationOpen
 		};
 
 		await this.tournamentContextProvider
@@ -457,6 +461,11 @@ public class TournamentsController : ControllerBase
 	{
 		var userContext = await this.contextAccessor.GetCurrentUserContextAsync();
 
+		if (model.ParticipantType == ParticipantType.Referee)
+		{
+			return await this.HandleRefereeInviteCreationAsync(tournamentId, model, userContext);
+		}
+
 		// Validate and parse participant
 		var validationError = this.ValidateInviteParticipant(model, out var teamId);
 		if (validationError != null)
@@ -526,6 +535,56 @@ public class TournamentsController : ControllerBase
 		}
 
 		var viewModel = MapInviteToViewModel(invite);
+
+		return this.CreatedAtAction(nameof(GetTournamentInvites),
+			new { tournamentId = tournamentId.ToString() },
+			viewModel);
+	}
+
+	private async Task<ActionResult<TournamentInviteViewModel>> HandleRefereeInviteCreationAsync(
+		TournamentIdentifier tournamentId,
+		CreateInviteModel model,
+		IUserContext userContext)
+	{
+		// Parse and validate referee ID
+		if (!UserIdentifier.TryParse(model.ParticipantId, out var refereeId))
+		{
+			return this.BadRequest(new { error = "Invalid participant ID" });
+		}
+
+		// Ensure user can only invite themselves
+		if (!userContext.UserId.Equals(refereeId))
+		{
+			return this.Forbid();
+		}
+
+		// Get tournament and validate
+		var tournament = await this.tournamentContextProvider
+			.GetTournamentContextAsync(tournamentId, userContext.UserId, this.HttpContext.RequestAborted);
+
+		var tournamentValidation = this.ValidateTournamentForInvite(tournament);
+		if (tournamentValidation != null)
+		{
+			return tournamentValidation;
+		}
+
+		// Check for existing invite
+		var existingInvite = await this.tournamentContextProvider
+			.GetInviteByParticipantIdAsync(tournamentId, model.ParticipantId, this.HttpContext.RequestAborted);
+		if (existingInvite != null && existingInvite.GetStatus() == InviteStatus.Pending)
+		{
+			return this.BadRequest(new { error = "Pending invite already exists" });
+		}
+
+		// Create referee invite
+		var refereeInvite = await this.tournamentContextProvider.CreateRefereeInviteAsync(
+			tournamentId,
+			refereeId,
+			userContext.UserId,
+			model.Observations,
+			this.HttpContext.RequestAborted);
+
+		var viewModel = MapInviteToViewModel(refereeInvite);
 
 		return this.CreatedAtAction(nameof(GetTournamentInvites),
 			new { tournamentId = tournamentId.ToString() },
