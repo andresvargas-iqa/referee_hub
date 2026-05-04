@@ -480,10 +480,7 @@ public class TournamentsController : ControllerBase
 		}
 
 		// Get tournament and validate
-		var tournament = await this.tournamentContextProvider
-			.GetTournamentContextAsync(tournamentId, userContext.UserId, this.HttpContext.RequestAborted);
-
-		var tournamentValidation = this.ValidateTournamentForInvite(tournament);
+		var (tournament, tournamentValidation) = await this.GetValidatedTournamentForInviteAsync(tournamentId, userContext.UserId);
 		if (tournamentValidation != null)
 		{
 			return tournamentValidation;
@@ -534,11 +531,7 @@ public class TournamentsController : ControllerBase
 			}
 		}
 
-		var viewModel = MapInviteToViewModel(invite);
-
-		return this.CreatedAtAction(nameof(GetTournamentInvites),
-			new { tournamentId = tournamentId.ToString() },
-			viewModel);
+		return this.CreateInviteCreatedResponse(tournamentId, invite);
 	}
 
 	private async Task<ActionResult<TournamentInviteViewModel>> HandleRefereeInviteCreationAsync(
@@ -559,10 +552,7 @@ public class TournamentsController : ControllerBase
 		}
 
 		// Get tournament and validate
-		var tournament = await this.tournamentContextProvider
-			.GetTournamentContextAsync(tournamentId, userContext.UserId, this.HttpContext.RequestAborted);
-
-		var tournamentValidation = this.ValidateTournamentForInvite(tournament);
+		var (_, tournamentValidation) = await this.GetValidatedTournamentForInviteAsync(tournamentId, userContext.UserId);
 		if (tournamentValidation != null)
 		{
 			return tournamentValidation;
@@ -584,9 +574,27 @@ public class TournamentsController : ControllerBase
 			model.Observations,
 			this.HttpContext.RequestAborted);
 
-		var viewModel = MapInviteToViewModel(refereeInvite);
+		return this.CreateInviteCreatedResponse(tournamentId, refereeInvite);
+	}
 
-		return this.CreatedAtAction(nameof(GetTournamentInvites),
+	private async Task<(ITournamentContext Tournament, ActionResult? Error)> GetValidatedTournamentForInviteAsync(
+		TournamentIdentifier tournamentId,
+		UserIdentifier userId)
+	{
+		var tournament = await this.tournamentContextProvider
+			.GetTournamentContextAsync(tournamentId, userId, this.HttpContext.RequestAborted);
+
+		return (tournament, this.ValidateTournamentForInvite(tournament));
+	}
+
+	private ActionResult<TournamentInviteViewModel> CreateInviteCreatedResponse(
+		TournamentIdentifier tournamentId,
+		InviteInfo invite)
+	{
+		var viewModel = MapInviteToViewModel(invite);
+
+		return this.CreatedAtAction(
+			nameof(GetTournamentInvites),
 			new { tournamentId = tournamentId.ToString() },
 			viewModel);
 	}
