@@ -461,9 +461,16 @@ public class TournamentsController : ControllerBase
 	{
 		var userContext = await this.contextAccessor.GetCurrentUserContextAsync();
 
+		// Validate tournament exists and is not archived before any branching
+		var (tournament, tournamentValidation) = await this.GetValidatedTournamentForInviteAsync(tournamentId, userContext.UserId);
+		if (tournamentValidation != null)
+		{
+			return tournamentValidation;
+		}
+
 		if (model.ParticipantType == ParticipantType.Referee)
 		{
-			return await this.HandleRefereeInviteCreationAsync(tournamentId, model, userContext);
+			return await this.HandleRefereeInviteCreationAsync(tournamentId, model, userContext, tournament);
 		}
 
 		// Validate and parse participant
@@ -477,13 +484,6 @@ public class TournamentsController : ControllerBase
 		if (!this.IsAuthorizedToCreateInvite(userContext, tournamentId, teamId))
 		{
 			return this.Forbid();
-		}
-
-		// Get tournament and validate
-		var (tournament, tournamentValidation) = await this.GetValidatedTournamentForInviteAsync(tournamentId, userContext.UserId);
-		if (tournamentValidation != null)
-		{
-			return tournamentValidation;
 		}
 
 		// Check for existing participant or invite
@@ -537,7 +537,8 @@ public class TournamentsController : ControllerBase
 	private async Task<ActionResult<TournamentInviteViewModel>> HandleRefereeInviteCreationAsync(
 		TournamentIdentifier tournamentId,
 		CreateInviteModel model,
-		IUserContext userContext)
+		IUserContext userContext,
+		ITournamentContext tournament)
 	{
 		// Parse and validate referee ID
 		if (!UserIdentifier.TryParse(model.ParticipantId, out var refereeId))
@@ -551,12 +552,7 @@ public class TournamentsController : ControllerBase
 			return this.Forbid();
 		}
 
-		// Get tournament and validate
-		var (_, tournamentValidation) = await this.GetValidatedTournamentForInviteAsync(tournamentId, userContext.UserId);
-		if (tournamentValidation != null)
-		{
-			return tournamentValidation;
-		}
+		// Tournament already validated in CreateInvite before branching
 
 		// Check for existing invite
 		var existingInvite = await this.tournamentContextProvider
