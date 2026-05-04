@@ -115,6 +115,26 @@ const TournamentDetails = () => {
     });
   }, [invites, managedTeamIds]);
 
+  // Keep volunteer-derived lists resilient while API client models catch up.
+  const volunteerInvites: TournamentInviteViewModel[] = useMemo(() => {
+    if (!invites) return [];
+
+    return invites.filter((invite) => {
+      const participantType = String((invite as any).participantType || "").toLowerCase();
+      return participantType === "referee";
+    });
+  }, [invites]);
+
+  const volunteerRegistrations: TournamentInviteViewModel[] = useMemo(() => {
+    return volunteerInvites.filter((invite) => invite.status === "approved");
+  }, [volunteerInvites]);
+
+  const pendingVolunteerRegistrations: TournamentInviteViewModel[] = useMemo(() => {
+    return volunteerInvites.filter(
+      (invite) => invite.tournamentManagerApproval?.status === "pending"
+    );
+  }, [volunteerInvites]);
+
   // Find teams that are fully approved and participating
   const approvedTeamsForUser = useMemo(() => {
     if (!invites || managedTeamIds.size === 0 || !managedTeamsData) return [];
