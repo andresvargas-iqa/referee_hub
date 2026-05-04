@@ -872,10 +872,13 @@ public class DbTournamentContextProvider : ITournamentContextProvider
 		this.dbContext.TournamentInvites.Add(invite);
 		await this.dbContext.SaveChangesAsync(cancellationToken);
 
+		var sanitizedTournamentId = tournamentId.ToString().Replace("\r", string.Empty).Replace("\n", string.Empty);
+		var sanitizedRefereeId = refereeUserId.ToString().Replace("\r", string.Empty).Replace("\n", string.Empty);
+
 		this.logger.LogInformation(
 			"Created volunteer invite for tournament {TournamentId} referee {RefereeId}",
-			tournamentId,
-			refereeUserId);
+			sanitizedTournamentId,
+			sanitizedRefereeId);
 
 		var createdInvite = await this.GetInviteByParticipantIdAsync(tournamentId, participantId, cancellationToken);
 		return createdInvite!;
