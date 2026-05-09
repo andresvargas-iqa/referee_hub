@@ -10,11 +10,11 @@ export interface RosterViewModalRef {
 function getRoleDisplayName(role?: RosterRole): string {
   if (role === undefined || role === null) return "-";
   switch (role) {
-    case RosterRole.Player:
+    case 0:
       return "Player";
-    case RosterRole.Coach:
+    case 1:
       return "Coach";
-    case RosterRole.Staff:
+    case 2:
       return "Staff";
     default:
       return String(role);
