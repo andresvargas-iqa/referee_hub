@@ -696,6 +696,67 @@ public class TournamentsController : ControllerBase
 		}
 	}
 
+	private static bool TryParseParticipantId(
+		string participantId,
+		out TeamIdentifier? teamId,
+		out UserIdentifier? userId)
+	{
+		teamId = TeamIdentifier.TryParse(participantId, out var parsedTeamId)
+			? parsedTeamId
+			: (TeamIdentifier?)null;
+		userId = UserIdentifier.TryParse(participantId, out var parsedUserId)
+			? parsedUserId
+			: (UserIdentifier?)null;
+
+		return teamId != null || userId != null;
+	}
+
+	private static bool IsTournamentManager(IUserContext userContext, TournamentIdentifier tournamentId)
+	{
+		return userContext.Roles.OfType<TournamentManagerRole>()
+			.Any(r => r.Tournament.AppliesTo(tournamentId));
+	}
+
+	private static bool IsTeamParticipantManager(IUserContext userContext, TeamIdentifier? teamId)
+	{
+		return teamId != null && userContext.Roles.OfType<TeamManagerRole>()
+			.Any(r => r.Team.AppliesTo(teamId.Value));
+	}
+
+	private static bool IsRefereeParticipant(IUserContext userContext, UserIdentifier? userId)
+	{
+		return userId != null && userContext.UserId.Equals(userId.Value);
+	}
+
+	private static bool CanRespondToInvite(InviteInfo invite, bool isTournamentManager, bool isParticipant)
+	{
+		var canApproveAsManager = isTournamentManager &&
+			invite.TournamentManagerApproval == ApprovalStatus.Pending;
+		var canApproveAsParticipant = isParticipant &&
+			invite.ParticipantApproval == ApprovalStatus.Pending;
+
+		return canApproveAsManager || canApproveAsParticipant;
+	}
+
+	private async Task AddTeamParticipantIfInviteApproved(
+		InviteInfo? invite,
+		TournamentIdentifier tournamentId,
+		TeamIdentifier? teamId)
+	{
+		if (invite == null ||
+			invite.GetStatus() != InviteStatus.Approved ||
+			invite.ParticipantType != ParticipantType.Team ||
+			teamId == null)
+		{
+			return;
+		}
+
+		await this.tournamentContextProvider.AddTeamParticipantAsync(
+			tournamentId,
+			teamId.Value,
+			this.HttpContext.RequestAborted);
+	}
+
 	private static TournamentInviteViewModel MapInviteToViewModel(InviteInfo invite)
 	{
 		return new TournamentInviteViewModel
@@ -736,11 +797,7 @@ public class TournamentsController : ControllerBase
 		[FromBody] InviteResponseModel response)
 	{
 		var userContext = await this.contextAccessor.GetCurrentUserContextAsync();
-
-		var parsedTeamId = TeamIdentifier.TryParse(participantId, out var teamId) ? teamId : (TeamIdentifier?)null;
-		var parsedUserId = UserIdentifier.TryParse(participantId, out var userId) ? userId : (UserIdentifier?)null;
-
-		if (parsedTeamId == null && parsedUserId == null)
+		if (!TryParseParticipantId(participantId, out var parsedTeamId, out var parsedUserId))
 		{
 			return this.BadRequest(new { error = "Invalid participant ID" });
 		}
@@ -757,30 +814,18 @@ public class TournamentsController : ControllerBase
 		// Check tournament not archived
 		var tournament = await this.tournamentContextProvider
 			.GetTournamentContextAsync(tournamentId, userContext.UserId, this.HttpContext.RequestAborted);
-		if (tournament.EndDate < DateOnly.FromDateTime(DateTime.UtcNow))
+		var tournamentValidation = this.ValidateTournamentForInvite(tournament);
+		if (tournamentValidation != null)
 		{
-			return this.BadRequest(new { error = "Cannot modify archived tournament" });
+			return tournamentValidation;
 		}
 
 		// Check authorization and determine which approval to update
-		var isTournamentManager = userContext.Roles.OfType<TournamentManagerRole>()
-			.Any(r => r.Tournament.AppliesTo(tournamentId));
-
-		var isTeamParticipant = parsedTeamId != null && userContext.Roles.OfType<TeamManagerRole>()
-			.Any(r => r.Team.AppliesTo(parsedTeamId.Value));
-
-		var isRefereeParticipant = parsedUserId != null && userContext.UserId.Equals(parsedUserId.Value);
-
+		var isTournamentManager = IsTournamentManager(userContext, tournamentId);
+		var isTeamParticipant = IsTeamParticipantManager(userContext, parsedTeamId);
+		var isRefereeParticipant = IsRefereeParticipant(userContext, parsedUserId);
 		var isParticipant = isTeamParticipant || isRefereeParticipant;
-
-		// Must be either tournament manager (with pending manager approval)
-		// or participant (with pending participant approval)
-		var canApproveAsManager = isTournamentManager &&
-			invite.TournamentManagerApproval == ApprovalStatus.Pending;
-		var canApproveAsParticipant = isParticipant &&
-			invite.ParticipantApproval == ApprovalStatus.Pending;
-
-		if (!canApproveAsManager && !canApproveAsParticipant)
+		if (!CanRespondToInvite(invite, isTournamentManager, isParticipant))
 		{
 			return this.Forbid();
 		}
@@ -796,16 +841,7 @@ public class TournamentsController : ControllerBase
 		// Reload to check if fully approved
 		var updatedInvite = await this.tournamentContextProvider
 			.GetInviteByParticipantIdAsync(tournamentId, participantId, this.HttpContext.RequestAborted);
-
-		// If both approved and this is a team invite, create participant
-		if (updatedInvite != null &&
-			updatedInvite.GetStatus() == InviteStatus.Approved &&
-			updatedInvite.ParticipantType == ParticipantType.Team &&
-			parsedTeamId != null)
-		{
-			await this.tournamentContextProvider.AddTeamParticipantAsync(
-				tournamentId, parsedTeamId.Value, this.HttpContext.RequestAborted);
-		}
+		await this.AddTeamParticipantIfInviteApproved(updatedInvite, tournamentId, parsedTeamId);
 
 		return this.Ok();
 	}
