@@ -1,10 +1,9 @@
 import { Dialog, DialogPanel, DialogTitle } from "@headlessui/react";
-import { useState, forwardRef, useImperativeHandle } from "react";
-import React from "react";
+import React, { useState, forwardRef, useImperativeHandle } from "react";
 import { useGetTeamRosterQuery, RosterEntryViewModel, RosterRole } from "../../../store/serviceApi";
 
 export interface RosterViewModalRef {
-  open: (tournamentId: string, teamId: string, teamName: string, tournamentName: string) => void;
+  open: (tournamentId: string, teamId: string, teamName: string, tournamentName: string, logoUri?: string) => void;
 }
 
 // Helper function to convert RosterRole enum to readable string
@@ -28,6 +27,7 @@ const RosterViewModal = forwardRef<RosterViewModalRef>((_props, ref) => {
   const [teamId, setTeamId] = useState<string>("");
   const [teamName, setTeamName] = useState<string>("");
   const [tournamentName, setTournamentName] = useState<string>("");
+  const [logoUri, setLogoUri] = useState<string | undefined>(undefined);
 
   const { data: roster, isLoading, isError } = useGetTeamRosterQuery(
     { tournamentId, teamId },
@@ -35,11 +35,12 @@ const RosterViewModal = forwardRef<RosterViewModalRef>((_props, ref) => {
   );
 
   useImperativeHandle(ref, () => ({
-    open: (tournId: string, tId: string, tName: string, trnmtName: string) => {
+    open: (tournId: string, tId: string, tName: string, trnmtName: string, logo?: string) => {
       setTournamentId(tournId);
       setTeamId(tId);
       setTeamName(tName);
       setTournamentName(trnmtName);
+      setLogoUri(logo);
       setIsOpen(true);
     },
   }));
@@ -108,9 +109,18 @@ const RosterViewModal = forwardRef<RosterViewModalRef>((_props, ref) => {
           {/* Header */}
           <div className="p-6 border-b border-gray-200">
             <div className="flex items-center justify-between">
-              <DialogTitle as="h3" className="text-xl font-semibold text-gray-900">
-                {teamName} - Roster
-              </DialogTitle>
+              <div className="flex items-center gap-3">
+                {logoUri && (
+                  <img
+                    src={logoUri}
+                    alt={`${teamName} logo`}
+                    className="w-12 h-12 rounded-full object-cover border border-gray-200 flex-shrink-0"
+                  />
+                )}
+                <DialogTitle as="h3" className="text-xl font-semibold text-gray-900">
+                  {teamName} - Roster
+                </DialogTitle>
+              </div>
               <button
                 onClick={close}
                 className="text-gray-400 hover:text-gray-600"
