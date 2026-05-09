@@ -1066,8 +1066,11 @@ public class DbTournamentContextProvider : ITournamentContextProvider
 
 		await this.dbContext.SaveChangesAsync(cancellationToken);
 
+		var safeTournamentIdForLog = tournamentId.ToString().Replace("\r", string.Empty).Replace("\n", string.Empty);
+		var safeParticipantIdForLog = (participantId ?? string.Empty).Replace("\r", string.Empty).Replace("\n", string.Empty);
+
 		this.logger.LogInformation("Updated invite approval for tournament {TournamentId} participant {ParticipantId}: {ApproverType} = {Status}",
-			tournamentId, participantId, isTournamentManager ? "TournamentManager" : "Participant", newStatus);
+			safeTournamentIdForLog, safeParticipantIdForLog, isTournamentManager ? "TournamentManager" : "Participant", newStatus);
 	}
 
 	// Phase 3: Participant management methods
