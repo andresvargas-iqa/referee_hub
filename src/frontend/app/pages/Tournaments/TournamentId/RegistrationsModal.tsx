@@ -16,9 +16,11 @@ export interface RegistrationsModalRef {
   open: (tournamentId: string, tournamentName: string) => void;
 }
 
+type TournamentInviteWithLogo = TournamentInviteViewModel & { logoUri?: string };
+
 /** Renders a single team invite card inside the detail view. */
 interface TeamDetailViewProps {
-  invite: TournamentInviteViewModel;
+  invite: TournamentInviteWithLogo;
   isSubmitting: boolean;
   onApprove: (id: string, name: string) => void;
   onDeny: (id: string, name: string) => void;
@@ -126,8 +128,8 @@ const BulkActionBar: React.FC<BulkActionBarProps> = ({
 );
 
 interface TeamInviteListRowProps {
-  invite: TournamentInviteViewModel;
-  getPendingLabel: (invite: TournamentInviteViewModel) => string;
+  invite: TournamentInviteWithLogo;
+  getPendingLabel: (invite: TournamentInviteWithLogo) => string;
   onSelect: (id: string) => void;
   onViewRoster: () => void;
   isCheckable: boolean;
@@ -219,7 +221,7 @@ const RegistrationsModal = forwardRef<RegistrationsModalRef>((_props, ref) => {
 
   /** All team-type invites */
   const teamInvites = useMemo(
-    () => (invites ?? []).filter((i) => i.participantType === "team"),
+    () => ((invites ?? []) as TournamentInviteWithLogo[]).filter((i) => i.participantType === "team"),
     [invites]
   );
 
@@ -331,13 +333,14 @@ const RegistrationsModal = forwardRef<RegistrationsModalRef>((_props, ref) => {
     }
   }
 
-  function getPendingLabel(invite: TournamentInviteViewModel): string {
+  function getPendingLabel(invite: TournamentInviteWithLogo): string {
     if (invite.tournamentManagerApproval?.status === "pending") return "Awaiting your review";
     if (invite.participantApproval?.status === "pending") return "Awaiting team response";
     return "Pending";
   }
 
-  const selectedInviteData = invites?.find((i) => i.participantId === selectedInvite);
+  const selectedInviteData = (invites as TournamentInviteWithLogo[] | undefined)
+    ?.find((i) => i.participantId === selectedInvite);
 
   const totalInvites = teamInvites.length;
 
