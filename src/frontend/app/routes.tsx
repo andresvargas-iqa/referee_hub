@@ -25,18 +25,21 @@ const TeamManagement = lazy(() => import("./pages/TeamManagement"));
 const App = () => {
   const [redirectTo, setRedirectTo] = useState<string>();
   const { currentData: currentUser, isError, isLoading } = useGetCurrentUserQuery();
-  const roles = currentUser?.roles?.map(r => r.roleType);
+  const roles = currentUser?.roles?.map((r) => r.roleType) ?? [];
 
-  const ownedNgbIds = currentUser ? (() => {
-    const ngb = (currentUser?.roles?.filter(r => r.roleType === "NgbAdmin")[0] as any)?.ngb;
-    if (typeof ngb === "string") return [ngb];
-    else return ngb;
-  })() : undefined;
+  const ownedNgbIds = (currentUser?.roles ?? []).flatMap((role: any) => {
+    if (role.roleType !== "NgbAdmin") return [];
+    if (typeof role.ngb === "string") return [role.ngb];
+    if (Array.isArray(role.ngb)) return role.ngb;
+    return [];
+  });
 
   const getRedirect = () => {
     if (roles.includes("IqaAdmin")) return "/admin";
-    if (roles.includes("NgbAdmin")) return `/national_governing_bodies/${ownedNgbIds[0]}`;
-    if (roles.includes("Referee")) return `/referees/${currentUser.userId}`;
+    if (roles.includes("NgbAdmin") && ownedNgbIds.length > 0) {
+      return `/national_governing_bodies/${ownedNgbIds[0]}`;
+    }
+    if (roles.includes("Referee") && currentUser?.userId) return `/referees/${currentUser.userId}`;
 
     return null;
   };
@@ -78,7 +81,7 @@ const App = () => {
         <Routes>
           <Route
             path="/"
-            element={redirectTo && <Navigate to={redirectTo} replace /> || <></>}
+            element={redirectTo ? <Navigate to={redirectTo} replace /> : <></>}
           />
           <Route
             path="/privacy"
