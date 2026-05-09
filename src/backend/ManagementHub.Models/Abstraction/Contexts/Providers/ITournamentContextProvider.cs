@@ -52,7 +52,7 @@ public interface ITournamentContextProvider
 
 	Task UpdateInviteObservationsAsync(TournamentIdentifier tournamentId, ParticipantType participantType, string participantId, string? observations, CancellationToken cancellationToken = default);
 
-	Task UpdateInviteApprovalAsync(TournamentIdentifier tournamentId, TeamIdentifier teamId, bool isTournamentManager, bool approved, CancellationToken cancellationToken = default);
+	Task UpdateInviteApprovalAsync(TournamentIdentifier tournamentId, string participantId, bool isTournamentManager, bool approved, CancellationToken cancellationToken = default);
 
 	// Phase 3: Team participant management
 	Task<IEnumerable<TeamParticipantInfo>> GetTournamentTeamParticipantsAsync(TournamentIdentifier tournamentId, CancellationToken cancellationToken = default);

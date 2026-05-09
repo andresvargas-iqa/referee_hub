@@ -2,7 +2,10 @@ import React, { useRef, useMemo, useState } from "react";
 import RegisterTournamentModal, { RegisterTournamentModalRef } from "./RegisterTournamentModal";
 import ContactOrganizerModal, { ContactOrganizerModalRef } from "./ContactOrganizerModal";
 import AddTournamentModal, { AddTournamentModalRef } from "../components/AddTournamentModal";
-import RegistrationsModal, { RegistrationsModalRef } from "./RegistrationsModal";
+import TeamRegistrationsModal, { TeamRegistrationsModalRef } from "./TeamRegistrationsModal";
+import VolunteerRegistrationsModal, {
+  VolunteerRegistrationsModalRef,
+} from "./VolunteerRegistrationsModal";
 import InviteTeamsModal, { InviteTeamsModalRef } from "./InviteTeamsModal";
 import VolunteerRegistrationModal, {
   VolunteerRegistrationModalRef,
@@ -30,13 +33,21 @@ import {
   TournamentInviteViewModel,
 } from "../../../store/serviceApi";
 import { useNavigationParams, useNavigate } from "../../../utils/navigationUtils";
+import { isRefereeInvite, isTeamInvite } from "./inviteUtils";
 
 const TournamentDetails = () => {
+  type TeamSummary = {
+    teamId: string;
+    teamName: string;
+    ngb: string;
+  };
+
   const { tournamentId } = useNavigationParams<"tournamentId">();
   const registerModalRef = useRef<RegisterTournamentModalRef>(null);
   const contactOrganizerModalRef = useRef<ContactOrganizerModalRef>(null);
   const editModalRef = useRef<AddTournamentModalRef>(null);
-  const registrationsModalRef = useRef<RegistrationsModalRef>(null);
+  const teamRegistrationsModalRef = useRef<TeamRegistrationsModalRef>(null);
+  const volunteerRegistrationsModalRef = useRef<VolunteerRegistrationsModalRef>(null);
   const inviteTeamsModalRef = useRef<InviteTeamsModalRef>(null);
   const volunteerModalRef = useRef<VolunteerRegistrationModalRef>(null);
   const rosterSectionRef = useRef<HTMLDivElement>(null);
@@ -54,19 +65,9 @@ const TournamentDetails = () => {
   // Use the new managed teams endpoint to get teams the user manages
   const { data: managedTeamsData } = useGetManagedTeamsQuery();
 
-  // Check if user is a tournament manager for this specific tournament
-  // Note: role.tournament can be "ANY", a single tournament ID string, or an array of tournament IDs
-  const isTournamentManagerOfThis = currentUser?.roles?.some((role: any) => {
-    if (role.roleType !== "TournamentManager") return false;
-    if (role.tournament === "ANY") return true;
-    if (Array.isArray(role.tournament)) {
-      return role.tournament.includes(tournamentId);
-    }
-    return role.tournament === tournamentId;
-  });
-
-  // Only fetch managers if user is a tournament manager of this tournament
-  const shouldFetchManagers = Boolean(tournamentId && isTournamentManagerOfThis);
+  // Always fetch managers for the tournament and derive manager status from that data.
+  // This avoids relying on role payload shape differences in /api/v2/users/me.
+  const shouldFetchManagers = Boolean(tournamentId);
   const { data: managers, isError: managersError } = useGetTournamentManagersQuery(
     { tournamentId: tournamentId || "" },
     { skip: !shouldFetchManagers }
@@ -119,10 +120,13 @@ const TournamentDetails = () => {
   const volunteerInvites: TournamentInviteViewModel[] = useMemo(() => {
     if (!invites) return [];
 
-    return invites.filter((invite) => {
-      const participantType = String((invite as any).participantType || "").toLowerCase();
-      return participantType === "referee";
-    });
+    return invites.filter(isRefereeInvite);
+  }, [invites]);
+
+  const teamInvites: TournamentInviteViewModel[] = useMemo(() => {
+    if (!invites) return [];
+
+    return invites.filter(isTeamInvite);
   }, [invites]);
 
   const volunteerRegistrations: TournamentInviteViewModel[] = useMemo(() => {
@@ -136,7 +140,7 @@ const TournamentDetails = () => {
   }, [volunteerInvites]);
 
   // Find teams that are fully approved and participating
-  const approvedTeamsForUser = useMemo(() => {
+  const approvedTeamsForUser = useMemo<TeamSummary[]>(() => {
     if (!invites || managedTeamIds.size === 0 || !managedTeamsData) return [];
 
     return invites
@@ -149,7 +153,7 @@ const TournamentDetails = () => {
       .map((invite) => {
         const teamData = managedTeamsData.find((t) => t.teamId === invite.participantId);
         return {
-          teamId: invite.participantId,
+          teamId: invite.participantId as string,
           teamName: invite.participantName || teamData?.teamName || "Unknown Team",
           ngb: teamData?.ngb || "",
         };
@@ -415,10 +419,15 @@ const TournamentDetails = () => {
                       Edit Tournament Details
                     </button>
                     <button
-                      onClick={() => registrationsModalRef.current?.open(tournament.id || "", tournament.name || "Unknown Tournament")}
+                      onClick={() =>
+                        teamRegistrationsModalRef.current?.open(
+                          tournament.id || "",
+                          tournament.name || "Unknown Tournament"
+                        )
+                      }
                       className="btn btn-secondary btn-full-width card-mb"
                     >
-                      View Team Registrations ({invites?.length || 0})
+                      View Team Registrations ({teamInvites.length})
                     </button>
                     <button
                       onClick={() => inviteTeamsModalRef.current?.open(tournament)}
@@ -465,7 +474,7 @@ const TournamentDetails = () => {
                     </div>
                     <button
                       onClick={() =>
-                        registrationsModalRef.current?.open(
+                        volunteerRegistrationsModalRef.current?.open(
                           tournament.id || "",
                           tournament.name || "Unknown Tournament"
                         )
@@ -537,41 +546,6 @@ const TournamentDetails = () => {
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                           </svg>
                           <p className="text-sm font-medium text-gray-700">Registration is now closed</p>
-                        <div className="card card-mb">
-                          <h3 className="card-title">Accepted Volunteers</h3>
-                          <p className="card-description">
-                            Review referee volunteers and approve or deny new volunteer requests.
-                          </p>
-                          <button
-                            onClick={handleToggleVolunteerRegistration}
-                            className="btn btn-outline btn-full-width card-mb"
-                          >
-                            {tournament.isVolunteerRegistrationOpen
-                              ? "Close Volunteer Registration"
-                              : "Open Volunteer Registration"}
-                          </button>
-                          <div className="stats-list card-mb">
-                            <div className="stats-item">
-                              <span className="stats-label">Accepted Volunteers</span>
-                              <span className="stats-value">{volunteerRegistrations.length}</span>
-                            </div>
-                            <div className="stats-item">
-                              <span className="stats-label">Awaiting Review</span>
-                              <span className="stats-value">{pendingVolunteerRegistrations.length}</span>
-                            </div>
-                          </div>
-                          <button
-                            onClick={() =>
-                              registrationsModalRef.current?.open(
-                                tournament.id || "",
-                                tournament.name || "Unknown Tournament"
-                              )
-                            }
-                            className="btn btn-secondary btn-full-width"
-                          >
-                            Review Volunteer Registrations
-                          </button>
-                        </div>
                         </div>
                       </>
                     ) : approvedTeamsForUser.length > 0 ? (
@@ -658,13 +632,14 @@ const TournamentDetails = () => {
                       Have questions about this tournament? Contact the organizers.
                     </p>
                     <button
-                      onClick={() =>
-                        contactOrganizerModalRef.current?.open({
-                          name: tournament.organizer || "",
-                          tournamentName: tournament.name || "",
-                          tournamentId: tournament.id,
-                        })
-                      }
+                      onClick={() => {
+                        const organizerInfo: Parameters<ContactOrganizerModalRef["open"]>[0] = {
+                          name: String(tournament.organizer ?? ""),
+                          tournamentName: String(tournament.name ?? ""),
+                          tournamentId: String(tournament.id ?? ""),
+                        };
+                        contactOrganizerModalRef.current?.open(organizerInfo);
+                      }}
                       className="btn btn-outline btn-full-width"
                     >
                       Contact Organizer
@@ -698,12 +673,13 @@ const TournamentDetails = () => {
 
       {/* Manager modals */}
       <AddTournamentModal ref={editModalRef} />
-      <RegistrationsModal ref={registrationsModalRef} />
+      <TeamRegistrationsModal ref={teamRegistrationsModalRef} />
+      <VolunteerRegistrationsModal ref={volunteerRegistrationsModalRef} />
       <InviteTeamsModal ref={inviteTeamsModalRef} />
       <VolunteerRegistrationModal ref={volunteerModalRef} teams={participants || []} onSaved={refetchInvites} />
       {isAddManagerModalOpen && tournamentId && (
         <AddTournamentManagerModal
-          tournamentId={tournamentId}
+          tournamentId={tournamentId || ""}
           onClose={() => setIsAddManagerModalOpen(false)}
         />
       )}

@@ -1033,13 +1033,12 @@ public class DbTournamentContextProvider : ITournamentContextProvider
 
 	public async Task UpdateInviteApprovalAsync(
 		TournamentIdentifier tournamentId,
-		TeamIdentifier teamId,
+		string participantId,
 		bool isTournamentManager,
 		bool approved,
 		CancellationToken cancellationToken = default)
 	{
 		var tournamentIdString = tournamentId.ToString();
-		var participantId = teamId.ToString();
 
 		var invite = await this.dbContext.TournamentInvites
 			.Where(i => i.Tournament.UniqueId == tournamentIdString && i.ParticipantId == participantId)
@@ -1048,7 +1047,7 @@ public class DbTournamentContextProvider : ITournamentContextProvider
 
 		if (invite == null)
 		{
-			throw new NotFoundException($"Invite for tournament {tournamentId} and team {teamId}");
+			throw new NotFoundException($"Invite for tournament {tournamentId} and participant {participantId}");
 		}
 
 		var now = DateTime.UtcNow;
@@ -1067,8 +1066,8 @@ public class DbTournamentContextProvider : ITournamentContextProvider
 
 		await this.dbContext.SaveChangesAsync(cancellationToken);
 
-		this.logger.LogInformation("Updated invite approval for tournament {TournamentId} team {TeamId}: {ApproverType} = {Status}",
-			tournamentId, teamId, isTournamentManager ? "TournamentManager" : "Participant", newStatus);
+		this.logger.LogInformation("Updated invite approval for tournament {TournamentId} participant {ParticipantId}: {ApproverType} = {Status}",
+			tournamentId, participantId, isTournamentManager ? "TournamentManager" : "Participant", newStatus);
 	}
 
 	// Phase 3: Participant management methods

@@ -430,6 +430,7 @@ public class TournamentsController : ControllerBase
 			ParticipantType = i.ParticipantType,
 			ParticipantId = i.ParticipantId,
 			ParticipantName = i.ParticipantName,
+			Observations = i.Observations,
 			Status = i.GetStatus(),
 			InitiatorUserId = i.InitiatorUserId,
 			CreatedAt = i.CreatedAt,
@@ -702,6 +703,7 @@ public class TournamentsController : ControllerBase
 			ParticipantType = invite.ParticipantType,
 			ParticipantId = invite.ParticipantId,
 			ParticipantName = invite.ParticipantName,
+			Observations = invite.Observations,
 			Status = invite.GetStatus(),
 			InitiatorUserId = invite.InitiatorUserId,
 			CreatedAt = invite.CreatedAt,
@@ -735,15 +737,17 @@ public class TournamentsController : ControllerBase
 	{
 		var userContext = await this.contextAccessor.GetCurrentUserContextAsync();
 
-		// Parse team ID
-		if (!TeamIdentifier.TryParse(participantId, out var teamId))
+		var parsedTeamId = TeamIdentifier.TryParse(participantId, out var teamId) ? teamId : (TeamIdentifier?)null;
+		var parsedUserId = UserIdentifier.TryParse(participantId, out var userId) ? userId : (UserIdentifier?)null;
+
+		if (parsedTeamId == null && parsedUserId == null)
 		{
 			return this.BadRequest(new { error = "Invalid participant ID" });
 		}
 
 		// Get pending invite
 		var invite = await this.tournamentContextProvider
-			.GetTeamInviteAsync(tournamentId, teamId, this.HttpContext.RequestAborted);
+			.GetInviteByParticipantIdAsync(tournamentId, participantId, this.HttpContext.RequestAborted);
 
 		if (invite == null || invite.GetStatus() != InviteStatus.Pending)
 		{
@@ -762,8 +766,12 @@ public class TournamentsController : ControllerBase
 		var isTournamentManager = userContext.Roles.OfType<TournamentManagerRole>()
 			.Any(r => r.Tournament.AppliesTo(tournamentId));
 
-		var isParticipant = userContext.Roles.OfType<TeamManagerRole>()
-			.Any(r => r.Team.AppliesTo(teamId));
+		var isTeamParticipant = parsedTeamId != null && userContext.Roles.OfType<TeamManagerRole>()
+			.Any(r => r.Team.AppliesTo(parsedTeamId.Value));
+
+		var isRefereeParticipant = parsedUserId != null && userContext.UserId.Equals(parsedUserId.Value);
+
+		var isParticipant = isTeamParticipant || isRefereeParticipant;
 
 		// Must be either tournament manager (with pending manager approval)
 		// or participant (with pending participant approval)
@@ -780,20 +788,23 @@ public class TournamentsController : ControllerBase
 		// Update approval
 		await this.tournamentContextProvider.UpdateInviteApprovalAsync(
 			tournamentId,
-			teamId,
+			participantId,
 			isTournamentManager,
 			response.Approved,
 			this.HttpContext.RequestAborted);
 
 		// Reload to check if fully approved
 		var updatedInvite = await this.tournamentContextProvider
-			.GetTeamInviteAsync(tournamentId, teamId, this.HttpContext.RequestAborted);
+			.GetInviteByParticipantIdAsync(tournamentId, participantId, this.HttpContext.RequestAborted);
 
-		// If both approved, create participant
-		if (updatedInvite != null && updatedInvite.GetStatus() == InviteStatus.Approved)
+		// If both approved and this is a team invite, create participant
+		if (updatedInvite != null &&
+			updatedInvite.GetStatus() == InviteStatus.Approved &&
+			updatedInvite.ParticipantType == ParticipantType.Team &&
+			parsedTeamId != null)
 		{
 			await this.tournamentContextProvider.AddTeamParticipantAsync(
-				tournamentId, teamId, this.HttpContext.RequestAborted);
+				tournamentId, parsedTeamId.Value, this.HttpContext.RequestAborted);
 		}
 
 		return this.Ok();

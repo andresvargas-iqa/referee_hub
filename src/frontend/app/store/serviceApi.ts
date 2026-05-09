@@ -437,7 +437,6 @@ const injectedRtkApi = api
             Page: queryArg.page,
             PageSize: queryArg.pageSize,
             SkipPaging: queryArg.skipPaging,
-            TournamentTypeFilter: queryArg.tournamentType,
           },
         }),
         providesTags: ["Tournament"],
@@ -539,13 +538,6 @@ const injectedRtkApi = api
           url: `/api/v2/Tournaments/${queryArg.tournamentId}/invites/${queryArg.participantId}`,
           method: "POST",
           body: queryArg.inviteResponseModel,
-        }),
-        invalidatesTags: ["Tournament"],
-      }),
-      deleteInvite: build.mutation<DeleteInviteApiResponse, DeleteInviteApiArg>({
-        query: (queryArg) => ({
-          url: `/api/v2/Tournaments/${queryArg.tournamentId}/invites/${queryArg.participantId}`,
-          method: "DELETE",
         }),
         invalidatesTags: ["Tournament"],
       }),
@@ -947,7 +939,6 @@ export type GetTournamentsApiArg = {
   page?: number;
   pageSize?: number;
   skipPaging?: boolean;
-  tournamentType?: string;
 };
 export type CreateTournamentApiResponse = /** status 200 Success */ TournamentIdResponse;
 export type CreateTournamentApiArg = {
@@ -1007,11 +998,6 @@ export type RespondToInviteApiArg = {
   tournamentId: string;
   participantId: string;
   inviteResponseModel: InviteResponseModel;
-};
-export type DeleteInviteApiResponse = /** status 200 Success */ void;
-export type DeleteInviteApiArg = {
-  tournamentId: string;
-  participantId: string;
 };
 export type GetParticipantsApiResponse = /** status 200 Success */ TournamentParticipantViewModel[];
 export type GetParticipantsApiArg = {
@@ -1493,7 +1479,7 @@ export type TeamMemberViewModelFiltered = {
   metadata?: FilteringMetadata;
   items?: TeamMemberViewModel[] | null;
 };
-export type ParticipantType = "team";
+export type ParticipantType = "team" | "referee";
 export type InviteStatus = "pending" | "approved" | "rejected";
 export type ApprovalStatus = "pending" | "approved" | "rejected";
 export type ApprovalStatusViewModel = {
@@ -1504,6 +1490,7 @@ export type TournamentInviteViewModel = {
   participantType?: ParticipantType;
   participantId?: string | null;
   participantName?: string | null;
+  observations?: string | null;
   status?: InviteStatus;
   initiatorUserId?: string;
   createdAt?: string;
@@ -1655,6 +1642,7 @@ export type ContactTournamentRequest = {
 export type CreateInviteModel = {
   participantType?: ParticipantType;
   participantId?: string | null;
+  observations?: string | null;
 };
 export type InviteResponseModel = {
   approved?: boolean;
@@ -1811,7 +1799,6 @@ export const {
   useGetTournamentInvitesQuery,
   useCreateInviteMutation,
   useRespondToInviteMutation,
-  useDeleteInviteMutation,
   useGetParticipantsQuery,
   useRemoveParticipantMutation,
   useUpdateParticipantRosterMutation,
