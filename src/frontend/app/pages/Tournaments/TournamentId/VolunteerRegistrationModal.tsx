@@ -28,6 +28,24 @@ const AVAILABLE_POSITIONS = [
   "Assistant Referee",
 ];
 
+const EXPERIENCE_LEVELS = [
+  { value: 0, label: "Never reffed a game" },
+  { value: 1, label: "Training / friendly" },
+  { value: 2, label: "Fantasy tournament" },
+  { value: 3, label: "League / lower national championship game" },
+  { value: 4, label: "Upper national championship / lower international game" },
+  { value: 5, label: "Highest national / upper international game" },
+];
+
+const EXCITEMENT_LEVELS = [
+  { value: 0, label: "Not excited" },
+  { value: 1, label: "Slightly excited" },
+  { value: 2, label: "Moderately excited" },
+  { value: 3, label: "Excited" },
+  { value: 4, label: "Very excited" },
+  { value: 5, label: "Extremely excited" },
+];
+
 function parseExistingForm(existingObservations?: string | null): VolunteerRegistrationForm {
   if (!existingObservations) {
     return {
@@ -157,11 +175,8 @@ const VolunteerRegistrationModal = forwardRef<VolunteerRegistrationModalRef, Vol
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Excitement (0-10)</label>
-                    <input
-                      type="number"
-                      min={0}
-                      max={10}
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Excitement Level</label>
+                    <select
                       value={form.excitement}
                       onChange={(e) =>
                         setForm((prev) => ({
@@ -170,14 +185,18 @@ const VolunteerRegistrationModal = forwardRef<VolunteerRegistrationModalRef, Vol
                         }))
                       }
                       className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                    />
+                    >
+                      <option value="">Select excitement level</option>
+                      {EXCITEMENT_LEVELS.map((level) => (
+                        <option key={level.value} value={level.value}>
+                          {level.value} - {level.label}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Experience (0-10)</label>
-                    <input
-                      type="number"
-                      min={0}
-                      max={10}
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Experience Level</label>
+                    <select
                       value={form.experience}
                       onChange={(e) =>
                         setForm((prev) => ({
@@ -186,7 +205,14 @@ const VolunteerRegistrationModal = forwardRef<VolunteerRegistrationModalRef, Vol
                         }))
                       }
                       className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                    />
+                    >
+                      <option value="">Select experience level</option>
+                      {EXPERIENCE_LEVELS.map((level) => (
+                        <option key={level.value} value={level.value}>
+                          {level.value} - {level.label}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 </div>
 
