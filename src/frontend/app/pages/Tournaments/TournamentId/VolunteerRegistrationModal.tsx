@@ -217,7 +217,18 @@ const VolunteerRegistrationModal = forwardRef<VolunteerRegistrationModalRef, Vol
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Affiliated Team</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <span className="inline-flex items-center gap-1">
+                      Affiliated Team
+                      <span
+                        className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-gray-400 text-[10px] font-semibold text-gray-600 cursor-help"
+                        title="Indicate the team you are associated with (i.e., player/coach/etc. of that team). You will not be assigned for duties in any slot in which this team plays."
+                        aria-label="Affiliated Team help"
+                      >
+                        ?
+                      </span>
+                    </span>
+                  </label>
                   <select
                     value={form.affiliatedTeamId}
                     onChange={(e) => setForm((prev) => ({ ...prev, affiliatedTeamId: e.target.value }))}
@@ -233,7 +244,18 @@ const VolunteerRegistrationModal = forwardRef<VolunteerRegistrationModalRef, Vol
                 </div>
 
                 <div>
-                  <p className="block text-sm font-medium text-gray-700 mb-2">Associated Teams</p>
+                  <p className="block text-sm font-medium text-gray-700 mb-2">
+                    <span className="inline-flex items-center gap-1">
+                      Associated Teams
+                      <span
+                        className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-gray-400 text-[10px] font-semibold text-gray-600 cursor-help"
+                        title="Specify any teams you have prior affiliations with or any COI."
+                        aria-label="Associated Teams help"
+                      >
+                        ?
+                      </span>
+                    </span>
+                  </p>
                   <div className="max-h-36 overflow-y-auto border border-gray-200 rounded-md p-2">
                     {teams.length === 0 && <p className="text-sm text-gray-500">No registered teams yet.</p>}
                     {teams.map((team) => {
