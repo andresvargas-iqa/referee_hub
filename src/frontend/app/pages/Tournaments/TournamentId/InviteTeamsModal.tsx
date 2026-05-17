@@ -13,7 +13,15 @@ import {
 } from "../../../store/serviceApi";
 import CustomAlert from "../../../components/CustomAlert";
 import { useAlert } from "../../../hooks/useAlert";
-import { isTeamEligible, eligibilityLabel, getApiErrorMessage, getEligibleAffiliations } from "../../../utils/tournamentUtils";
+import {
+  isTeamEligible,
+  eligibilityLabel,
+  getApiErrorMessage,
+  getEligibleAffiliations,
+  getUnavailableTeamIds,
+  filterAndSearchTeams,
+  getTeamStatusStyle,
+} from "../../../utils/tournamentUtils";
 
 export interface InviteTeamsModalRef {
   open: (tournament: TournamentViewModel) => void;
@@ -65,48 +73,22 @@ const InviteTeamsModal = forwardRef<InviteTeamsModalRef>((_props, ref) => {
   const [createInvite] = useCreateInviteMutation();
 
   // Get team IDs that already have invites or are participants
-  const unavailableTeamIds = useMemo(() => {
-    const ids = new Set<string>();
-
-    // Add teams with existing invites
-    if (existingInvites) {
-      existingInvites.forEach((invite) => {
-        if (invite.participantId) {
-          ids.add(invite.participantId);
-        }
-      });
-    }
-
-    // Add teams that are already participants
-    if (participants) {
-      participants.forEach((participant) => {
-        if (participant.teamId) {
-          ids.add(participant.teamId);
-        }
-      });
-    }
-
-    return ids;
-  }, [existingInvites, participants]);
+  const unavailableTeamIds = useMemo(
+    () => getUnavailableTeamIds(existingInvites, participants),
+    [existingInvites, participants]
+  );
 
   // Filter teams - exclude unavailable/ineligible teams and apply search
-  const availableTeams = useMemo(() => {
-    if (!teamsData?.items) return [];
-
-    return teamsData.items.filter((team: NgbTeamViewModel) => {
-      if (!team.teamId) return false;
-      if (unavailableTeamIds.has(team.teamId)) return false;
-      if (team.status === "inactive") return false;
-      if (!isTeamEligible(team.groupAffiliation, tournament?.type)) return false;
-
-      if (searchFilter) {
-        const name = (team.name || "").toLowerCase();
-        return name.includes(searchFilter.toLowerCase());
-      }
-
-      return true;
-    });
-  }, [teamsData, unavailableTeamIds, searchFilter, tournament?.type]);
+  const availableTeams = useMemo(
+    () =>
+      filterAndSearchTeams(
+        teamsData?.items,
+        unavailableTeamIds,
+        searchFilter,
+        tournament?.type
+      ),
+    [teamsData?.items, unavailableTeamIds, searchFilter, tournament?.type]
+  );
 
   useImperativeHandle(ref, () => ({
     open: (tournamentData: TournamentViewModel) => {
@@ -150,13 +132,7 @@ const InviteTeamsModal = forwardRef<InviteTeamsModalRef>((_props, ref) => {
   }
 
   const getStatusStyle = (status?: string) => {
-    if (status === "pending") {
-      return { bg: "#fef3c7", color: "#92400e" };
-    } else if (status === "approved") {
-      return { bg: "#d1fae5", color: "#065f46" };
-    } else {
-      return { bg: "#fee2e2", color: "#991b1b" };
-    }
+    return getTeamStatusStyle(status);
   };
 
   return (
