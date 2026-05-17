@@ -99,10 +99,6 @@ public class DbTournamentContextProvider : ITournamentContextProvider
 						|| (t.Place != null && EF.Functions.Like(t.Place, filter)));
 		}
 
-<<<<<<< HEAD
-=======
-		// Apply tournament type filter if specified
->>>>>>> origin/main
 		// Apply tournament type filter if specified
 		if (tournamentTypeFilter.HasValue)
 		{
