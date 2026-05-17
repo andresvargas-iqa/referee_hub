@@ -20,7 +20,7 @@ document.addEventListener("DOMContentLoaded", () => {
         unhandledExceptions: true,
         unhandledRejections: true,
       },
-      plugins: [new BugsnagPluginReact()],
+      plugins: [new BugsnagPluginReact() as unknown as any],
     });
 
     ErrorBoundary = Bugsnag.getPlugin("react").createErrorBoundary(React);
@@ -29,7 +29,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const domElement = document.getElementById("main-app");
   if (!domElement) return;
   const root = createRoot(domElement);
-  
+
   if (bugsnugApiKey) {
     Bugsnag.leaveBreadcrumb("Starting application...");
   }

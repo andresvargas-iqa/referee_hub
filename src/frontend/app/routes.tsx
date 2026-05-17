@@ -3,6 +3,7 @@ import React, { useEffect, useState, lazy, Suspense } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 
 import Avatar from "./components/Avatar";
+import NotificationCenter from "./components/NotificationCenter/NotificationCenter";
 import Loader from "./components/Loader";
 import { useGetCurrentUserQuery } from "./store/serviceApi";
 
@@ -25,11 +26,11 @@ const StartTest = lazy(() => import("./pages/StartTest"));
 const NgbProfile = lazy(() => import("./pages/NgbProfile"));
 const ImportWizard = lazy(() => import("./pages/ImportWizard"));
 const RefereeTests = lazy(() => import("./pages/RefereeTests"));
-const Settings = lazy(() => import("./pages/Settings"));
 const Tournament = lazy(() => import("./pages/Tournaments"));
 const TournamentDetails = lazy(() => import("./pages/Tournaments/TournamentId"));
 const TeamView = lazy(() => import("./pages/TeamView"));
 const TeamManagement = lazy(() => import("./pages/TeamManagement"));
+const bugsnagEnabled = Boolean(process.env.BUGSNAG_API_KEY);
 
 const App = () => {
   const isPublicRoute = PUBLIC_ROUTE_PATTERNS.some((pattern) => pattern.test(window.location.pathname));
@@ -37,7 +38,7 @@ const App = () => {
   const { currentData: currentUser, error, isError, isLoading } = useGetCurrentUserQuery(undefined, {
     skip: isPublicRoute,
   });
-  const roles = currentUser?.roles?.map((r) => r.roleType) ?? [];
+  const roles = (currentUser?.roles?.map((r) => r.roleType).filter((r): r is string => Boolean(r)) ?? []);
 
   const ownedNgbIds = currentUser
     ? (() => {
@@ -54,9 +55,9 @@ const App = () => {
   const getRedirect = () => {
     if (roles.includes("IqaAdmin")) return "/admin";
     if (roles.includes("NgbAdmin")) return `/national_governing_bodies/${ownedNgbIds[0]}`;
-    if (roles.includes("Referee")) return `/referees/${currentUser.userId}`;
+    if (roles.includes("Referee") && currentUser?.userId) return `/referees/${currentUser.userId}`;
 
-    return null;
+    return undefined;
   };
 
   useEffect(() => {
@@ -74,9 +75,11 @@ const App = () => {
     }
   }, [currentUser, roles]);
 
-  if (currentUser) {
-    Bugsnag.setUser(currentUser.userId);
-  }
+  useEffect(() => {
+    if (bugsnagEnabled && currentUser?.userId) {
+      Bugsnag.setUser(currentUser.userId);
+    }
+  }, [bugsnagEnabled, currentUser?.userId]);
 
   if (isLoading === true) return <Loader />;
 
@@ -86,6 +89,7 @@ const App = () => {
         <div>
           <div className="bg-navy-blue text-right text-white py-3 px-10 flex items-center justify-end">
             <p className="flex-shrink mx-8">Management Hub</p>
+            {currentUser?.userId && <NotificationCenter currentUserId={currentUser.userId} />}
             {shouldShowSignInButton && (
               <a
                 href="/sign_in"
@@ -94,16 +98,16 @@ const App = () => {
                 Sign In
               </a>
             )}
-            {currentUser && (
+            {currentUser?.userId && (
               <Avatar
-                firstName={currentUser.firstName}
-                lastName={currentUser.lastName}
+                firstName={currentUser.firstName ?? ""}
+                lastName={currentUser.lastName ?? ""}
                 roles={roles}
                 userId={currentUser.userId}
                 ownedNgbId={ownedNgbIds ? ownedNgbIds[0] : undefined}
                 enabledFeatures={
                   /* FUTURE: currentUser?.enabledFeatures when feature flags are implemented */
-                  undefined
+                  []
                 }
               />
             )}

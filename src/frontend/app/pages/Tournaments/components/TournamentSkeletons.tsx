@@ -26,3 +26,26 @@ export const TournamentCardSkeleton: React.FC<TournamentCardSkeletonProps> = ({ 
     </div>
   </div>
 );
+
+// ── CalendarSkeleton ──────────────────────────────────────────────────────────
+
+export const CalendarSkeleton: React.FC = () => (
+  <div className="calendar-skeleton">
+    {/* Header bar */}
+    <div className="cal-skel-header">
+      <div className="skel-line skel-cal-nav" />
+      <div className="skel-line skel-cal-title" />
+      <div className="skel-line skel-cal-nav" />
+    </div>
+    {/* Day-name row */}
+    <div className="cal-skel-grid">
+      {Array.from({ length: 7 }).map((_, i) => (
+        <div key={i} className="skel-line skel-day-name" />
+      ))}
+      {/* 5 weeks × 7 days */}
+      {Array.from({ length: 35 }).map((_, i) => (
+        <div key={i} className="skel-cell" />
+      ))}
+    </div>
+  </div>
+);

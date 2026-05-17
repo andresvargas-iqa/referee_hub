@@ -70,6 +70,7 @@ public class DbTournamentContextProvider : ITournamentContextProvider
 	public IQueryable<ITournamentContext> QueryTournaments(UserIdentifier userId)
 	{
 		var filter = this.filteringContext.FilteringParameters.Filter;
+		var tournamentTypeFilter = (this.filteringContext.FilteringParameters as TournamentFilteringParameters)?.TournamentTypeFilter;
 		filter = string.IsNullOrEmpty(filter) ? filter : $"%{filter}%";
 
 		// Exclude soft-deleted tournaments from all listing queries
@@ -97,6 +98,12 @@ public class DbTournamentContextProvider : ITournamentContextProvider
 						|| (t.Country != null && EF.Functions.Like(t.Country, filter))
 						|| (t.City != null && EF.Functions.Like(t.City, filter))
 						|| (t.Place != null && EF.Functions.Like(t.Place, filter)));
+		}
+
+		// Apply tournament type filter if specified
+		if (tournamentTypeFilter.HasValue)
+		{
+			filteredTournaments = filteredTournaments.Where(t => t.Type == tournamentTypeFilter.Value);
 		}
 
 		if (this.filteringContext.FilteringMetadata != null)

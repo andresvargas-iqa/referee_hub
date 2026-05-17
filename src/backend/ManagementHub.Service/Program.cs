@@ -20,7 +20,9 @@ using ManagementHub.Service.Authorization;
 using ManagementHub.Service.Configuration;
 using ManagementHub.Service.Contexts;
 using ManagementHub.Service.Filtering;
+using ManagementHub.Service.Hubs;
 using ManagementHub.Service.Jobs;
+using ManagementHub.Service.Services;
 using ManagementHub.Service.Swagger;
 using ManagementHub.Service.Telemetry;
 using ManagementHub.Storage;
@@ -139,6 +141,7 @@ public partial class Program
 		services.AddHostedService<EnsureMonthlyStatsSnapshot>();
 		services.AddHostedService<EnsureDailyPublicTournamentSnapshot>();
 		services.AddHostedService<CleanupStaleGenderDataJob>();
+		services.AddHostedService<NotificationArchivalJob>();
 
 		services.Configure<GenderDataRetentionSettings>(
 			context.Configuration.GetSection("GenderDataRetention"));
@@ -241,9 +244,14 @@ public partial class Program
 			});
 		});
 
-		services.AddSingleton<DistributedContextPropagator, CookieTraceContextPropagator>();
 		services.AddScoped<TraceCookieMiddleware>();
 		services.AddScoped<ImpersonationMiddleware>();
+
+		// Add SignalR for real-time notifications
+		services.AddSignalR();
+
+		// Add notification services
+		services.AddScoped<INotificationService, NotificationService>();
 	}
 
 	private static void OverrideRedirectsForApiEndpoints(CookieAuthenticationOptions options)
@@ -322,6 +330,7 @@ public partial class Program
 			endpoints.MapRazorPages();
 			endpoints.MapSwagger();
 			endpoints.MapHealthChecks("/healthz");
+			endpoints.MapHub<NotificationsHub>("/hubs/notifications");
 			endpoints.MapHangfireDashboardWithAuthorizationPolicy(AuthorizationPolicies.TechAdminPolicy, "/admin/jobs");
 			endpoints.MapControllerRoute(
 				name: "coreadminroute",
