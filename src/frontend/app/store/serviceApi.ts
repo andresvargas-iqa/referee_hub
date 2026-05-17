@@ -471,7 +471,6 @@ const injectedRtkApi = api
             Page: queryArg.page,
             PageSize: queryArg.pageSize,
             SkipPaging: queryArg.skipPaging,
-            TournamentTypeFilter: queryArg.tournamentType,
           },
         }),
         providesTags: ["Tournament"],
@@ -573,13 +572,6 @@ const injectedRtkApi = api
           url: `/api/v2/Tournaments/${queryArg.tournamentId}/invites/${queryArg.participantId}`,
           method: "POST",
           body: queryArg.inviteResponseModel,
-        }),
-        invalidatesTags: ["Tournament"],
-      }),
-      deleteInvite: build.mutation<DeleteInviteApiResponse, DeleteInviteApiArg>({
-        query: (queryArg) => ({
-          url: `/api/v2/Tournaments/${queryArg.tournamentId}/invites/${queryArg.participantId}`,
-          method: "DELETE",
         }),
         invalidatesTags: ["Tournament"],
       }),
@@ -719,6 +711,36 @@ const injectedRtkApi = api
       getUserData: build.query<GetUserDataApiResponse, GetUserDataApiArg>({
         query: (queryArg) => ({ url: `/api/v2/Users/${queryArg.userId}/info` }),
         providesTags: ["UserInfo"],
+      }),
+      getNotifications: build.query<GetNotificationsApiResponse, GetNotificationsApiArg>({
+        query: () => ({ url: `/api/v2/notifications` }),
+      }),
+      getUnreadCount: build.query<GetUnreadCountApiResponse, GetUnreadCountApiArg>({
+        query: () => ({ url: `/api/v2/notifications/unread-count` }),
+      }),
+      markNotificationRead: build.mutation<
+        MarkNotificationReadApiResponse,
+        MarkNotificationReadApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/api/v2/notifications/${queryArg.id}/read`,
+          method: "PATCH",
+        }),
+      }),
+      markAllNotificationsRead: build.mutation<
+        MarkAllNotificationsReadApiResponse,
+        MarkAllNotificationsReadApiArg
+      >({
+        query: () => ({
+          url: `/api/v2/notifications/read-all`,
+          method: "PATCH",
+        }),
+      }),
+      deleteNotification: build.mutation<DeleteNotificationApiResponse, DeleteNotificationApiArg>({
+        query: (queryArg) => ({
+          url: `/api/v2/notifications/${queryArg.id}`,
+          method: "DELETE",
+        }),
       }),
     }),
     overrideExisting: false,
@@ -1019,7 +1041,6 @@ export type GetTournamentsApiArg = {
   page?: number;
   pageSize?: number;
   skipPaging?: boolean;
-  tournamentType?: string;
 };
 export type CreateTournamentApiResponse = /** status 200 Success */ TournamentIdResponse;
 export type CreateTournamentApiArg = {
@@ -1079,11 +1100,6 @@ export type RespondToInviteApiArg = {
   tournamentId: string;
   participantId: string;
   inviteResponseModel: InviteResponseModel;
-};
-export type DeleteInviteApiResponse = /** status 200 Success */ void;
-export type DeleteInviteApiArg = {
-  tournamentId: string;
-  participantId: string;
 };
 export type GetParticipantsApiResponse = /** status 200 Success */ TournamentParticipantViewModel[];
 export type GetParticipantsApiArg = {
@@ -1172,7 +1188,13 @@ export type GetUserDataApiArg = {
 export type CheckoutSession = {
   sessionId?: string | null;
 };
-export type CertificationLevel = "snitch" | "assistant" | "head" | "field" | "scorekeeper";
+export type CertificationLevel =
+  | "snitch"
+  | "assistant"
+  | "head"
+  | "field"
+  | "scorekeeper"
+  | "flagrunner";
 export type CertificationVersion = "eighteen" | "twenty" | "twentytwo" | "twentyfour";
 export type NgbConstraint = {};
 export type NgbConstraintRead = {
@@ -1860,6 +1882,55 @@ export type UserDataViewModel = {
   language?: string | null;
   createdAt?: string;
 };
+export type NotificationIdentifier = string;
+export type NotificationType =
+  | "ExamResult"
+  | "TournamentInvite"
+  | "TeamTournamentJoinRequest"
+  | "ManagerAssignment"
+  | "InviteAccepted"
+  | "InviteRejected"
+  | "RequestAccepted"
+  | "RequestRejected"
+  | "TeamApprovalNeeded"
+  | "NgbApprovalNeeded"
+  | "RosterRegistration";
+export type NotificationItem = {
+  id: NotificationIdentifier;
+  type: NotificationType;
+  title: string;
+  message: string;
+  relatedEntityId?: string | null;
+  relatedEntityType?: string | null;
+  secondaryEntityId?: string | null;
+  secondaryEntityType?: string | null;
+  isRead: boolean;
+  createdAt: string;
+  readAt?: string | null;
+};
+export type NotificationsResponse = {
+  notifications: NotificationItem[];
+  unreadCount: number;
+};
+export type UnreadCountResponse = {
+  unreadCount: number;
+};
+export type GetNotificationsApiResponse = /** status 200 Success */ NotificationsResponse;
+export type GetNotificationsApiArg = void;
+export type GetUnreadCountApiResponse = /** status 200 Success */ UnreadCountResponse;
+export type GetUnreadCountApiArg = void;
+export type MarkNotificationReadApiResponse = /** status 200 Success */ NotificationItem;
+export type MarkNotificationReadApiArg = {
+  id: NotificationIdentifier;
+};
+export type MarkAllNotificationsReadApiResponse = /** status 200 Success */ {
+  markedAsReadCount: number;
+};
+export type MarkAllNotificationsReadApiArg = void;
+export type DeleteNotificationApiResponse = unknown;
+export type DeleteNotificationApiArg = {
+  id: NotificationIdentifier;
+};
 export const {
   useCreatePaymentSessionMutation,
   useSubmitPaymentSessionMutation,
@@ -1930,7 +2001,6 @@ export const {
   useGetTournamentInvitesQuery,
   useCreateInviteMutation,
   useRespondToInviteMutation,
-  useDeleteInviteMutation,
   useGetParticipantsQuery,
   useRemoveParticipantMutation,
   useUpdateParticipantRosterMutation,
@@ -1952,4 +2022,9 @@ export const {
   useGetCurrentUserDataQuery,
   useUpdateCurrentUserDataMutation,
   useGetUserDataQuery,
+  useGetNotificationsQuery,
+  useGetUnreadCountQuery,
+  useMarkNotificationReadMutation,
+  useMarkAllNotificationsReadMutation,
+  useDeleteNotificationMutation,
 } = injectedRtkApi;
