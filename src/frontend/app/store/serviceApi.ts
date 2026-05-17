@@ -441,6 +441,7 @@ const injectedRtkApi = api
           url: `/api/v2/Tournaments`,
           params: {
             Filter: queryArg.filter,
+            TournamentType: queryArg.tournamentType,
             Page: queryArg.page,
             PageSize: queryArg.pageSize,
             SkipPaging: queryArg.skipPaging,
@@ -947,6 +948,7 @@ export type GetTestQuestionsApiArg = {
 export type GetTournamentsApiResponse = /** status 200 Success */ TournamentViewModelFiltered;
 export type GetTournamentsApiArg = {
   filter?: string;
+  tournamentType?: string;
   page?: number;
   pageSize?: number;
   skipPaging?: boolean;
