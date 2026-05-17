@@ -355,8 +355,14 @@ public partial class Program
 		try
 		{
 			dbContext.Database.ExecuteSqlRaw(@"
-				ALTER TABLE tournament_invites
-				ADD COLUMN IF NOT EXISTS observations text;
+				DO $$
+				BEGIN
+					IF to_regclass('public.tournament_invites') IS NOT NULL THEN
+						ALTER TABLE tournament_invites
+						ADD COLUMN IF NOT EXISTS observations text;
+					END IF;
+				END
+				$$;
 			");
 		}
 		catch (Exception ex)
@@ -380,8 +386,14 @@ public partial class Program
 		try
 		{
 			dbContext.Database.ExecuteSqlRaw(@"
-				ALTER TABLE tournaments
-				ADD COLUMN IF NOT EXISTS is_volunteer_registration_open boolean NOT NULL DEFAULT FALSE;
+				DO $$
+				BEGIN
+					IF to_regclass('public.tournaments') IS NOT NULL THEN
+						ALTER TABLE tournaments
+						ADD COLUMN IF NOT EXISTS is_volunteer_registration_open boolean NOT NULL DEFAULT FALSE;
+					END IF;
+				END
+				$$;
 			");
 		}
 		catch (Exception ex)

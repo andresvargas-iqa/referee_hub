@@ -45,8 +45,14 @@ public class EnsureDatabaseMigratedService : DatabaseStartupService
 			if (string.Equals(dbContext.Database.ProviderName, "Npgsql.EntityFrameworkCore.PostgreSQL", StringComparison.Ordinal))
 			{
 				dbContext.Database.ExecuteSqlRaw(@"
-					ALTER TABLE tournament_invites
-					ADD COLUMN IF NOT EXISTS observations text;
+					DO $$
+					BEGIN
+						IF to_regclass('public.tournament_invites') IS NOT NULL THEN
+							ALTER TABLE tournament_invites
+							ADD COLUMN IF NOT EXISTS observations text;
+						END IF;
+					END
+					$$;
 				");
 			}
 
