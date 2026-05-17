@@ -1,6 +1,8 @@
 ﻿using ManagementHub.Models.Abstraction.Commands;
 using ManagementHub.Models.Abstraction.Contexts;
+using ManagementHub.Models.Abstraction.Contexts.Providers;
 using ManagementHub.Models.Domain.Ngb;
+using ManagementHub.Models.Domain.Team;
 using ManagementHub.Models.Domain.User;
 using ManagementHub.Models.Domain.User.Roles;
 using ManagementHub.Models.Enums;
@@ -8,6 +10,7 @@ using ManagementHub.Service.Areas.Ngbs;
 using ManagementHub.Service.Authorization;
 using ManagementHub.Service.Contexts;
 using ManagementHub.Service.Filtering;
+using ManagementHub.Service.Services;
 using ManagementHub.Storage;
 using ManagementHub.Storage.Collections;
 using ManagementHub.Storage.Extensions;
@@ -29,6 +32,8 @@ public class RefereesController : ControllerBase
 	private readonly IUpdateRefereeRoleCommand updateRefereeRoleCommand;
 	private readonly IRefereeContextAccessor refereeContextAccessor;
 	private readonly IUpdateUserDataCommand updateUserDataCommand;
+	private readonly ITeamContextProvider teamContextProvider;
+	private readonly INotificationService notificationService;
 	private readonly ManagementHubDbContext dbContext;
 
 	public RefereesController(
@@ -36,12 +41,16 @@ public class RefereesController : ControllerBase
 		IUpdateRefereeRoleCommand updateRefereeRoleCommand,
 		IRefereeContextAccessor refereeContextAccessor,
 		IUpdateUserDataCommand updateUserDataCommand,
+		ITeamContextProvider teamContextProvider,
+		INotificationService notificationService,
 		ManagementHubDbContext dbContext)
 	{
 		this.contextAccessor = contextAccessor;
 		this.updateRefereeRoleCommand = updateRefereeRoleCommand;
 		this.refereeContextAccessor = refereeContextAccessor;
 		this.updateUserDataCommand = updateUserDataCommand;
+		this.teamContextProvider = teamContextProvider;
+		this.notificationService = notificationService;
 		this.dbContext = dbContext;
 	}
 
@@ -95,7 +104,8 @@ public class RefereesController : ControllerBase
 			var result = await this.CreateOrUpdateTeamInviteAsync(
 				requestedPlayingTeamId!.Value,
 				normalizedEmail,
-				currentUserDbId);
+				currentUserDbId,
+				userContext.UserId);
 			if (result != null)
 			{
 				return result;
@@ -107,7 +117,8 @@ public class RefereesController : ControllerBase
 			var result = await this.CreateOrUpdateTeamInviteAsync(
 				requestedCoachingTeamId!.Value,
 				normalizedEmail,
-				currentUserDbId);
+				currentUserDbId,
+				userContext.UserId);
 			if (result != null)
 			{
 				return result;
@@ -143,7 +154,8 @@ public class RefereesController : ControllerBase
 	private async Task<IActionResult?> CreateOrUpdateTeamInviteAsync(
 		long requestedTeamId,
 		string normalizedEmail,
-		long currentUserDbId)
+		long currentUserDbId,
+		UserIdentifier currentUserId)
 	{
 		var teamExists = await this.dbContext.Teams
 			.AnyAsync(team => team.Id == requestedTeamId, this.HttpContext.RequestAborted);
@@ -197,6 +209,22 @@ public class RefereesController : ControllerBase
 			});
 
 			await this.dbContext.SaveChangesAsync(this.HttpContext.RequestAborted);
+
+			var teamId = new TeamIdentifier(requestedTeamId);
+			var teamName = await this.dbContext.Teams
+				.Where(team => team.Id == requestedTeamId)
+				.Select(team => team.Name)
+				.FirstOrDefaultAsync(this.HttpContext.RequestAborted) ?? teamId.ToString();
+
+			var managers = await this.teamContextProvider.GetTeamManagersAsync(teamId, NgbConstraint.Any);
+			foreach (var manager in managers.Where(manager => manager.UserId != currentUserId))
+			{
+				await this.notificationService.CreateTeamInviteRequestNotificationForManagerAsync(
+					manager.UserId,
+					teamId,
+					teamName,
+					this.HttpContext.RequestAborted);
+			}
 		}
 		else if (otherPendingInvites.Count > 0)
 		{

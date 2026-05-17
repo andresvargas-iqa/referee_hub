@@ -569,8 +569,22 @@ public class TeamsController : ControllerBase
 		var currentUserDbId = await this.GetCurrentUserDbIdAsync(userContext.UserId);
 		var invitation = await this.CreatePendingInviteAsync(teamId, normalizedEmail, currentUserDbId);
 		var invitedByName = TeamInviteHelpers.BuildDisplayName(userContext.UserData.FirstName, userContext.UserData.LastName);
+		var teamName = await this.GetTeamNameAsync(teamId);
+		var invitedUserDbId = await this.dbContext.Users
+			.Where(user => user.Email.ToLower() == normalizedEmail)
+			.Select(user => (long?)user.Id)
+			.FirstOrDefaultAsync(this.HttpContext.RequestAborted);
 
 		await this.TrySendInviteEmailAsync(teamId, invitation.Email, invitedByName);
+
+		if (invitedUserDbId.HasValue && invitedUserDbId.Value != currentUserDbId)
+		{
+			await this.notificationService.CreateTeamInviteNotificationForPlayerAsync(
+				UserIdentifier.FromLegacyUserId(invitedUserDbId.Value),
+				teamId,
+				teamName,
+				this.HttpContext.RequestAborted);
+		}
 
 		return this.CreatedAtAction(
 			nameof(GetTeamManagement),
@@ -709,6 +723,17 @@ public class TeamsController : ControllerBase
 		this.AddInviteResponseActivity(teamId, invitation, invitedUser?.Id, currentUserDbId, response.Approved, respondedAt);
 
 		await this.dbContext.SaveChangesAsync(this.HttpContext.RequestAborted);
+
+		if (invitedUser != null && invitedUser.Id != currentUserDbId)
+		{
+			await this.notificationService.CreateTeamInviteResponseNotificationForPlayerAsync(
+				UserIdentifier.FromLegacyUserId(invitedUser.Id),
+				teamId,
+				team.TeamData.Name,
+				response.Approved,
+				this.HttpContext.RequestAborted);
+		}
+
 		return this.NoContent();
 	}
 
@@ -809,6 +834,14 @@ public class TeamsController : ControllerBase
 	private async Task<bool> TeamExistsAsync(TeamIdentifier teamId)
 	{
 		return await this.dbContext.Teams.AnyAsync(t => t.Id == teamId.Id, this.HttpContext.RequestAborted);
+	}
+
+	private async Task<string> GetTeamNameAsync(TeamIdentifier teamId)
+	{
+		return await this.dbContext.Teams
+			.Where(team => team.Id == teamId.Id)
+			.Select(team => team.Name)
+			.FirstOrDefaultAsync(this.HttpContext.RequestAborted) ?? teamId.ToString();
 	}
 
 	private async Task<bool> TeamHasMemberWithEmailAsync(TeamIdentifier teamId, string normalizedEmail)

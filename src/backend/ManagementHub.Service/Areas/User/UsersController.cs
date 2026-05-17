@@ -16,6 +16,7 @@ using ManagementHub.Service.Authorization;
 using ManagementHub.Service.Contexts;
 using ManagementHub.Service.Areas.Teams;
 using ManagementHub.Service.Areas.Tournaments;
+using ManagementHub.Service.Services;
 using ManagementHub.Storage;
 using ManagementHub.Storage.Extensions;
 using Microsoft.AspNetCore.Authorization;
@@ -41,6 +42,7 @@ public class UsersController : ControllerBase
 	private readonly ISetUserAttributeCommand setUserAttributeCommand;
 	private readonly IUserDelicateInfoService userDelicateInfoService;
 	private readonly ISendTeamInviteEmail sendTeamInviteEmail;
+	private readonly INotificationService notificationService;
 	private readonly ManagementHubDbContext dbContext;
 	private readonly IContextualOptions<FeatureGates> featureGatesOptions;
 	private readonly ILogger<UsersController> logger;
@@ -52,6 +54,7 @@ public class UsersController : ControllerBase
 		ISetUserAttributeCommand setUserAttributeCommand,
 		IUserDelicateInfoService userDelicateInfoService,
 		ISendTeamInviteEmail sendTeamInviteEmail,
+		INotificationService notificationService,
 		ManagementHubDbContext dbContext,
 		IContextualOptions<FeatureGates> featureGatesOptions,
 		ILogger<UsersController> logger)
@@ -62,6 +65,7 @@ public class UsersController : ControllerBase
 		this.setUserAttributeCommand = setUserAttributeCommand;
 		this.userDelicateInfoService = userDelicateInfoService;
 		this.sendTeamInviteEmail = sendTeamInviteEmail;
+		this.notificationService = notificationService;
 		this.dbContext = dbContext;
 		this.featureGatesOptions = featureGatesOptions;
 		this.logger = logger;
@@ -470,6 +474,16 @@ public class UsersController : ControllerBase
 
 		await this.SendTeamInviteResponseEmailAsync(invitation, invitationId, response.Approved, responderName);
 
+		if (invitation.InitiatorUserId != currentUserDbId)
+		{
+			await this.notificationService.CreateTeamInviteResponseNotificationForManagerAsync(
+				UserIdentifier.FromLegacyUserId(invitation.InitiatorUserId),
+				new TeamIdentifier(invitation.TeamId),
+				invitation.Team.Name,
+				response.Approved,
+				this.HttpContext.RequestAborted);
+		}
+
 		return this.Ok();
 	}
 
@@ -651,7 +665,7 @@ public class UsersController : ControllerBase
 	{
 		var targetUserDbId = await this.dbContext.Users
 			.WithIdentifier(userId)
-			.Select(u => u.Id)
+			.Select(u => (long?)u.Id)
 			.FirstOrDefaultAsync(this.HttpContext.RequestAborted);
 
 		if (targetUserDbId == null)
