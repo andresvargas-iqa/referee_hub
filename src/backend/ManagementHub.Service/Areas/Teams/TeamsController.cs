@@ -570,17 +570,20 @@ public class TeamsController : ControllerBase
 		var invitation = await this.CreatePendingInviteAsync(teamId, normalizedEmail, currentUserDbId);
 		var invitedByName = TeamInviteHelpers.BuildDisplayName(userContext.UserData.FirstName, userContext.UserData.LastName);
 		var teamName = await this.GetTeamNameAsync(teamId);
-		var invitedUserDbId = await this.dbContext.Users
+		var invitedUser = await this.dbContext.Users
 			.Where(user => user.Email.ToLower() == normalizedEmail)
-			.Select(user => (long?)user.Id)
+			.Select(user => new { user.Id, user.UniqueId })
 			.FirstOrDefaultAsync(this.HttpContext.RequestAborted);
 
 		await this.TrySendInviteEmailAsync(teamId, invitation.Email, invitedByName);
 
-		if (invitedUserDbId.HasValue && invitedUserDbId.Value != currentUserDbId)
+		if (invitedUser != null && invitedUser.Id != currentUserDbId)
 		{
+			var invitedUserId = !string.IsNullOrWhiteSpace(invitedUser.UniqueId)
+				? UserIdentifier.Parse(invitedUser.UniqueId)
+				: UserIdentifier.FromLegacyUserId(invitedUser.Id);
 			await this.notificationService.CreateTeamInviteNotificationForPlayerAsync(
-				UserIdentifier.FromLegacyUserId(invitedUserDbId.Value),
+				invitedUserId,
 				teamId,
 				teamName,
 				this.HttpContext.RequestAborted);
@@ -699,7 +702,7 @@ public class TeamsController : ControllerBase
 		var invitationEmail = TeamInviteHelpers.NormalizeEmail(invitation.Email);
 		var invitedUser = await this.dbContext.Users
 			.Where(user => user.Email.ToLower() == invitationEmail)
-			.Select(user => new InvitedUserLookup(user.Id, user.Email))
+			.Select(user => new InvitedUserLookup(user.Id, user.Email, user.UniqueId))
 			.FirstOrDefaultAsync(this.HttpContext.RequestAborted);
 
 		var respondedAt = DateTime.UtcNow;
@@ -727,7 +730,7 @@ public class TeamsController : ControllerBase
 		if (invitedUser != null && invitedUser.Id != currentUserDbId)
 		{
 			await this.notificationService.CreateTeamInviteResponseNotificationForPlayerAsync(
-				UserIdentifier.FromLegacyUserId(invitedUser.Id),
+				invitedUser.ToUserIdentifier(),
 				teamId,
 				team.TeamData.Name,
 				response.Approved,
@@ -950,7 +953,13 @@ public class TeamsController : ControllerBase
 		});
 	}
 
-	private sealed record InvitedUserLookup(long Id, string Email);
+	private sealed record InvitedUserLookup(long Id, string Email, string? UniqueId)
+	{
+		public UserIdentifier ToUserIdentifier() =>
+			!string.IsNullOrWhiteSpace(this.UniqueId)
+				? UserIdentifier.Parse(this.UniqueId)
+				: UserIdentifier.FromLegacyUserId(this.Id);
+	}
 
 	private async Task<ManagementHub.Models.Data.TeamInvitation> CreatePendingInviteAsync(
 		TeamIdentifier teamId,

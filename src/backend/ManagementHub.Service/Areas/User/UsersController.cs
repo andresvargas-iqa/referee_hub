@@ -476,12 +476,24 @@ public class UsersController : ControllerBase
 
 		if (invitation.InitiatorUserId != currentUserDbId)
 		{
-			await this.notificationService.CreateTeamInviteResponseNotificationForManagerAsync(
-				UserIdentifier.FromLegacyUserId(invitation.InitiatorUserId),
-				new TeamIdentifier(invitation.TeamId),
-				invitation.Team.Name,
-				response.Approved,
-				this.HttpContext.RequestAborted);
+			var initiatorUser = await this.dbContext.Users
+				.Where(user => user.Id == invitation.InitiatorUserId)
+				.Select(user => new { user.Id, user.UniqueId })
+				.FirstOrDefaultAsync(this.HttpContext.RequestAborted);
+
+			if (initiatorUser != null)
+			{
+				var initiatorUserId = !string.IsNullOrWhiteSpace(initiatorUser.UniqueId)
+					? UserIdentifier.Parse(initiatorUser.UniqueId)
+					: UserIdentifier.FromLegacyUserId(initiatorUser.Id);
+
+				await this.notificationService.CreateTeamInviteResponseNotificationForManagerAsync(
+					initiatorUserId,
+					new TeamIdentifier(invitation.TeamId),
+					invitation.Team.Name,
+					response.Approved,
+					this.HttpContext.RequestAborted);
+			}
 		}
 
 		return this.Ok();
