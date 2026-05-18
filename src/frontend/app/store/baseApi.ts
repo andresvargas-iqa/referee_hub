@@ -1,31 +1,42 @@
 import { FetchArgs, createApi, fetchBaseQuery, retry } from '@reduxjs/toolkit/query/react'
 
-const PUBLIC_TOURNAMENT_ROUTE_PATTERN = /^\/tournaments(?:\/[^/]+)?$/;
+const AUTH_FAILURE_DIAGNOSTIC_KEY = "refhub-auth-last-failure";
 
-function isPublicTournamentRoute(): boolean {
-  return PUBLIC_TOURNAMENT_ROUTE_PATTERN.test(window.location.pathname);
-}
-
-function isCurrentUserEndpoint(args: string | FetchArgs): boolean {
+function getRequestUrl(args: string | FetchArgs): string {
   if (typeof args === "string") {
-    return args.startsWith("/api/v2/Users/me");
+    return args;
   }
 
-  return typeof args.url === "string" && args.url.startsWith("/api/v2/Users/me");
+  return typeof args.url === "string" ? args.url : "unknown";
+}
+
+function getRequestMethod(args: string | FetchArgs): string {
+  if (typeof args === "string") {
+    return "GET";
+  }
+
+  return args.method ?? "GET";
+}
+
+function writeAuthDiagnostic(payload: Record<string, unknown>) {
+  const diagnostic = {
+    ...payload,
+    route: window.location.pathname,
+    search: window.location.search,
+    at: new Date().toISOString(),
+  };
+
+  try {
+    sessionStorage.setItem(AUTH_FAILURE_DIAGNOSTIC_KEY, JSON.stringify(diagnostic));
+  } catch {
+    // Session storage may be unavailable in some browser privacy modes.
+  }
+
+  console.warn("[AuthDiagnostic]", diagnostic);
 }
 
 /** if the query URL contains impersonate query we forward it with the API calls */
-const fetchWithImpersonationQuery = (fetchFn: ReturnType<typeof fetchBaseQuery>) => (args: string | FetchArgs, api, extraOptions) => {
-  // Public tournament pages are anonymous-capable and should never hit Users/me.
-  if (isPublicTournamentRoute() && isCurrentUserEndpoint(args)) {
-    return Promise.resolve({
-      error: {
-        data: { message: "Users/me skipped on public tournament route" },
-        status: 401,
-      },
-    });
-  }
-
+const fetchWithImpersonationQuery = (fetchFn: ReturnType<typeof fetchBaseQuery>) => async (args: string | FetchArgs, api, extraOptions) => {
   const impersonateKey = "impersonate";
   const impersonate = new URLSearchParams(location.search).get(impersonateKey);
   if (impersonate) {
@@ -38,7 +49,21 @@ const fetchWithImpersonationQuery = (fetchFn: ReturnType<typeof fetchBaseQuery>)
     }
   }
 
-  return fetchFn(args, api, extraOptions);
+  const result = await fetchFn(args, api, extraOptions);
+  if ("error" in result) {
+    const status = result.error?.status;
+    if (status === 401 || status === 403) {
+      writeAuthDiagnostic({
+        endpoint: typeof api.endpoint === "string" ? api.endpoint : "unknown",
+        method: getRequestMethod(args),
+        url: getRequestUrl(args),
+        status,
+        source: "baseApi",
+      });
+    }
+  }
+
+  return result;
 }
 
 const fetchWithRetries = (fetchFn: ReturnType<typeof fetchBaseQuery>) => {

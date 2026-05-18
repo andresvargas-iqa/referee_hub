@@ -8,6 +8,7 @@ import Loader from "./components/Loader";
 import { useGetCurrentUserQuery } from "./store/serviceApi";
 
 const PUBLIC_ROUTE_PATTERNS = [/^\/privacy$/, /^\/tournaments$/, /^\/tournaments\/[^/]+$/];
+const AUTH_FAILURE_DIAGNOSTIC_KEY = "refhub-auth-last-failure";
 
 function getErrorStatus(error: unknown): number | undefined {
   if (!error || typeof error !== "object") {
@@ -35,9 +36,7 @@ const bugsnagEnabled = Boolean(process.env.BUGSNAG_API_KEY);
 const App = () => {
   const isPublicRoute = PUBLIC_ROUTE_PATTERNS.some((pattern) => pattern.test(window.location.pathname));
   const [redirectTo, setRedirectTo] = useState<string>();
-  const { currentData: currentUser, error, isError, isLoading } = useGetCurrentUserQuery(undefined, {
-    skip: isPublicRoute,
-  });
+  const { currentData: currentUser, error, isError, isLoading } = useGetCurrentUserQuery();
   const roles = (currentUser?.roles?.map((r) => r.roleType).filter((r): r is string => Boolean(r)) ?? []);
 
   const ownedNgbIds = currentUser
@@ -65,6 +64,25 @@ const App = () => {
     const shouldRedirectToSignIn = status === 401 || status === 403;
 
     if (!isLoading && isError && shouldRedirectToSignIn && !isPublicRoute) {
+      try {
+        const latestDiagnostic = sessionStorage.getItem(AUTH_FAILURE_DIAGNOSTIC_KEY);
+        if (latestDiagnostic) {
+          console.warn("[AuthDiagnostic] redirecting to sign-in", JSON.parse(latestDiagnostic));
+        } else {
+          console.warn("[AuthDiagnostic] redirecting to sign-in without prior diagnostic", {
+            status,
+            route: window.location.pathname,
+            search: window.location.search,
+          });
+        }
+      } catch {
+        console.warn("[AuthDiagnostic] redirecting to sign-in (diagnostic unavailable)", {
+          status,
+          route: window.location.pathname,
+          search: window.location.search,
+        });
+      }
+
       window.location.href = `${window.location.origin}/sign_in`;
     }
   }, [isError, isLoading, isPublicRoute, error]);
