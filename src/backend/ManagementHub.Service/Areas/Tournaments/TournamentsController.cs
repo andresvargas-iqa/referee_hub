@@ -18,6 +18,7 @@ using ManagementHub.Service.Authorization;
 using ManagementHub.Service.Contexts;
 using ManagementHub.Service.Extensions;
 using ManagementHub.Service.Filtering;
+using ManagementHub.Service.Services;
 using ManagementHub.Storage;
 using ManagementHub.Storage.Collections;
 using ManagementHub.Storage.Extensions;
@@ -45,6 +46,7 @@ public class TournamentsController : ControllerBase
 	private readonly IUserDelicateInfoService userDelicateInfoService;
 	private readonly ISendTournamentContactEmail sendTournamentContactEmail;
 	private readonly ISendTournamentInviteEmail sendTournamentInviteEmail;
+	private readonly INotificationService notificationService;
 	private readonly IRefreshPublicTournamentSnapshotCommand refreshPublicTournamentSnapshotCommand;
 	private readonly ManagementHubDbContext dbContext;
 	private readonly Microsoft.Extensions.Logging.ILogger<TournamentsController> logger;
@@ -58,6 +60,7 @@ public class TournamentsController : ControllerBase
 		IUserDelicateInfoService userDelicateInfoService,
 		ISendTournamentContactEmail sendTournamentContactEmail,
 		ISendTournamentInviteEmail sendTournamentInviteEmail,
+		INotificationService notificationService,
 		IRefreshPublicTournamentSnapshotCommand refreshPublicTournamentSnapshotCommand,
 		ManagementHubDbContext dbContext,
 		Microsoft.Extensions.Logging.ILogger<TournamentsController> logger)
@@ -70,6 +73,7 @@ public class TournamentsController : ControllerBase
 		this.userDelicateInfoService = userDelicateInfoService;
 		this.sendTournamentContactEmail = sendTournamentContactEmail;
 		this.sendTournamentInviteEmail = sendTournamentInviteEmail;
+		this.notificationService = notificationService;
 		this.refreshPublicTournamentSnapshotCommand = refreshPublicTournamentSnapshotCommand;
 		this.dbContext = dbContext;
 		this.logger = logger;
@@ -540,6 +544,15 @@ public class TournamentsController : ControllerBase
 
 		await this.HandleAutoApproval(invite, tournamentId, teamId);
 
+		if (!isTournamentManager && isTeamManager && invite.TournamentManagerApproval == ApprovalStatus.Pending)
+		{
+			await this.NotifyTournamentManagersOfTeamJoinRequestAsync(
+				tournamentId,
+				teamId,
+				tournament.Name,
+				userContext.UserId);
+		}
+
 		// Send invitation email to team managers only if invite was not auto-approved
 		// Auto-approved invites don't require team manager action
 		if (invite.GetStatus() == InviteStatus.Pending)
@@ -702,6 +715,37 @@ public class TournamentsController : ControllerBase
 		{
 			await this.tournamentContextProvider.AddTeamParticipantAsync(
 				tournamentId, teamId, this.HttpContext.RequestAborted);
+		}
+	}
+
+	private async Task NotifyTournamentManagersOfTeamJoinRequestAsync(
+		TournamentIdentifier tournamentId,
+		TeamIdentifier teamId,
+		string tournamentName,
+		UserIdentifier initiatorUserId)
+	{
+		var managerRows = await this.dbContext.TournamentManagers
+			.Where(tm => tm.Tournament.UniqueId == tournamentId.ToString())
+			.Select(tm => new { tm.User.UniqueId, tm.User.Id })
+			.ToListAsync(this.HttpContext.RequestAborted);
+
+		foreach (var manager in managerRows)
+		{
+			var managerUserId = !string.IsNullOrWhiteSpace(manager.UniqueId)
+				? UserIdentifier.Parse(manager.UniqueId)
+				: UserIdentifier.FromLegacyUserId(manager.Id);
+
+			if (managerUserId.Equals(initiatorUserId))
+			{
+				continue;
+			}
+
+			await this.notificationService.CreateTeamTournamentJoinRequestNotificationAsync(
+				managerUserId,
+				tournamentId,
+				teamId,
+				tournamentName,
+				this.HttpContext.RequestAborted);
 		}
 	}
 
