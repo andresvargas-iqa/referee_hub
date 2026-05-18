@@ -85,7 +85,7 @@ public class TournamentsController : ControllerBase
 	/// </summary>
 	[HttpGet]
 	[Tags("Tournament")]
-	public async Task<Filtered<TournamentViewModel>> GetTournaments([FromQuery] FilteringParameters filtering)
+	public async Task<Filtered<TournamentViewModel>> GetTournaments([FromQuery] TournamentFilteringParameters filtering)
 	{
 		var userContext = await this.contextAccessor.GetCurrentUserContextAsync();
 
@@ -1177,6 +1177,40 @@ public class TournamentsController : ControllerBase
 		catch (InvalidOperationException ex)
 		{
 			return this.BadRequest(new { error = ex.Message });
+		}
+
+		// Create roster registration notifications for newly added players, coaches, and staff
+		foreach (var player in rosterData.Players)
+		{
+			await this.notificationService.CreateRosterRegistrationNotificationAsync(
+				player.UserId,
+				tournamentId,
+				teamId,
+				tournament.Name,
+				RosterRole.Player,
+				this.HttpContext.RequestAborted);
+		}
+
+		foreach (var coach in rosterData.Coaches)
+		{
+			await this.notificationService.CreateRosterRegistrationNotificationAsync(
+				coach.UserId,
+				tournamentId,
+				teamId,
+				tournament.Name,
+				RosterRole.Coach,
+				this.HttpContext.RequestAborted);
+		}
+
+		foreach (var staffMember in rosterData.Staff)
+		{
+			await this.notificationService.CreateRosterRegistrationNotificationAsync(
+				staffMember.UserId,
+				tournamentId,
+				teamId,
+				tournament.Name,
+				RosterRole.Staff,
+				this.HttpContext.RequestAborted);
 		}
 
 		return this.Ok();
