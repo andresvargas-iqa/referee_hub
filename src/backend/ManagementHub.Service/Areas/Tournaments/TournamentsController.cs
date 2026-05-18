@@ -591,6 +591,11 @@ public class TournamentsController : ControllerBase
 		await this.SendInviteEmailIfPendingAsync(invite, tournamentId, teamId);
 	}
 
+	private static string SanitizeForLog(object value)
+	{
+		return value?.ToString()?.Replace("\r", string.Empty).Replace("\n", string.Empty) ?? string.Empty;
+	}
+
 	private async Task SendInviteEmailIfPendingAsync(
 		InviteInfo invite,
 		TournamentIdentifier tournamentId,
@@ -612,12 +617,15 @@ public class TournamentsController : ControllerBase
 		}
 		catch (Exception ex)
 		{
+			var safeTournamentId = SanitizeForLog(tournamentId);
+			var safeTeamId = SanitizeForLog(teamId);
+
 			// Log but don't fail the invite creation if email fails.
 			this.logger.LogError(
 				ex,
 				"Failed to send tournament invite email for tournament {TournamentId} to team {TeamId}",
-				tournamentId,
-				teamId);
+				safeTournamentId,
+				safeTeamId);
 		}
 	}
 
