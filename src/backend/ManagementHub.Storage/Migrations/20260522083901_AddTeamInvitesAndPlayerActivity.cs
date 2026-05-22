@@ -1,5 +1,6 @@
 ﻿using System;
 using Microsoft.EntityFrameworkCore.Migrations;
+using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
@@ -15,8 +16,8 @@ namespace ManagementHub.Storage.Migrations
                 name: "team_invitations",
                 columns: table => new
                 {
-                    id = table.Column<long>(type: "INTEGER", nullable: false)
-                        .Annotation("Sqlite:Autoincrement", true),
+                    id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
                     team_id = table.Column<long>(type: "INTEGER", nullable: false),
                     email = table.Column<string>(type: "character varying", nullable: false),
                     initiator_user_id = table.Column<long>(type: "INTEGER", nullable: false),
@@ -53,8 +54,8 @@ namespace ManagementHub.Storage.Migrations
                 name: "team_player_activities",
                 columns: table => new
                 {
-                    id = table.Column<long>(type: "INTEGER", nullable: false)
-                        .Annotation("Sqlite:Autoincrement", true),
+                    id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
                     team_id = table.Column<long>(type: "INTEGER", nullable: false),
                     user_id = table.Column<long>(type: "INTEGER", nullable: true),
                     email = table.Column<string>(type: "character varying", nullable: false),

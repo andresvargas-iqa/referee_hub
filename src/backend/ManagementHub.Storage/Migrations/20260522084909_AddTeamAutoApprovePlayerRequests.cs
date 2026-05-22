@@ -13,7 +13,7 @@ namespace ManagementHub.Storage.Migrations
             migrationBuilder.AddColumn<bool>(
                 name: "auto_approve_player_requests",
                 table: "teams",
-                type: "INTEGER",
+                type: "boolean",
                 nullable: false,
                 defaultValue: false);
         }
