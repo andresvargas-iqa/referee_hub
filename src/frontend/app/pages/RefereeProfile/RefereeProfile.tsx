@@ -673,12 +673,11 @@ const RefereeProfile = () => {
           {/* Column 1: Player Details + Upcoming Events */}
           <div>
             <PlayerDetails />
-            {isEditable && <TeamInvites />}
             <TeamTransferHistory userId={refereeQueryUserId} isOwnProfile={isOwnProfile} />
             {isOwnProfile && <UpcomingEvents />}
           </div>
 
-          {/* Column 2: Basic Details + Certification History */}
+          {/* Column 2: Basic Details + Team Requests + Certification History */}
           <div>
             {editableUser && (
               <BasicDetails
@@ -691,6 +690,7 @@ const RefereeProfile = () => {
                 onCancel={handleDetailsCancel}
               />
             )}
+            {isEditable && <TeamInvites />}
             {isEditable && <CertificationHistory />}
           </div>
         </div>

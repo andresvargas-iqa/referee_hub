@@ -307,9 +307,16 @@ const TeamManagement = () => {
         <div className="mb-4 rounded border border-gray-300 bg-white p-4">
           <div className="flex items-center justify-between gap-4">
             <div>
-              <p className="font-semibold text-gray-900">Auto-approve incoming player requests</p>
-              <p className="text-sm text-gray-600">If this is on, all incoming requests will be approved automatically.</p>
-              <p className="text-sm text-gray-600">If this is turned on, all pending requests will be approved in bulk.</p>
+              <div className="flex items-center gap-1">
+                <p className="font-semibold text-gray-900">Auto-approve incoming player requests</p>
+                <div className="relative inline-block group">
+                  <span className="cursor-help text-gray-400 border border-gray-400 rounded-full w-4 h-4 inline-flex items-center justify-center text-xs font-bold">?</span>
+                  <div className="absolute left-0 top-6 z-10 hidden group-hover:block w-72 bg-gray-800 text-white text-xs rounded p-2 shadow-lg">
+                    <p>If this is on, all incoming requests will be approved automatically.</p>
+                    <p className="mt-1">If this is turned on, all pending requests will be approved in bulk.</p>
+                  </div>
+                </div>
+              </div>
             </div>
             <label className="inline-flex items-center gap-2 text-sm font-medium text-gray-700">
               <input
