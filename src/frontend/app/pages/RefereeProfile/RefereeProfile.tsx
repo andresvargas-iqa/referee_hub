@@ -9,6 +9,7 @@ import {
   useGetRefereeQuery,
   useGetCurrentRefereeQuery,
   useUpdateCurrentRefereeMutation,
+  useGetTeamDetailsQuery,
   useGetUserDataQuery,
   useGetCurrentUserDataQuery,
   useUpdateCurrentUserDataMutation,
@@ -393,14 +394,17 @@ const TeamInvites = () => {
 
             return (
               <div key={invite.invitationId} className="invite-item" style={{ alignItems: "center" }}>
-                <div>
-                  <div className="invite-team-name">{invite.teamName || invite.teamId || "Team"}</div>
-                  <div className="text-sm text-gray-600">
-                    {invite.canRespond
-                      ? (invite.invitedByName ? `Invited by ${invite.invitedByName}` : "Invited")
-                      : (invite.invitedByName ? `Requested by ${invite.invitedByName}` : "Request pending")}
-                    {invite.createdAt ? ` on ${new Date(invite.createdAt).toLocaleDateString()}` : ""}
-                    {!invite.canRespond ? " - Waiting for team manager approval" : ""}
+                <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+                  <InviteTeamLogo teamId={invite.teamId} teamName={invite.teamName} />
+                  <div>
+                    <div className="invite-team-name">{invite.teamName || invite.teamId || "Team"}</div>
+                    <div className="text-sm text-gray-600">
+                      {invite.canRespond
+                        ? (invite.invitedByName ? `Invited by ${invite.invitedByName}` : "Invited")
+                        : (invite.invitedByName ? `Requested by ${invite.invitedByName}` : "Request pending")}
+                      {invite.createdAt ? ` on ${new Date(invite.createdAt).toLocaleDateString()}` : ""}
+                      {!invite.canRespond ? " - Waiting for team manager approval" : ""}
+                    </div>
                   </div>
                 </div>
                 {invite.canRespond ? (
@@ -427,6 +431,32 @@ const TeamInvites = () => {
         </div>
       )}
     </div>
+  );
+};
+
+const InviteTeamLogo = ({ teamId, teamName }: { teamId?: string; teamName?: string | null }) => {
+  const { data: teamDetails } = useGetTeamDetailsQuery(
+    { teamId: teamId ?? "" },
+    { skip: !teamId },
+  );
+
+  if (!teamDetails?.logoUri) {
+    return (
+      <div
+        className="rounded border border-gray-200 bg-gray-100"
+        style={{ width: "2rem", height: "2rem" }}
+        aria-hidden="true"
+      />
+    );
+  }
+
+  return (
+    <img
+      src={teamDetails.logoUri}
+      alt={`${teamName || "Team"} logo`}
+      className="rounded border border-gray-200 object-cover"
+      style={{ width: "2rem", height: "2rem" }}
+    />
   );
 };
 

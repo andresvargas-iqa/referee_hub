@@ -12,6 +12,7 @@ import { getErrorString } from "../../utils/errorUtils";
 import TeamEditModal from "../../components/modals/TeamEditModal/TeamEditModal";
 import AddManagerModal from "./AddManagerModal";
 import ActionButtonPair from "../../components/ActionButtonPair";
+import Toggle from "../../components/Toggle";
 
 const TeamManagement = () => {
   const { teamId } = useNavigationParams<"teamId">();
@@ -276,27 +277,24 @@ const TeamManagement = () => {
         {/* Auto-approve toggle */}
         <div className="mb-4 rounded border border-gray-300 bg-white p-4">
           <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-2">
               <p className="font-semibold text-gray-900">Auto-approve incoming player requests</p>
-              <div className="relative inline-block group">
-                <span className="cursor-help text-gray-400 border border-gray-400 rounded-full w-4 h-4 inline-flex items-center justify-center text-xs font-bold">?</span>
-                <div className="absolute left-0 top-6 z-10 hidden group-hover:block w-72 bg-gray-800 text-white text-xs rounded p-2 shadow-lg">
-                  <p>If this is on, all incoming requests will be approved automatically.</p>
-                  <p className="mt-1">If this is turned on, all pending requests will be approved in bulk.</p>
-                </div>
-              </div>
+              <span
+                className="cursor-help text-gray-400 border border-gray-400 rounded-full w-4 h-4 inline-flex items-center justify-center text-xs font-bold"
+                title="If this is on, incoming requests are approved automatically and all current pending requests are approved in bulk."
+                aria-label="Auto-approve help"
+              >
+                ?
+              </span>
             </div>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                className="sr-only peer"
+            <div className="flex items-center">
+              <Toggle
+                name="autoApprovePlayerRequests"
                 checked={Boolean(team.autoApprovePlayerRequests)}
                 onChange={(e) => handleAutoApproveToggle(e.target.checked)}
-                disabled={isUpdatingAutoApprove}
               />
-              <div className="w-11 h-6 bg-gray-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green"></div>
               <span className="ml-2 text-sm font-medium text-gray-700">{isUpdatingAutoApprove ? "Saving..." : (team.autoApprovePlayerRequests ? "Enabled" : "Disabled")}</span>
-            </label>
+            </div>
           </div>
         </div>
         <div className="flex items-center justify-between mb-4 border-b-2 border-green pb-2 gap-4">
