@@ -22,6 +22,17 @@ public class TeamInvitationsApiIntegrationTests : IClassFixture<TestWebApplicati
 		this.client = factory.CreateClient();
 	}
 
+	private async Task SetTeamAutoApprovePlayerRequestsAsync(string teamId, bool isEnabled)
+	{
+		await AuthenticationHelper.AuthenticateAsAsync(this.client, "ngb_admin@example.com", "password");
+
+		var toggleResponse = await this.client.PutAsJsonAsync(
+			$"/api/v2/Teams/{teamId}/autoApprovePlayerRequests",
+			new { isEnabled });
+
+		toggleResponse.StatusCode.Should().Be(HttpStatusCode.NoContent);
+	}
+
 	[Fact]
 	public async Task InvitePlayer_AsTeamManager_ShouldCreatePendingInvite()
 	{
@@ -208,6 +219,7 @@ public class TeamInvitationsApiIntegrationTests : IClassFixture<TestWebApplicati
 	[Fact]
 	public async Task UpdateReferee_WithPlayingTeamRequest_ShouldCreatePendingManagerApprovalRequest()
 	{
+		await this.SetTeamAutoApprovePlayerRequestsAsync("TM_2", false);
 		await AuthenticationHelper.AuthenticateAsAsync(this.client, "referee@example.com", "password");
 
 		var updateResponse = await this.client.PutAsJsonAsync("/api/v2/Referees/me", new
@@ -241,6 +253,7 @@ public class TeamInvitationsApiIntegrationTests : IClassFixture<TestWebApplicati
 	[Fact]
 	public async Task RespondToPendingInvite_Approve_ShouldAddMembershipAndClearPendingRequest()
 	{
+		await this.SetTeamAutoApprovePlayerRequestsAsync("TM_2", false);
 		await AuthenticationHelper.AuthenticateAsAsync(this.client, "referee@example.com", "password");
 
 		var updateResponse = await this.client.PutAsJsonAsync("/api/v2/Referees/me", new
@@ -290,6 +303,7 @@ public class TeamInvitationsApiIntegrationTests : IClassFixture<TestWebApplicati
 	[Fact]
 	public async Task RespondToPendingInvite_Reject_ShouldClearPendingRequestWithoutMembership()
 	{
+		await this.SetTeamAutoApprovePlayerRequestsAsync("TM_2", false);
 		await AuthenticationHelper.AuthenticateAsAsync(this.client, "referee@example.com", "password");
 
 		var updateResponse = await this.client.PutAsJsonAsync("/api/v2/Referees/me", new
@@ -338,6 +352,8 @@ public class TeamInvitationsApiIntegrationTests : IClassFixture<TestWebApplicati
 	[Fact]
 	public async Task GetMyTeamHistory_AfterApprovedTransfer_ShouldIncludeJoinAndLeaveActivities()
 	{
+		await this.SetTeamAutoApprovePlayerRequestsAsync("TM_1", false);
+		await this.SetTeamAutoApprovePlayerRequestsAsync("TM_2", false);
 		await AuthenticationHelper.AuthenticateAsAsync(this.client, "referee@example.com", "password");
 
 		var currentProfileResponse = await this.client.GetAsync("/api/v2/Referees/me");
@@ -458,6 +474,7 @@ public class TeamInvitationsApiIntegrationTests : IClassFixture<TestWebApplicati
 	[Fact]
 	public async Task SetAutoApprovePlayerRequests_Enable_ShouldBulkApprovePendingRequests()
 	{
+		await this.SetTeamAutoApprovePlayerRequestsAsync("TM_2", false);
 		await AuthenticationHelper.AuthenticateAsAsync(this.client, "referee@example.com", "password");
 
 		var requestResponse = await this.client.PutAsJsonAsync("/api/v2/Referees/me", new
