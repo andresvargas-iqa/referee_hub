@@ -1,6 +1,5 @@
 ﻿using System;
 using Microsoft.EntityFrameworkCore.Migrations;
-using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
@@ -16,8 +15,8 @@ namespace ManagementHub.Storage.Migrations
                 name: "team_invitations",
                 columns: table => new
                 {
-                    id = table.Column<long>(type: "bigint", nullable: false)
-                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    id = table.Column<long>(type: "INTEGER", nullable: false)
+                        .Annotation("Sqlite:Autoincrement", true),
                     team_id = table.Column<long>(type: "INTEGER", nullable: false),
                     email = table.Column<string>(type: "character varying", nullable: false),
                     initiator_user_id = table.Column<long>(type: "INTEGER", nullable: false),
@@ -54,8 +53,8 @@ namespace ManagementHub.Storage.Migrations
                 name: "team_player_activities",
                 columns: table => new
                 {
-                    id = table.Column<long>(type: "bigint", nullable: false)
-                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    id = table.Column<long>(type: "INTEGER", nullable: false)
+                        .Annotation("Sqlite:Autoincrement", true),
                     team_id = table.Column<long>(type: "INTEGER", nullable: false),
                     user_id = table.Column<long>(type: "INTEGER", nullable: true),
                     email = table.Column<string>(type: "character varying", nullable: false),
@@ -117,11 +116,22 @@ namespace ManagementHub.Storage.Migrations
                 name: "IX_team_player_activities_initiator_user_id",
                 table: "team_player_activities",
                 column: "initiator_user_id");
+
+            migrationBuilder.AddColumn<bool>(
+                name: "auto_approve_player_requests",
+                table: "teams",
+                type: "boolean",
+                nullable: false,
+                defaultValue: false);
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.DropColumn(
+                name: "auto_approve_player_requests",
+                table: "teams");
+
             migrationBuilder.DropTable(
                 name: "team_invitations");
 

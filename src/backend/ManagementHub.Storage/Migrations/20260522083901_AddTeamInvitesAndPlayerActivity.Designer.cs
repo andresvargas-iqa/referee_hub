@@ -1118,6 +1118,12 @@ namespace ManagementHub.Storage.Migrations
                         .HasColumnType("INTEGER")
                         .HasColumnName("id");
 
+                    b.Property<bool>("AutoApprovePlayerRequests")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(false)
+                        .HasColumnName("auto_approve_player_requests");
+
                     b.Property<string>("City")
                         .IsRequired()
                         .HasColumnType("character varying")
