@@ -454,4 +454,68 @@ public class TeamInvitationsApiIntegrationTests : IClassFixture<TestWebApplicati
 		team.Should().NotBeNull();
 		team!.PendingInvites.Should().Contain(i => i.Email == "referee@example.com" && i.RequiresManagerDecision);
 	}
+
+	[Fact]
+	public async Task SetAutoApprovePlayerRequests_Enable_ShouldBulkApprovePendingRequests()
+	{
+		await AuthenticationHelper.AuthenticateAsAsync(this.client, "referee@example.com", "password");
+
+		var requestResponse = await this.client.PutAsJsonAsync("/api/v2/Referees/me", new
+		{
+			primaryNgb = "USA",
+			secondaryNgb = (string?)null,
+			playingTeam = new { id = "TM_2" },
+			coachingTeam = (object?)null,
+			nationalTeam = (object?)null,
+		});
+
+		requestResponse.StatusCode.Should().Be(HttpStatusCode.NoContent);
+
+		await AuthenticationHelper.AuthenticateAsAsync(this.client, "ngb_admin@example.com", "password");
+
+		var toggleResponse = await this.client.PutAsJsonAsync(
+			"/api/v2/Teams/TM_2/autoApprovePlayerRequests",
+			new { isEnabled = true });
+
+		toggleResponse.StatusCode.Should().Be(HttpStatusCode.NoContent);
+
+		var managementResponse = await this.client.GetAsync("/api/v2/Teams/TM_2/management");
+		managementResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+		var team = await managementResponse.Content.ReadFromJsonAsync<TeamManagementViewModelDto>();
+		team.Should().NotBeNull();
+		team!.AutoApprovePlayerRequests.Should().BeTrue();
+		team.PendingInvites.Should().NotContain(i => i.Email == "referee@example.com");
+		team.Members.Should().Contain(m => m.Email == "referee@example.com");
+	}
+
+	[Fact]
+	public async Task UpdateReferee_WithAutoApproveEnabled_ShouldNotCreatePendingRequest()
+	{
+		await AuthenticationHelper.AuthenticateAsAsync(this.client, "ngb_admin@example.com", "password");
+
+		var toggleResponse = await this.client.PutAsJsonAsync(
+			"/api/v2/Teams/TM_2/autoApprovePlayerRequests",
+			new { isEnabled = true });
+
+		toggleResponse.StatusCode.Should().Be(HttpStatusCode.NoContent);
+
+		await AuthenticationHelper.AuthenticateAsAsync(this.client, "referee@example.com", "password");
+
+		var updateResponse = await this.client.PutAsJsonAsync("/api/v2/Referees/me", new
+		{
+			primaryNgb = "USA",
+			secondaryNgb = (string?)null,
+			playingTeam = new { id = "TM_2" },
+			coachingTeam = (object?)null,
+			nationalTeam = (object?)null,
+		});
+
+		updateResponse.StatusCode.Should().Be(HttpStatusCode.NoContent);
+
+		var myInvitesResponse = await this.client.GetAsync("/api/v2/users/me/teamInvites");
+		myInvitesResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+		var myInvites = await myInvitesResponse.Content.ReadFromJsonAsync<List<CurrentUserTeamInviteViewModelDto>>();
+		myInvites.Should().NotBeNull();
+		myInvites!.Should().NotContain(i => i.TeamId == "TM_2" && i.Email == "referee@example.com");
+	}
 }

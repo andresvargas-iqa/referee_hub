@@ -4,6 +4,7 @@ namespace ManagementHub.IntegrationTests.Models;
 
 public class TeamManagementViewModelDto
 {
+	public bool AutoApprovePlayerRequests { get; set; }
 	public List<TeamMemberViewModelDto> Members { get; set; } = [];
 	public List<TeamInvitationViewModelDto> PendingInvites { get; set; } = [];
 	public List<TeamPlayerActivityViewModelDto> PlayerHistory { get; set; } = [];

@@ -30,6 +30,7 @@ public partial class Team : IIdentifiable
 	public DateTime? JoinedAt { get; set; }
 	public string? Description { get; set; }
 	public string? ContactEmail { get; set; }
+	public bool AutoApprovePlayerRequests { get; set; }
 
 	public virtual NationalGoverningBody? NationalGoverningBody { get; set; }
 	public virtual ICollection<RefereeTeam> RefereeTeams { get; set; }

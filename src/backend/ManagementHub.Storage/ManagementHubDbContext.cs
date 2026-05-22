@@ -1085,6 +1085,10 @@ public partial class ManagementHubDbContext : DbContext, IDataProtectionKeyConte
 				.HasColumnType("character varying")
 				.HasColumnName("contact_email");
 
+			entity.Property(e => e.AutoApprovePlayerRequests)
+				.HasColumnName("auto_approve_player_requests")
+				.HasDefaultValue(false);
+
 			entity.HasOne(d => d.NationalGoverningBody)
 				.WithMany(p => p.Teams)
 				.HasForeignKey(d => d.NationalGoverningBodyId)

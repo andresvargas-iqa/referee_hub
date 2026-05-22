@@ -440,6 +440,7 @@ public class TeamsController : ControllerBase
 			LogoUri = await this.GetTeamLogoUriAsync(teamId),
 			Description = team.TeamData.Description,
 			ContactEmail = team.TeamData.ContactEmail,
+			AutoApprovePlayerRequests = team.TeamData.AutoApprovePlayerRequests,
 			SocialAccounts = socialAccounts,
 			Managers = managers.Select(m => new TeamManagerViewModel
 			{
@@ -458,6 +459,93 @@ public class TeamsController : ControllerBase
 			PendingInvites = pendingInvites,
 			PlayerHistory = playerHistory
 		});
+	}
+
+	[HttpPut("{teamId}/autoApprovePlayerRequests")]
+	[Tags("TeamManagement")]
+	[Authorize]
+	public async Task<IActionResult> SetAutoApprovePlayerRequests(
+		[FromRoute] TeamIdentifier teamId,
+		[FromBody] SetTeamAutoApprovePlayerRequestsRequest request)
+	{
+		var userContext = await this.contextAccessor.GetCurrentUserContextAsync();
+		var authError = await this.ValidateTeamManagementAccessAsync(teamId, allowNgbAdmin: true);
+		if (authError != null)
+		{
+			return authError;
+		}
+
+		var team = await this.dbContext.Teams
+			.FirstOrDefaultAsync(t => t.Id == teamId.Id, this.HttpContext.RequestAborted);
+
+		if (team == null)
+		{
+			return this.NotFound();
+		}
+
+		team.AutoApprovePlayerRequests = request.IsEnabled;
+
+		if (!request.IsEnabled)
+		{
+			await this.dbContext.SaveChangesAsync(this.HttpContext.RequestAborted);
+			return this.NoContent();
+		}
+
+		var currentUserDbId = await this.GetCurrentUserDbIdAsync(userContext.UserId);
+		var pendingRequests = await this.dbContext.TeamInvitations
+			.Include(invitation => invitation.Initiator)
+			.Where(invitation =>
+				invitation.TeamId == teamId.Id &&
+				invitation.RevokedAt == null &&
+				invitation.AcceptedAt == null &&
+				invitation.DeclinedAt == null &&
+				invitation.Initiator.Email.ToLower() == invitation.Email.ToLower())
+			.ToListAsync(this.HttpContext.RequestAborted);
+
+		var usersToNotify = new List<InvitedUserLookup>();
+		foreach (var invitation in pendingRequests)
+		{
+			var invitationEmail = TeamInviteHelpers.NormalizeEmail(invitation.Email);
+			var invitedUser = await this.dbContext.Users
+				.Where(dbUser => dbUser.Email.ToLower() == invitationEmail)
+				.Select(dbUser => new InvitedUserLookup(dbUser.Id, dbUser.Email, dbUser.UniqueId))
+				.FirstOrDefaultAsync(this.HttpContext.RequestAborted);
+
+			var respondedAt = DateTime.UtcNow;
+			var approvalError = await this.TryApplyApprovedInviteResponseAsync(
+				teamId,
+				invitation,
+				invitedUser,
+				currentUserDbId,
+				respondedAt);
+
+			if (approvalError != null)
+			{
+				continue;
+			}
+
+			this.RecordInviteResponse(invitation, approved: true, currentUserDbId, respondedAt);
+			this.AddInviteResponseActivity(teamId, invitation, invitedUser?.Id, currentUserDbId, approved: true, respondedAt);
+
+			if (invitedUser != null && invitedUser.Id != currentUserDbId)
+			{
+				usersToNotify.Add(invitedUser);
+			}
+		}
+
+		await this.dbContext.SaveChangesAsync(this.HttpContext.RequestAborted);
+
+		foreach (var invitedUser in usersToNotify.GroupBy(user => user.Id).Select(group => group.First()))
+		{
+			await this.notificationService.CreateTeamInviteResponseNotificationForPlayerAsync(
+				invitedUser.ToUserIdentifier(),
+				teamId,
+				team.Name,
+				approved: true,
+				this.HttpContext.RequestAborted);
+		}
+
+		return this.NoContent();
 	}
 
 	/// <summary>

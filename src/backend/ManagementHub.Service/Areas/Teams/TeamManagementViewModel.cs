@@ -66,6 +66,11 @@ public class TeamManagementViewModel
 	public string? ContactEmail { get; set; }
 
 	/// <summary>
+	/// Whether incoming player requests should be automatically approved.
+	/// </summary>
+	public bool AutoApprovePlayerRequests { get; set; }
+
+	/// <summary>
 	/// Team social media accounts.
 	/// </summary>
 	public required IEnumerable<SocialAccount> SocialAccounts { get; set; }

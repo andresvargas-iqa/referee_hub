@@ -270,6 +270,7 @@ public class DbTeamContextFactory
 		JoinedAt = tt.JoinedAt ?? new DateTime(),
 		Description = tt.Description,
 		ContactEmail = tt.ContactEmail,
+		AutoApprovePlayerRequests = tt.AutoApprovePlayerRequests,
 	});
 
 	public static Expression<Func<Models.Data.Team, DbTeamContext>> Selector = tt => new DbTeamContext(new TeamIdentifier(tt.Id), new NgbIdentifier(tt.NationalGoverningBody!.CountryCode), new TeamData
@@ -283,6 +284,7 @@ public class DbTeamContextFactory
 		JoinedAt = tt.JoinedAt ?? new DateTime(),
 		Description = tt.Description,
 		ContactEmail = tt.ContactEmail,
+		AutoApprovePlayerRequests = tt.AutoApprovePlayerRequests,
 	});
 
 	public async Task<ITeamContext?> GetTeamAsync(TeamIdentifier teamId, NgbConstraint ngbs)

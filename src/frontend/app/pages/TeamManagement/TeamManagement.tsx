@@ -5,6 +5,7 @@ import {
   useGetTeamManagementQuery,
   useRemovePlayerMutation,
   useRespondToPendingTeamInviteMutation,
+  useSetTeamAutoApprovePlayerRequestsMutation,
   useRevokeTeamInviteMutation,
 } from "../../store/serviceApi";
 import { getErrorString } from "../../utils/errorUtils";
@@ -30,6 +31,7 @@ const TeamManagement = () => {
   const [removePlayer, { isLoading: isRemovingPlayer }] = useRemovePlayerMutation();
   const [revokeTeamInvite, { isLoading: isRevokingInvite }] = useRevokeTeamInviteMutation();
   const [respondToPendingTeamInvite, { isLoading: isRespondingInvite }] = useRespondToPendingTeamInviteMutation();
+  const [setTeamAutoApprovePlayerRequests, { isLoading: isUpdatingAutoApprove }] = useSetTeamAutoApprovePlayerRequestsMutation();
 
   const executeApiCall = async (
     action: () => Promise<void>,
@@ -115,6 +117,20 @@ const TeamManagement = () => {
         }).unwrap();
       },
       { actionLabel: "update player request", useAlert: true }
+    );
+  };
+
+  const handleAutoApproveToggle = async (isEnabled: boolean) => {
+    if (!teamId) return;
+
+    await executeApiCall(
+      async () => {
+        await setTeamAutoApprovePlayerRequests({
+          teamId,
+          setTeamAutoApprovePlayerRequestsRequest: { isEnabled },
+        }).unwrap();
+      },
+      { actionLabel: "update auto-approve setting", useAlert: true }
     );
   };
 
@@ -288,6 +304,26 @@ const TeamManagement = () => {
 
       {/* Pending Requests Section */}
       <div className="bg-gray-100 rounded-lg p-6">
+        <div className="mb-4 rounded border border-gray-300 bg-white p-4">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="font-semibold text-gray-900">Auto-approve incoming player requests</p>
+              <p className="text-sm text-gray-600">If this is on, all incoming requests will be approved automatically.</p>
+              <p className="text-sm text-gray-600">If this is turned on, all pending requests will be approved in bulk.</p>
+            </div>
+            <label className="inline-flex items-center gap-2 text-sm font-medium text-gray-700">
+              <input
+                type="checkbox"
+                className="h-4 w-4"
+                checked={Boolean(team.autoApprovePlayerRequests)}
+                onChange={(event) => handleAutoApproveToggle(event.target.checked)}
+                disabled={isUpdatingAutoApprove}
+              />
+              {isUpdatingAutoApprove ? "Saving..." : "Enabled"}
+            </label>
+          </div>
+        </div>
+
         <div className="flex items-center justify-between mb-4 border-b-2 border-green pb-2 gap-4">
           <h2 className="text-2xl font-semibold">Pending Requests</h2>
           <div className="flex gap-2 w-full max-w-lg">

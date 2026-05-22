@@ -157,9 +157,12 @@ public class RefereesController : ControllerBase
 		long currentUserDbId,
 		UserIdentifier currentUserId)
 	{
-		var teamExists = await this.dbContext.Teams
-			.AnyAsync(team => team.Id == requestedTeamId, this.HttpContext.RequestAborted);
-		if (!teamExists)
+		var teamSettings = await this.dbContext.Teams
+			.Where(team => team.Id == requestedTeamId)
+			.Select(team => new { team.Id, team.Name, team.AutoApprovePlayerRequests })
+			.FirstOrDefaultAsync(this.HttpContext.RequestAborted);
+
+		if (teamSettings == null)
 		{
 			return this.BadRequest("Selected team was not found.");
 		}
@@ -190,13 +193,14 @@ public class RefereesController : ControllerBase
 		if (!hasPendingRequest)
 		{
 			var requestedAt = DateTime.UtcNow;
-			this.dbContext.TeamInvitations.Add(new ManagementHub.Models.Data.TeamInvitation
+			var invitation = new ManagementHub.Models.Data.TeamInvitation
 			{
 				TeamId = requestedTeamId,
 				Email = normalizedEmail,
 				InitiatorUserId = currentUserDbId,
 				CreatedAt = requestedAt,
-			});
+			};
+			this.dbContext.TeamInvitations.Add(invitation);
 
 			this.dbContext.TeamPlayerActivities.Add(new ManagementHub.Models.Data.TeamPlayerActivity
 			{
@@ -208,13 +212,64 @@ public class RefereesController : ControllerBase
 				CreatedAt = requestedAt,
 			});
 
+			if (teamSettings.AutoApprovePlayerRequests)
+			{
+				var approvedAt = DateTime.UtcNow;
+				invitation.AcceptedAt = approvedAt;
+				invitation.RespondedByUserId = currentUserDbId;
+
+				var existingPlayerMembership = await this.dbContext.RefereeTeams
+					.FirstOrDefaultAsync(
+						membership =>
+							membership.RefereeId == currentUserDbId &&
+							membership.AssociationType == RefereeTeamAssociationType.Player,
+						this.HttpContext.RequestAborted);
+
+				if (existingPlayerMembership == null)
+				{
+					this.dbContext.RefereeTeams.Add(new ManagementHub.Models.Data.RefereeTeam
+					{
+						AssociationType = RefereeTeamAssociationType.Player,
+						RefereeId = currentUserDbId,
+						TeamId = requestedTeamId,
+						CreatedAt = approvedAt,
+						UpdatedAt = approvedAt,
+					});
+				}
+				else if (existingPlayerMembership.TeamId != requestedTeamId && existingPlayerMembership.TeamId.HasValue)
+				{
+					this.dbContext.TeamPlayerActivities.Add(new ManagementHub.Models.Data.TeamPlayerActivity
+					{
+						TeamId = existingPlayerMembership.TeamId.Value,
+						UserId = currentUserDbId,
+						Email = normalizedEmail,
+						InitiatorUserId = currentUserDbId,
+						ActivityType = TeamPlayerActivityType.PlayerRemoved,
+						CreatedAt = approvedAt,
+					});
+
+					existingPlayerMembership.TeamId = requestedTeamId;
+					existingPlayerMembership.UpdatedAt = approvedAt;
+				}
+
+				this.dbContext.TeamPlayerActivities.Add(new ManagementHub.Models.Data.TeamPlayerActivity
+				{
+					TeamId = requestedTeamId,
+					UserId = currentUserDbId,
+					Email = normalizedEmail,
+					InitiatorUserId = currentUserDbId,
+					ActivityType = TeamPlayerActivityType.InviteAccepted,
+					CreatedAt = approvedAt,
+				});
+
+				await this.dbContext.SaveChangesAsync(this.HttpContext.RequestAborted);
+				return null;
+			}
+
 			await this.dbContext.SaveChangesAsync(this.HttpContext.RequestAborted);
 
 			var teamId = new TeamIdentifier(requestedTeamId);
-			var teamName = await this.dbContext.Teams
-				.Where(team => team.Id == requestedTeamId)
-				.Select(team => team.Name)
-				.FirstOrDefaultAsync(this.HttpContext.RequestAborted) ?? teamId.ToString();
+			var teamName = teamSettings.Name ?? teamId.ToString();
 
 			var managers = await this.teamContextProvider.GetTeamManagersAsync(teamId, NgbConstraint.Any);
 			foreach (var manager in managers.Where(manager => manager.UserId != currentUserId))
