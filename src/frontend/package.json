@@ -151,7 +151,6 @@
     "styles": "postcss ./assets/stylesheets/application.css -o dist/management_hub.css && sass ./app/assets/stylesheets/app.scss dist/management_hub_app.css",
     "styles:common": "postcss ./assets/stylesheets/application.css -o dist/management_hub.css",
     "styles:app": "sass ./app/assets/stylesheets/app.scss dist/management_hub_app.css",
-    "images:copy": "shx cp -R ./assets/images ./dist/",
-    "sync:backend": "node sync-to-backend.js"
+    "images:copy": "shx cp -R ./assets/images ./dist/"
   }
 }

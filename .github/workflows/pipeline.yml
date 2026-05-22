@@ -69,20 +69,6 @@ jobs:
       run: dotnet restore
       working-directory: src/backend
 
-    - name: Create .env file for frontend build
-      run: |
-        if [ ! -f ".env" ]; then
-          echo "Creating .env file for CI build..."
-          {
-            echo "BASE_URL=/"
-            echo "BUGSNAG_API_KEY="
-            echo "STRIPE_PUBLISHABLE_KEY=pk_test_stub"
-            echo "NODE_ENV=development"
-            echo "REACT_APP_API_URL=http://localhost:5000"
-          } > .env
-        fi
-      working-directory: src/frontend
-
     - name: Build frontend
       run: yarn build:dev
       working-directory: src/frontend
@@ -108,14 +94,14 @@ jobs:
         if [ ! -f "ManagementHub.UnitTests/dotnet-test-result.xml" ]; then
           echo "Test result file not found, creating placeholder..."
           mkdir -p ManagementHub.UnitTests
-          {
-            echo '<?xml version="1.0" encoding="UTF-8"?>'
-            echo '<testsuites tests="0" failures="0" errors="0" time="0">'
-            echo '  <testsuite name="Placeholder" tests="0" failures="0" errors="0" time="0">'
-            echo '    <properties/>'
-            echo '  </testsuite>'
-            echo '</testsuites>'
-          } > ManagementHub.UnitTests/dotnet-test-result.xml
+          cat > ManagementHub.UnitTests/dotnet-test-result.xml << 'EOF'
+        <?xml version="1.0" encoding="UTF-8"?>
+        <testsuites tests="0" failures="0" errors="0" time="0">
+          <testsuite name="Placeholder" tests="0" failures="0" errors="0" time="0">
+            <properties/>
+          </testsuite>
+        </testsuites>
+        EOF
           echo "Placeholder test result created"
         fi
 
@@ -231,11 +217,11 @@ jobs:
       working-directory: src/backend
 
     - name: Build backend
-      run: dotnet build ManagementHub.sln --no-restore -c Release
+      run: dotnet build --no-restore -c Release
       working-directory: src/backend
 
     - name: Run integration tests
-      run: dotnet test ManagementHub.IntegrationTests/ManagementHub.IntegrationTests.csproj -c Release --verbosity normal --logger:"junit;LogFilePath=dotnet-integration-test-result.xml"
+      run: dotnet test ManagementHub.IntegrationTests/ManagementHub.IntegrationTests.csproj --no-build -c Release --verbosity normal --logger:"junit;LogFilePath=dotnet-integration-test-result.xml"
       working-directory: src/backend
 
     - name: Create placeholder test result if missing
@@ -245,14 +231,14 @@ jobs:
         if [ ! -f "ManagementHub.IntegrationTests/dotnet-integration-test-result.xml" ]; then
           echo "Test result file not found, creating placeholder..."
           mkdir -p ManagementHub.IntegrationTests
-          {
-            echo '<?xml version="1.0" encoding="UTF-8"?>'
-            echo '<testsuites tests="0" failures="0" errors="0" time="0">'
-            echo '  <testsuite name="Placeholder" tests="0" failures="0" errors="0" time="0">'
-            echo '    <properties/>'
-            echo '  </testsuite>'
-            echo '</testsuites>'
-          } > ManagementHub.IntegrationTests/dotnet-integration-test-result.xml
+          cat > ManagementHub.IntegrationTests/dotnet-integration-test-result.xml << 'EOF'
+        <?xml version="1.0" encoding="UTF-8"?>
+        <testsuites tests="0" failures="0" errors="0" time="0">
+          <testsuite name="Placeholder" tests="0" failures="0" errors="0" time="0">
+            <properties/>
+          </testsuite>
+        </testsuites>
+        EOF
           echo "Placeholder test result created"
         fi
 

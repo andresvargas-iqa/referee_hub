@@ -9,7 +9,8 @@ module.exports = merge(common, {
     new Dotenv({
       systemvars: true,
       path: './.env.prod',
-      silent: true,
+      safe: false,
+      allowEmptyValues: true,
     }),
   ],
 });
