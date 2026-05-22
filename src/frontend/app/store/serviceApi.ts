@@ -368,21 +368,6 @@ const injectedRtkApi = api
         query: (queryArg) => ({ url: `/api/v2/Teams/${queryArg.teamId}/management` }),
         providesTags: (result, error, arg) => [{ type: "TeamManagement", id: arg.teamId }],
       }),
-      setTeamAutoApprovePlayerRequests: build.mutation<
-        SetTeamAutoApprovePlayerRequestsApiResponse,
-        SetTeamAutoApprovePlayerRequestsApiArg
-      >({
-        query: (queryArg) => ({
-          url: `/api/v2/Teams/${queryArg.teamId}/autoApprovePlayerRequests`,
-          method: "PUT",
-          body: queryArg.setTeamAutoApprovePlayerRequestsRequest,
-        }),
-        invalidatesTags: (result, error, arg) => [
-          { type: "TeamManagement", id: arg.teamId },
-          "User",
-          "Team",
-        ],
-      }),
       addTeamManagerToTeam: build.mutation<
         AddTeamManagerToTeamApiResponse,
         AddTeamManagerToTeamApiArg
@@ -987,12 +972,6 @@ export type GetTeamManagementApiResponse = /** status 200 Success */ TeamManagem
 export type GetTeamManagementApiArg = {
   /** Team identifier */
   teamId: string;
-};
-export type SetTeamAutoApprovePlayerRequestsApiResponse = unknown;
-export type SetTeamAutoApprovePlayerRequestsApiArg = {
-  /** Team identifier */
-  teamId: string;
-  setTeamAutoApprovePlayerRequestsRequest: SetTeamAutoApprovePlayerRequestsRequest;
 };
 export type AddTeamManagerToTeamApiResponse = /** status 200 Success */ string;
 export type AddTeamManagerToTeamApiArg = {
@@ -1694,8 +1673,6 @@ export type TeamManagementViewModel = {
   description?: string | null;
   /** Team contact email. */
   contactEmail?: string | null;
-  /** Whether incoming player requests should be automatically approved. */
-  autoApprovePlayerRequests?: boolean;
   /** Team social media accounts. */
   socialAccounts?: SocialAccount[] | null;
   /** Team managers. */
@@ -1714,9 +1691,6 @@ export type AddTeamManagerRequest = {
 export type InvitePlayerRequest = {
   /** Email address of the player to invite. */
   email: string;
-};
-export type SetTeamAutoApprovePlayerRequestsRequest = {
-  isEnabled: boolean;
 };
 export type RefereeTestDetailsViewModel = {
   testId?: string;
@@ -2002,7 +1976,6 @@ export const {
   useGetTeamMembersQuery,
   useGetTeamTournamentInvitesQuery,
   useGetTeamManagementQuery,
-  useSetTeamAutoApprovePlayerRequestsMutation,
   useAddTeamManagerToTeamMutation,
   useCreateTeamInviteMutation,
   useRevokeTeamInviteMutation,
