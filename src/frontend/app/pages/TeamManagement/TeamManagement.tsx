@@ -5,8 +5,8 @@ import {
   useGetTeamManagementQuery,
   useRemovePlayerMutation,
   useRespondToPendingTeamInviteMutation,
-  useSetTeamAutoApprovePlayerRequestsMutation,
   useRevokeTeamInviteMutation,
+  useSetTeamAutoApprovePlayerRequestsMutation,
 } from "../../store/serviceApi";
 import { getErrorString } from "../../utils/errorUtils";
 import TeamEditModal from "../../components/modals/TeamEditModal/TeamEditModal";
@@ -15,12 +15,10 @@ import ActionButtonPair from "../../components/ActionButtonPair";
 
 const TeamManagement = () => {
   const { teamId } = useNavigationParams<"teamId">();
-  const [modalState, setModalState] = useState({
-    isEditModalOpen: false,
-    isAddManagerModalOpen: false,
-    inviteEmail: "",
-    inviteError: null as string | null,
-  });
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isAddManagerModalOpen, setIsAddManagerModalOpen] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteError, setInviteError] = useState<string | null>(null);
   
   const { data: team, error: teamError, isLoading } = useGetTeamManagementQuery(
     { teamId: teamId! },
@@ -33,61 +31,48 @@ const TeamManagement = () => {
   const [respondToPendingTeamInvite, { isLoading: isRespondingInvite }] = useRespondToPendingTeamInviteMutation();
   const [setTeamAutoApprovePlayerRequests, { isLoading: isUpdatingAutoApprove }] = useSetTeamAutoApprovePlayerRequestsMutation();
 
-  const executeApiCall = async (
-    action: () => Promise<void>,
-    options: {
-      actionLabel: string;
-      onSuccess?: () => void;
-      useAlert?: boolean;
-    }
-  ) => {
+  const handleAutoApproveToggle = async (isEnabled: boolean) => {
+    if (!teamId) return;
     try {
-      await action();
-      setModalState((current) => ({ ...current, inviteError: null }));
-      options.onSuccess?.();
+      await setTeamAutoApprovePlayerRequests({
+        teamId,
+        setTeamAutoApprovePlayerRequestsRequest: { isEnabled },
+      }).unwrap();
     } catch (error: any) {
-      const fallbackMessage = `Failed to ${options.actionLabel}. Please try again.`;
-      const message = error?.data || fallbackMessage;
-      if (options.useAlert) {
-        alert(message);
-      } else {
-        setModalState((current) => ({ ...current, inviteError: message }));
-      }
+      alert(error?.data || "Failed to update auto-approve setting. Please try again.");
     }
   };
 
   const handleRemovePlayer = async (playerId: string, playerName: string) => {
     if (!teamId) return;
-
+    
     if (!confirm(`Remove ${playerName} from team?`)) {
       return;
     }
 
-    await executeApiCall(
-      async () => {
-        await removePlayer({ teamId, playerId }).unwrap();
-      },
-      { actionLabel: "remove player", useAlert: true }
-    );
+    try {
+      await removePlayer({ teamId, playerId }).unwrap();
+    } catch (error: any) {
+      alert(error?.data || "Failed to remove player. Please try again.");
+    }
   };
 
   const handleCreateInvite = async () => {
-    if (!teamId || !modalState.inviteEmail.trim()) {
+    if (!teamId || !inviteEmail.trim()) {
       return;
     }
 
-    await executeApiCall(
-      async () => {
-        await createTeamInvite({
-          teamId,
-          invitePlayerRequest: { email: modalState.inviteEmail.trim() },
-        }).unwrap();
-      },
-      {
-        actionLabel: "create invite",
-        onSuccess: () => setModalState((current) => ({ ...current, inviteEmail: "" })),
-      }
-    );
+    setInviteError(null);
+
+    try {
+      await createTeamInvite({
+        teamId,
+        invitePlayerRequest: { email: inviteEmail.trim() },
+      }).unwrap();
+      setInviteEmail("");
+    } catch (error: any) {
+      setInviteError(error?.data || "Failed to create invite. Please try again.");
+    }
   };
 
   const handleRevokeInvite = async (invitationId: string, email: string) => {
@@ -97,41 +82,25 @@ const TeamManagement = () => {
       return;
     }
 
-    await executeApiCall(
-      async () => {
-        await revokeTeamInvite({ teamId, invitationId }).unwrap();
-      },
-      { actionLabel: "revoke request", useAlert: true }
-    );
+    try {
+      await revokeTeamInvite({ teamId, invitationId }).unwrap();
+    } catch (error: any) {
+      alert(error?.data || "Failed to revoke request. Please try again.");
+    }
   };
 
   const handleRespondToPendingInvite = async (invitationId: string, approved: boolean) => {
     if (!teamId) return;
 
-    await executeApiCall(
-      async () => {
-        await respondToPendingTeamInvite({
-          teamId,
-          invitationId,
-          inviteResponseModel: { approved },
-        }).unwrap();
-      },
-      { actionLabel: "update player request", useAlert: true }
-    );
-  };
-
-  const handleAutoApproveToggle = async (isEnabled: boolean) => {
-    if (!teamId) return;
-
-    await executeApiCall(
-      async () => {
-        await setTeamAutoApprovePlayerRequests({
-          teamId,
-          setTeamAutoApprovePlayerRequestsRequest: { isEnabled },
-        }).unwrap();
-      },
-      { actionLabel: "update auto-approve setting", useAlert: true }
-    );
+    try {
+      await respondToPendingTeamInvite({
+        teamId,
+        invitationId,
+        inviteResponseModel: { approved },
+      }).unwrap();
+    } catch (error: any) {
+      alert(error?.data || "Failed to update player request. Please try again.");
+    }
   };
 
   // Memoize the team object to prevent unnecessary re-renders and form resets
@@ -202,7 +171,7 @@ const TeamManagement = () => {
         <div className="relative">
           <button
             className="bg-green text-white px-6 py-3 rounded-lg font-semibold hover:bg-green-700 transition"
-            onClick={() => setModalState((current) => ({ ...current, isEditModalOpen: true }))}
+            onClick={() => setIsEditModalOpen(true)}
           >
             Edit Team
           </button>
@@ -210,13 +179,13 @@ const TeamManagement = () => {
       </div>
 
       {/* Edit Team Modal */}
-      {modalState.isEditModalOpen && team && (
+      {isEditModalOpen && team && (
         <TeamEditModal
-          open={modalState.isEditModalOpen}
+          open={isEditModalOpen}
           showClose={true}
           teamId={team.teamId}
           team={teamForModal}
-          onClose={() => setModalState((current) => ({ ...current, isEditModalOpen: false }))}
+          onClose={() => setIsEditModalOpen(false)}
         />
       )}
 
@@ -243,17 +212,17 @@ const TeamManagement = () => {
         )}
         <button
           className="mt-4 text-green font-semibold hover:underline"
-          onClick={() => setModalState((current) => ({ ...current, isAddManagerModalOpen: true }))}
+          onClick={() => setIsAddManagerModalOpen(true)}
         >
           + Add Manager
         </button>
       </div>
 
       {/* Add Manager Modal */}
-      {modalState.isAddManagerModalOpen && teamId && (
+      {isAddManagerModalOpen && teamId && (
         <AddManagerModal
           teamId={teamId}
-          onClose={() => setModalState((current) => ({ ...current, isAddManagerModalOpen: false }))}
+          onClose={() => setIsAddManagerModalOpen(false)}
         />
       )}
 
@@ -304,33 +273,32 @@ const TeamManagement = () => {
 
       {/* Pending Requests Section */}
       <div className="bg-gray-100 rounded-lg p-6">
+        {/* Auto-approve toggle */}
         <div className="mb-4 rounded border border-gray-300 bg-white p-4">
           <div className="flex items-center justify-between gap-4">
-            <div>
-              <div className="flex items-center gap-1">
-                <p className="font-semibold text-gray-900">Auto-approve incoming player requests</p>
-                <div className="relative inline-block group">
-                  <span className="cursor-help text-gray-400 border border-gray-400 rounded-full w-4 h-4 inline-flex items-center justify-center text-xs font-bold">?</span>
-                  <div className="absolute left-0 top-6 z-10 hidden group-hover:block w-72 bg-gray-800 text-white text-xs rounded p-2 shadow-lg">
-                    <p>If this is on, all incoming requests will be approved automatically.</p>
-                    <p className="mt-1">If this is turned on, all pending requests will be approved in bulk.</p>
-                  </div>
+            <div className="flex items-center gap-1">
+              <p className="font-semibold text-gray-900">Auto-approve incoming player requests</p>
+              <div className="relative inline-block group">
+                <span className="cursor-help text-gray-400 border border-gray-400 rounded-full w-4 h-4 inline-flex items-center justify-center text-xs font-bold">?</span>
+                <div className="absolute left-0 top-6 z-10 hidden group-hover:block w-72 bg-gray-800 text-white text-xs rounded p-2 shadow-lg">
+                  <p>If this is on, all incoming requests will be approved automatically.</p>
+                  <p className="mt-1">If this is turned on, all pending requests will be approved in bulk.</p>
                 </div>
               </div>
             </div>
-            <label className="inline-flex items-center gap-2 text-sm font-medium text-gray-700">
+            <label className="relative inline-flex items-center cursor-pointer">
               <input
                 type="checkbox"
-                className="h-4 w-4"
+                className="sr-only peer"
                 checked={Boolean(team.autoApprovePlayerRequests)}
-                onChange={(event) => handleAutoApproveToggle(event.target.checked)}
+                onChange={(e) => handleAutoApproveToggle(e.target.checked)}
                 disabled={isUpdatingAutoApprove}
               />
-              {isUpdatingAutoApprove ? "Saving..." : "Enabled"}
+              <div className="w-11 h-6 bg-gray-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green"></div>
+              <span className="ml-2 text-sm font-medium text-gray-700">{isUpdatingAutoApprove ? "Saving..." : (team.autoApprovePlayerRequests ? "Enabled" : "Disabled")}</span>
             </label>
           </div>
         </div>
-
         <div className="flex items-center justify-between mb-4 border-b-2 border-green pb-2 gap-4">
           <h2 className="text-2xl font-semibold">Pending Requests</h2>
           <div className="flex gap-2 w-full max-w-lg">
@@ -338,19 +306,19 @@ const TeamManagement = () => {
               type="email"
               className="flex-1 px-3 py-2 border border-gray-300 rounded"
               placeholder="player@example.com"
-              value={modalState.inviteEmail}
-              onChange={(event) => setModalState((current) => ({ ...current, inviteEmail: event.target.value }))}
+              value={inviteEmail}
+              onChange={(event) => setInviteEmail(event.target.value)}
             />
             <button
               className="bg-green text-white px-4 py-2 rounded font-semibold hover:bg-green-700 disabled:opacity-50"
               onClick={handleCreateInvite}
-              disabled={isCreatingInvite || !modalState.inviteEmail.trim()}
+              disabled={isCreatingInvite || !inviteEmail.trim()}
             >
               {isCreatingInvite ? "Inviting..." : "Invite Player"}
             </button>
           </div>
         </div>
-        {modalState.inviteError && <p className="mb-4 text-sm text-red-600">{modalState.inviteError}</p>}
+        {inviteError && <p className="mb-4 text-sm text-red-600">{inviteError}</p>}
         {team.pendingInvites && team.pendingInvites.length > 0 ? (
           <div className="space-y-2">
             {team.pendingInvites.map((invite) => (

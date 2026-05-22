@@ -368,6 +368,17 @@ const injectedRtkApi = api
         query: (queryArg) => ({ url: `/api/v2/Teams/${queryArg.teamId}/management` }),
         providesTags: (result, error, arg) => [{ type: "TeamManagement", id: arg.teamId }],
       }),
+      setTeamAutoApprovePlayerRequests: build.mutation<
+        SetTeamAutoApprovePlayerRequestsApiResponse,
+        SetTeamAutoApprovePlayerRequestsApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/api/v2/Teams/${queryArg.teamId}/autoApprovePlayerRequests`,
+          method: "PUT",
+          body: queryArg.setTeamAutoApprovePlayerRequestsRequest,
+        }),
+        invalidatesTags: (result, error, arg) => [{ type: "TeamManagement", id: arg.teamId }],
+      }),
       addTeamManagerToTeam: build.mutation<
         AddTeamManagerToTeamApiResponse,
         AddTeamManagerToTeamApiArg
@@ -1683,6 +1694,16 @@ export type TeamManagementViewModel = {
   pendingInvites?: TeamInvitationViewModel[] | null;
   /** Recent player invite and membership activity for this team. */
   playerHistory?: TeamPlayerActivityViewModel[] | null;
+  /** Whether player join requests are auto-approved. */
+  autoApprovePlayerRequests?: boolean;
+};
+export type SetTeamAutoApprovePlayerRequestsApiResponse = unknown;
+export type SetTeamAutoApprovePlayerRequestsApiArg = {
+  teamId: string;
+  setTeamAutoApprovePlayerRequestsRequest: SetTeamAutoApprovePlayerRequestsRequest;
+};
+export type SetTeamAutoApprovePlayerRequestsRequest = {
+  isEnabled: boolean;
 };
 export type AddTeamManagerRequest = {
   /** Email address of the user to add as manager. */
@@ -2027,4 +2048,5 @@ export const {
   useMarkNotificationReadMutation,
   useMarkAllNotificationsReadMutation,
   useDeleteNotificationMutation,
+  useSetTeamAutoApprovePlayerRequestsMutation,
 } = injectedRtkApi;
