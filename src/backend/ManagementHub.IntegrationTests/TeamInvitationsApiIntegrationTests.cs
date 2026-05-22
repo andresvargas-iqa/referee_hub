@@ -222,6 +222,17 @@ public class TeamInvitationsApiIntegrationTests : IClassFixture<TestWebApplicati
 		await this.SetTeamAutoApprovePlayerRequestsAsync("TM_2", false);
 		await AuthenticationHelper.AuthenticateAsAsync(this.client, "referee@example.com", "password");
 
+		var clearExistingTeamResponse = await this.client.PutAsJsonAsync("/api/v2/Referees/me", new
+		{
+			primaryNgb = "USA",
+			secondaryNgb = (string?)null,
+			playingTeam = (object?)null,
+			coachingTeam = (object?)null,
+			nationalTeam = (object?)null,
+		});
+
+		clearExistingTeamResponse.StatusCode.Should().Be(HttpStatusCode.NoContent);
+
 		var updateResponse = await this.client.PutAsJsonAsync("/api/v2/Referees/me", new
 		{
 			primaryNgb = "USA",
