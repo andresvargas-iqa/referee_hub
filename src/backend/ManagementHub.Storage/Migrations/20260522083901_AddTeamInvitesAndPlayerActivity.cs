@@ -1,5 +1,6 @@
 ﻿using System;
 using Microsoft.EntityFrameworkCore.Migrations;
+using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
@@ -15,16 +16,16 @@ namespace ManagementHub.Storage.Migrations
                 name: "team_invitations",
                 columns: table => new
                 {
-                    id = table.Column<long>(type: "INTEGER", nullable: false)
-                        .Annotation("Sqlite:Autoincrement", true),
-                    team_id = table.Column<long>(type: "INTEGER", nullable: false),
+                    id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    team_id = table.Column<long>(type: "bigint", nullable: false),
                     email = table.Column<string>(type: "character varying", nullable: false),
-                    initiator_user_id = table.Column<long>(type: "INTEGER", nullable: false),
+                    initiator_user_id = table.Column<long>(type: "bigint", nullable: false),
                     created_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                     revoked_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
                     accepted_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
                     declined_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
-                    responded_by_user_id = table.Column<long>(type: "INTEGER", nullable: true)
+                    responded_by_user_id = table.Column<long>(type: "bigint", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -53,13 +54,13 @@ namespace ManagementHub.Storage.Migrations
                 name: "team_player_activities",
                 columns: table => new
                 {
-                    id = table.Column<long>(type: "INTEGER", nullable: false)
-                        .Annotation("Sqlite:Autoincrement", true),
-                    team_id = table.Column<long>(type: "INTEGER", nullable: false),
-                    user_id = table.Column<long>(type: "INTEGER", nullable: true),
+                    id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    team_id = table.Column<long>(type: "bigint", nullable: false),
+                    user_id = table.Column<long>(type: "bigint", nullable: true),
                     email = table.Column<string>(type: "character varying", nullable: false),
-                    initiator_user_id = table.Column<long>(type: "INTEGER", nullable: false),
-                    activity_type = table.Column<int>(type: "INTEGER", nullable: false),
+                    initiator_user_id = table.Column<long>(type: "bigint", nullable: false),
+                    activity_type = table.Column<int>(type: "integer", nullable: false),
                     created_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
                 },
                 constraints: table =>
