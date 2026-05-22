@@ -281,7 +281,7 @@ const TeamManagement = () => {
               <p className="font-semibold text-gray-900">Auto-approve incoming player requests</p>
               <span
                 className="cursor-help text-gray-400 border border-gray-400 rounded-full w-4 h-4 inline-flex items-center justify-center text-xs font-bold"
-                title="If this is on, incoming requests are approved automatically and all current pending requests are approved."
+                title="If this is on, incoming requests are approved automatically and all pending requests are approved."
                 aria-label="Auto-approve help"
               >
                 ?

@@ -660,6 +660,14 @@ const injectedRtkApi = api
         query: () => ({ url: `/api/v2/Users/me/teamInvites` }),
         providesTags: ["User", "TeamManagement"],
       }),
+      getMyTeamHistory: build.query<GetMyTeamHistoryApiResponse, GetMyTeamHistoryApiArg>({
+        query: () => ({ url: `/api/v2/Users/me/teamHistory` }),
+        providesTags: ["User", "TeamManagement"],
+      }),
+      getUserTeamHistory: build.query<GetUserTeamHistoryApiResponse, GetUserTeamHistoryApiArg>({
+        query: (queryArg) => ({ url: `/api/v2/Users/${queryArg.userId}/teamHistory` }),
+        providesTags: ["User", "TeamManagement"],
+      }),
       respondToTeamInvite: build.mutation<RespondToTeamInviteApiResponse, RespondToTeamInviteApiArg>({
         query: (queryArg) => ({
           url: `/api/v2/Users/me/teamInvites/${queryArg.invitationId}`,
@@ -1157,6 +1165,12 @@ export type GetManagedTeamsApiResponse = /** status 200 Success */ ManagedTeamVi
 export type GetManagedTeamsApiArg = void;
 export type GetMyTeamInvitesApiResponse = /** status 200 Success */ CurrentUserTeamInviteViewModel[];
 export type GetMyTeamInvitesApiArg = void;
+export type GetMyTeamHistoryApiResponse = /** status 200 Success */ TeamPlayerActivityViewModel[];
+export type GetMyTeamHistoryApiArg = void;
+export type GetUserTeamHistoryApiResponse = /** status 200 Success */ TeamPlayerActivityViewModel[];
+export type GetUserTeamHistoryApiArg = {
+  userId: string;
+};
 export type RespondToTeamInviteApiResponse = /** status 200 Success */ void;
 export type RespondToTeamInviteApiArg = {
   invitationId: string;
@@ -2034,6 +2048,8 @@ export const {
   useDeleteMyGenderMutation,
   useGetManagedTeamsQuery,
   useGetMyTeamInvitesQuery,
+  useGetMyTeamHistoryQuery,
+  useGetUserTeamHistoryQuery,
   useRespondToTeamInviteMutation,
   useCancelMyTeamInviteMutation,
   useGetMyUpcomingTournamentsQuery,
