@@ -367,31 +367,17 @@ public class UsersController : ControllerBase
 		var currentUserDbId = await this.GetCurrentUserDbIdAsync(currentUser.UserId);
 		var normalizedEmail = TeamInviteHelpers.NormalizeEmail(currentUser.UserData.Email.Value);
 
-		var pendingInvites = await this.dbContext.TeamInvitations
-			.Where(invite => invite.Email.ToLower() == normalizedEmail && invite.RevokedAt == null && invite.AcceptedAt == null && invite.DeclinedAt == null)
-			.OrderByDescending(invite => invite.CreatedAt)
-			.Select(invite => new
-			{
-				invite.Id,
-				invite.TeamId,
-				TeamName = invite.Team.Name,
-				invite.Email,
-				invite.CreatedAt,
-				InitiatorFirstName = invite.Initiator.FirstName,
-				InitiatorLastName = invite.Initiator.LastName,
-				invite.InitiatorUserId
-			})
-			.ToListAsync(this.HttpContext.RequestAborted);
+		var pendingInvites = await this.GetPendingTeamInvitationsForEmailAsync(normalizedEmail);
 
 		return pendingInvites
 			.Select(invite => new CurrentUserTeamInviteViewModel
 			{
 				InvitationId = invite.Id.ToString(),
 				TeamId = new TeamIdentifier(invite.TeamId),
-				TeamName = invite.TeamName,
+				TeamName = invite.Team.Name,
 				Email = invite.Email,
 				CreatedAt = invite.CreatedAt,
-				InvitedByName = TeamInviteHelpers.BuildDisplayName(invite.InitiatorFirstName, invite.InitiatorLastName),
+				InvitedByName = TeamInviteHelpers.BuildDisplayName(invite.Initiator.FirstName, invite.Initiator.LastName),
 				CanRespond = invite.InitiatorUserId != currentUserDbId
 			})
 			.ToList();
@@ -409,17 +395,9 @@ public class UsersController : ControllerBase
 		var normalizedEmail = TeamInviteHelpers.NormalizeEmail(currentUser.UserData.Email.Value);
 
 		// Only allow cancelling requests the player themselves initiated (CanRespond == false case)
-		var invitation = await this.dbContext.TeamInvitations
-			.FirstOrDefaultAsync(
-				i => i.Id == invitationId
-					&& i.Email.ToLower() == normalizedEmail
-					&& i.InitiatorUserId == currentUserDbId
-					&& i.RevokedAt == null
-					&& i.AcceptedAt == null
-					&& i.DeclinedAt == null,
-				this.HttpContext.RequestAborted);
+		var invitation = await this.GetPendingTeamInvitationAsync(invitationId, normalizedEmail);
 
-		if (invitation == null)
+		if (invitation == null || invitation.InitiatorUserId != currentUserDbId)
 		{
 			return this.NotFound();
 		}

@@ -14,10 +14,12 @@ import ActionButtonPair from "../../components/ActionButtonPair";
 
 const TeamManagement = () => {
   const { teamId } = useNavigationParams<"teamId">();
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [isAddManagerModalOpen, setIsAddManagerModalOpen] = useState(false);
-  const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteError, setInviteError] = useState<string | null>(null);
+  const [modalState, setModalState] = useState({
+    isEditModalOpen: false,
+    isAddManagerModalOpen: false,
+    inviteEmail: "",
+    inviteError: null as string | null,
+  });
   
   const { data: team, error: teamError, isLoading } = useGetTeamManagementQuery(
     { teamId: teamId! },
@@ -29,36 +31,61 @@ const TeamManagement = () => {
   const [revokeTeamInvite, { isLoading: isRevokingInvite }] = useRevokeTeamInviteMutation();
   const [respondToPendingTeamInvite, { isLoading: isRespondingInvite }] = useRespondToPendingTeamInviteMutation();
 
+  const executeApiCall = async (
+    action: () => Promise<void>,
+    options: {
+      actionLabel: string;
+      onSuccess?: () => void;
+      useAlert?: boolean;
+    }
+  ) => {
+    try {
+      await action();
+      setModalState((current) => ({ ...current, inviteError: null }));
+      options.onSuccess?.();
+    } catch (error: any) {
+      const fallbackMessage = `Failed to ${options.actionLabel}. Please try again.`;
+      const message = error?.data || fallbackMessage;
+      if (options.useAlert) {
+        alert(message);
+      } else {
+        setModalState((current) => ({ ...current, inviteError: message }));
+      }
+    }
+  };
+
   const handleRemovePlayer = async (playerId: string, playerName: string) => {
     if (!teamId) return;
-    
+
     if (!confirm(`Remove ${playerName} from team?`)) {
       return;
     }
 
-    try {
-      await removePlayer({ teamId, playerId }).unwrap();
-    } catch (error: any) {
-      alert(error?.data || "Failed to remove player. Please try again.");
-    }
+    await executeApiCall(
+      async () => {
+        await removePlayer({ teamId, playerId }).unwrap();
+      },
+      { actionLabel: "remove player", useAlert: true }
+    );
   };
 
   const handleCreateInvite = async () => {
-    if (!teamId || !inviteEmail.trim()) {
+    if (!teamId || !modalState.inviteEmail.trim()) {
       return;
     }
 
-    setInviteError(null);
-
-    try {
-      await createTeamInvite({
-        teamId,
-        invitePlayerRequest: { email: inviteEmail.trim() },
-      }).unwrap();
-      setInviteEmail("");
-    } catch (error: any) {
-      setInviteError(error?.data || "Failed to create invite. Please try again.");
-    }
+    await executeApiCall(
+      async () => {
+        await createTeamInvite({
+          teamId,
+          invitePlayerRequest: { email: modalState.inviteEmail.trim() },
+        }).unwrap();
+      },
+      {
+        actionLabel: "create invite",
+        onSuccess: () => setModalState((current) => ({ ...current, inviteEmail: "" })),
+      }
+    );
   };
 
   const handleRevokeInvite = async (invitationId: string, email: string) => {
@@ -68,25 +95,27 @@ const TeamManagement = () => {
       return;
     }
 
-    try {
-      await revokeTeamInvite({ teamId, invitationId }).unwrap();
-    } catch (error: any) {
-      alert(error?.data || "Failed to revoke request. Please try again.");
-    }
+    await executeApiCall(
+      async () => {
+        await revokeTeamInvite({ teamId, invitationId }).unwrap();
+      },
+      { actionLabel: "revoke request", useAlert: true }
+    );
   };
 
   const handleRespondToPendingInvite = async (invitationId: string, approved: boolean) => {
     if (!teamId) return;
 
-    try {
-      await respondToPendingTeamInvite({
-        teamId,
-        invitationId,
-        inviteResponseModel: { approved },
-      }).unwrap();
-    } catch (error: any) {
-      alert(error?.data || "Failed to update player request. Please try again.");
-    }
+    await executeApiCall(
+      async () => {
+        await respondToPendingTeamInvite({
+          teamId,
+          invitationId,
+          inviteResponseModel: { approved },
+        }).unwrap();
+      },
+      { actionLabel: "update player request", useAlert: true }
+    );
   };
 
   // Memoize the team object to prevent unnecessary re-renders and form resets
@@ -157,7 +186,7 @@ const TeamManagement = () => {
         <div className="relative">
           <button
             className="bg-green text-white px-6 py-3 rounded-lg font-semibold hover:bg-green-700 transition"
-            onClick={() => setIsEditModalOpen(true)}
+            onClick={() => setModalState((current) => ({ ...current, isEditModalOpen: true }))}
           >
             Edit Team
           </button>
@@ -165,13 +194,13 @@ const TeamManagement = () => {
       </div>
 
       {/* Edit Team Modal */}
-      {isEditModalOpen && team && (
+      {modalState.isEditModalOpen && team && (
         <TeamEditModal
-          open={isEditModalOpen}
+          open={modalState.isEditModalOpen}
           showClose={true}
           teamId={team.teamId}
           team={teamForModal}
-          onClose={() => setIsEditModalOpen(false)}
+          onClose={() => setModalState((current) => ({ ...current, isEditModalOpen: false }))}
         />
       )}
 
@@ -198,17 +227,17 @@ const TeamManagement = () => {
         )}
         <button
           className="mt-4 text-green font-semibold hover:underline"
-          onClick={() => setIsAddManagerModalOpen(true)}
+          onClick={() => setModalState((current) => ({ ...current, isAddManagerModalOpen: true }))}
         >
           + Add Manager
         </button>
       </div>
 
       {/* Add Manager Modal */}
-      {isAddManagerModalOpen && teamId && (
+      {modalState.isAddManagerModalOpen && teamId && (
         <AddManagerModal
           teamId={teamId}
-          onClose={() => setIsAddManagerModalOpen(false)}
+          onClose={() => setModalState((current) => ({ ...current, isAddManagerModalOpen: false }))}
         />
       )}
 
@@ -266,19 +295,19 @@ const TeamManagement = () => {
               type="email"
               className="flex-1 px-3 py-2 border border-gray-300 rounded"
               placeholder="player@example.com"
-              value={inviteEmail}
-              onChange={(event) => setInviteEmail(event.target.value)}
+              value={modalState.inviteEmail}
+              onChange={(event) => setModalState((current) => ({ ...current, inviteEmail: event.target.value }))}
             />
             <button
               className="bg-green text-white px-4 py-2 rounded font-semibold hover:bg-green-700 disabled:opacity-50"
               onClick={handleCreateInvite}
-              disabled={isCreatingInvite || !inviteEmail.trim()}
+              disabled={isCreatingInvite || !modalState.inviteEmail.trim()}
             >
               {isCreatingInvite ? "Inviting..." : "Invite Player"}
             </button>
           </div>
         </div>
-        {inviteError && <p className="mb-4 text-sm text-red-600">{inviteError}</p>}
+        {modalState.inviteError && <p className="mb-4 text-sm text-red-600">{modalState.inviteError}</p>}
         {team.pendingInvites && team.pendingInvites.length > 0 ? (
           <div className="space-y-2">
             {team.pendingInvites.map((invite) => (

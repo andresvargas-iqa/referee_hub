@@ -540,7 +540,12 @@ public class TeamsController : ControllerBase
 		var authError = await this.ValidateTeamManagementAccessAsync(teamId);
 		if (authError != null)
 		{
-			return authError;
+			if (authError is NotFoundResult)
+			{
+				return this.NotFound();
+			}
+
+			return this.Forbid();
 		}
 
 		if (!TryNormalizeInviteEmail(request?.Email, out var normalizedEmail))
@@ -615,8 +620,7 @@ public class TeamsController : ControllerBase
 			return authError;
 		}
 
-		var invitation = await this.dbContext.TeamInvitations
-			.FirstOrDefaultAsync(i => i.Id == invitationId && i.TeamId == teamId.Id && i.RevokedAt == null && i.AcceptedAt == null && i.DeclinedAt == null);
+		var invitation = await this.GetPendingTeamInvitationAsync(teamId, invitationId);
 
 		if (invitation == null)
 		{
@@ -663,14 +667,7 @@ public class TeamsController : ControllerBase
 			return authError;
 		}
 
-		var invitation = await this.dbContext.TeamInvitations
-			.FirstOrDefaultAsync(i =>
-				i.Id == invitationId &&
-				i.TeamId == teamId.Id &&
-				i.RevokedAt == null &&
-				i.AcceptedAt == null &&
-				i.DeclinedAt == null,
-				this.HttpContext.RequestAborted);
+		var invitation = await this.GetPendingTeamInvitationAsync(teamId, invitationId);
 
 		if (invitation == null)
 		{
@@ -865,6 +862,19 @@ public class TeamsController : ControllerBase
 				i.AcceptedAt == null &&
 				i.DeclinedAt == null &&
 				i.Email.ToLower() == normalizedEmail,
+				this.HttpContext.RequestAborted);
+	}
+
+	private async Task<ManagementHub.Models.Data.TeamInvitation?> GetPendingTeamInvitationAsync(TeamIdentifier teamId, long invitationId)
+	{
+		return await this.dbContext.TeamInvitations
+			.FirstOrDefaultAsync(
+				i =>
+					i.Id == invitationId &&
+					i.TeamId == teamId.Id &&
+					i.RevokedAt == null &&
+					i.AcceptedAt == null &&
+					i.DeclinedAt == null,
 				this.HttpContext.RequestAborted);
 	}
 
