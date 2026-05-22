@@ -281,7 +281,7 @@ const TeamManagement = () => {
               <p className="font-semibold text-gray-900">Auto-approve incoming player requests</p>
               <span
                 className="cursor-help text-gray-400 border border-gray-400 rounded-full w-4 h-4 inline-flex items-center justify-center text-xs font-bold"
-                title="If this is on, incoming requests are approved automatically and all current pending requests are approved in bulk."
+                title="If this is on, incoming requests are approved automatically and all current pending requests are approved."
                 aria-label="Auto-approve help"
               >
                 ?
@@ -293,7 +293,7 @@ const TeamManagement = () => {
                 checked={Boolean(team.autoApprovePlayerRequests)}
                 onChange={(e) => handleAutoApproveToggle(e.target.checked)}
               />
-              <span className="ml-2 text-sm font-medium text-gray-700">{isUpdatingAutoApprove ? "Saving..." : (team.autoApprovePlayerRequests ? "Enabled" : "Disabled")}</span>
+              {isUpdatingAutoApprove && <span className="ml-2 text-sm font-medium text-gray-700">Saving...</span>}
             </div>
           </div>
         </div>
