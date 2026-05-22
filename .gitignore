@@ -48,6 +48,9 @@ yarn-debug.log*
 
 # Yarn PnP and generated files
 .pnp
+
+# Refactoring guides and internal documentation
+docs/refactoring-*.md
 .pnp.cjs
 .pnp.loader.mjs
 .yarn/

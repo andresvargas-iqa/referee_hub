@@ -537,13 +537,10 @@ public class TeamsController : ControllerBase
 		[FromBody] InvitePlayerRequest request)
 	{
 		var userContext = await this.contextAccessor.GetCurrentUserContextAsync();
-		var isTeamManager = userContext.Roles
-			.OfType<TeamManagerRole>()
-			.Any(role => role.Team.AppliesTo(teamId));
-
-		if (!isTeamManager)
+		var authError = await this.ValidateTeamManagementAccessAsync(teamId);
+		if (authError != null)
 		{
-			return this.Forbid();
+			return authError;
 		}
 
 		if (!TryNormalizeInviteEmail(request?.Email, out var normalizedEmail))
@@ -612,22 +609,10 @@ public class TeamsController : ControllerBase
 		[FromRoute] long invitationId)
 	{
 		var userContext = await this.contextAccessor.GetCurrentUserContextAsync();
-		var team = await this.teamContextProvider.GetTeamAsync(teamId, NgbConstraint.Any);
-		if (team == null)
+		var authError = await this.ValidateTeamManagementAccessAsync(teamId, allowNgbAdmin: true);
+		if (authError != null)
 		{
-			return this.NotFound();
-		}
-
-		var isTeamManager = userContext.Roles
-			.OfType<TeamManagerRole>()
-			.Any(role => role.Team.AppliesTo(teamId));
-		var isNgbAdmin = userContext.Roles
-			.OfType<NgbAdminRole>()
-			.Any(role => role.Ngb.AppliesTo(team.NgbId));
-
-		if (!isTeamManager && !isNgbAdmin)
-		{
-			return this.Forbid();
+			return authError;
 		}
 
 		var invitation = await this.dbContext.TeamInvitations
@@ -672,16 +657,10 @@ public class TeamsController : ControllerBase
 			return this.NotFound();
 		}
 
-		var isTeamManager = userContext.Roles
-			.OfType<TeamManagerRole>()
-			.Any(role => role.Team.AppliesTo(teamId));
-		var isNgbAdmin = userContext.Roles
-			.OfType<NgbAdminRole>()
-			.Any(role => role.Ngb.AppliesTo(team.NgbId));
-
-		if (!isTeamManager && !isNgbAdmin)
+		var authError = await this.ValidateTeamManagementAccessAsync(teamId, allowNgbAdmin: true);
+		if (authError != null)
 		{
-			return this.Forbid();
+			return authError;
 		}
 
 		var invitation = await this.dbContext.TeamInvitations
@@ -753,20 +732,13 @@ public class TeamsController : ControllerBase
 		[FromRoute] TeamIdentifier teamId,
 		[FromRoute] UserIdentifier playerId)
 	{
-		// Verify user is a manager of this team
 		var userContext = await this.contextAccessor.GetCurrentUserContextAsync();
-		var isTeamManager = userContext.Roles
-			.OfType<TeamManagerRole>()
-			.Any(role => role.Team.AppliesTo(teamId));
-
-		if (!isTeamManager)
+		var authError = await this.ValidateTeamManagementAccessAsync(teamId);
+		if (authError != null)
 		{
-			return this.Forbid();
+			return authError;
 		}
 
-		// Resolve the UserIdentifier to the actual database User.Id
-		// (UserIdentifier.Id uses ToLegacyUserId() which is only correct for legacy users,
-		//  so we must use WithIdentifier to handle modern users with real GUIDs as well)
 		var userDbId = await this.dbContext.Users
 			.WithIdentifier(playerId)
 			.Select(u => (long?)u.Id)
@@ -807,6 +779,36 @@ public class TeamsController : ControllerBase
 		await this.dbContext.SaveChangesAsync(this.HttpContext.RequestAborted);
 
 		return this.NoContent();
+	}
+
+	private async Task<IActionResult?> ValidateTeamManagementAccessAsync(TeamIdentifier teamId, bool allowNgbAdmin = false)
+	{
+		var userContext = await this.contextAccessor.GetCurrentUserContextAsync();
+		var isTeamManager = userContext.Roles
+			.OfType<TeamManagerRole>()
+			.Any(role => role.Team.AppliesTo(teamId));
+
+		if (isTeamManager)
+		{
+			return null;
+		}
+
+		if (!allowNgbAdmin)
+		{
+			return this.Forbid();
+		}
+
+		var team = await this.teamContextProvider.GetTeamAsync(teamId, NgbConstraint.Any);
+		if (team == null)
+		{
+			return this.NotFound();
+		}
+
+		var isNgbAdmin = userContext.Roles
+			.OfType<NgbAdminRole>()
+			.Any(role => role.Ngb.AppliesTo(team.NgbId));
+
+		return isNgbAdmin ? null : this.Forbid();
 	}
 
 	private async Task<long> GetCurrentUserDbIdAsync(UserIdentifier userId)

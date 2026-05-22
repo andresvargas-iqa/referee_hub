@@ -511,7 +511,15 @@ public class UsersController : ControllerBase
 				invite.DeclinedAt == null,
 				this.HttpContext.RequestAborted);
 	}
-
+	private async Task<List<TeamInvitation>> GetPendingTeamInvitationsForEmailAsync(string normalizedEmail)
+	{
+		return await this.dbContext.TeamInvitations
+			.Include(invite => invite.Team)
+			.Include(invite => invite.Initiator)
+			.Where(invite => invite.Email.ToLower() == normalizedEmail && invite.RevokedAt == null && invite.AcceptedAt == null && invite.DeclinedAt == null)
+			.OrderByDescending(invite => invite.CreatedAt)
+			.ToListAsync(this.HttpContext.RequestAborted);
+	}
 	private static bool RequiresManagerApproval(TeamInvitation invitation, long currentUserDbId, bool canSelfApproveInvite)
 	{
 		if (invitation.InitiatorUserId != currentUserDbId)
