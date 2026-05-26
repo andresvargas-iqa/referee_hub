@@ -1,6 +1,5 @@
 import { faBars } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import axios from "axios";
 import React from "react";
 
 import DropdownMenu, { ItemConfig } from "../DropdownMenu/DropdownMenu";
@@ -13,26 +12,19 @@ interface AvatarProps {
   roles: string[];
   userId: string;
   ownedNgbId: number;
+  unreadNotifications?: number;
   enabledFeatures: string[];
 }
 
 const Avatar = (props: AvatarProps) => {
-  const { firstName, lastName, roles, userId, ownedNgbId, enabledFeatures } = props;
+  const { firstName, lastName, roles, userId, ownedNgbId, unreadNotifications, enabledFeatures } = props;
 
   const navigate = useNavigate();
   const { data: managedTeams } = useGetManagedTeamsQuery();
   const { data: avatarUrl } = useGetCurrentUserAvatarQuery();
 
-  const handleHomeClick = () => {
-    navigate("/");
-  };
-
   const handleLogoutClick = () => {
     window.location.href = `${window.location.origin}/sign_out`;
-  };
-
-  const handleInviteClick = () => {
-    window.location.href = `${window.location.origin}/invitation`;
   };
 
   const handleRefProfileClick = () => {
@@ -61,27 +53,26 @@ const Avatar = (props: AvatarProps) => {
           {avatarUrl
             ? <img src={avatarUrl} alt={`Profile picture of ${firstName} ${lastName}`} className="rounded-full w-full h-full object-cover" />
             : `${firstLetter}${lastLetter}`}
+          {unreadNotifications > 0 && (
+            <span className="absolute -top-2 -right-2 bg-red-600 text-white text-xs font-bold rounded-full min-w-5 h-5 px-1 flex items-center justify-center">
+              {unreadNotifications > 99 ? "99+" : unreadNotifications}
+            </span>
+          )}
         </span>
         <FontAwesomeIcon icon={faBars} className="text-white" />
       </button>
     );
   };
 
-  const home: ItemConfig = {
-    content: "Home",
-    onClick: handleHomeClick,
-  };
   const refereeProfile: ItemConfig = {
-    content: "Referee Profile",
+    content: "My Profile",
+    href: `/referees/${userId}`,
     onClick: handleRefProfileClick,
   };
   const ngbProfile: ItemConfig = {
     content: "NGB Profile",
+    href: `/national_governing_bodies/${ownedNgbId}`,
     onClick: handleNgbProfileClick,
-  };
-  const invite: ItemConfig = {
-    content: "Invite NGB Admin",
-    onClick: handleInviteClick,
   };
   const logout: ItemConfig = {
     content: "Logout",
@@ -89,19 +80,19 @@ const Avatar = (props: AvatarProps) => {
   };
   const settings: ItemConfig = {
     content: "Settings",
+    href: "/settings",
     onClick: handleSettingsClick,
   };
   const tournaments: ItemConfig = {
     content: "Tournaments",
+    href: "/tournaments",
     onClick: handleTournamentsClick,
   };
 
-  const items: ItemConfig[] = [home];
+  const items: ItemConfig[] = [];
 
-  if (enabledFeatures?.includes("i18n")) items.push(settings);
-
-  if (roles.includes("NgbAdmin")) items.push(ngbProfile);
   if (roles.includes("Referee")) items.push(refereeProfile);
+  if (roles.includes("NgbAdmin")) items.push(ngbProfile);
   //if (roles.includes("NgbAdmin") || roles.includes("IqaAdmin")) items.push(invite); // TODO: unblock once implemented
 
   // Add managed teams section
@@ -109,13 +100,15 @@ const Avatar = (props: AvatarProps) => {
     managedTeams.forEach((team) => {
       const teamItem: ItemConfig = {
         content: `${team.teamName} (Team)`,
+        href: `/teams/${team.teamId}/manage`,
         onClick: () => navigate(`/teams/${team.teamId}/manage`),
       };
       items.push(teamItem);
     });
   }
 
-  items.push(tournaments);
+  items.push(tournaments);  
+  if (enabledFeatures?.includes("i18n")) items.push(settings);
   items.push(logout);
 
   return <DropdownMenu renderTrigger={renderTrigger} items={items} />;
