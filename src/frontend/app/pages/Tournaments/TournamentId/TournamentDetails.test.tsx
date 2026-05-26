@@ -7,6 +7,7 @@ const mockUseNavigationParams = jest.fn();
 const mockUseNavigate = jest.fn();
 
 const mockUseGetTournamentQuery = jest.fn();
+const mockUseGetPublicTournamentQuery = jest.fn();
 const mockUseGetTournamentManagersQuery = jest.fn();
 const mockUseGetCurrentUserQuery = jest.fn();
 const mockUseGetTournamentInvitesQuery = jest.fn();
@@ -46,6 +47,7 @@ jest.mock("../../../hooks/useAlert", () => ({
 
 jest.mock("../../../store/serviceApi", () => ({
   useGetTournamentQuery: (...args: unknown[]) => mockUseGetTournamentQuery(...args),
+  useGetPublicTournamentQuery: (...args: unknown[]) => mockUseGetPublicTournamentQuery(...args),
   useGetTournamentManagersQuery: (...args: unknown[]) => mockUseGetTournamentManagersQuery(...args),
   useGetCurrentUserQuery: (...args: unknown[]) => mockUseGetCurrentUserQuery(...args),
   useGetTournamentInvitesQuery: (...args: unknown[]) => mockUseGetTournamentInvitesQuery(...args),
@@ -101,6 +103,12 @@ const setupDefaultMocks = (endDate: string) => {
       isPrivate: false,
       isRegistrationOpen: true,
     },
+    isLoading: false,
+    isError: false,
+  });
+
+  mockUseGetPublicTournamentQuery.mockReturnValue({
+    data: undefined,
     isLoading: false,
     isError: false,
   });
