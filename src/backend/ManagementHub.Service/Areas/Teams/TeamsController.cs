@@ -3,6 +3,7 @@ using ManagementHub.Models.Abstraction.Contexts;
 using ManagementHub.Models.Abstraction.Contexts.Providers;
 using ManagementHub.Models.Domain.General;
 using ManagementHub.Models.Domain.Ngb;
+using ManagementHub.Models.Domain.Notification;
 using ManagementHub.Models.Domain.Team;
 using ManagementHub.Models.Domain.Tournament;
 using ManagementHub.Models.Domain.User;
@@ -13,6 +14,7 @@ using ManagementHub.Service.Areas.Tournaments;
 using ManagementHub.Service.Authorization;
 using ManagementHub.Service.Contexts;
 using ManagementHub.Service.Filtering;
+using ManagementHub.Service.Services;
 using ManagementHub.Storage;
 using ManagementHub.Storage.Attachments;
 using ManagementHub.Storage.Collections;
@@ -37,6 +39,7 @@ public class TeamsController : ControllerBase
 	private readonly IUserContextAccessor contextAccessor;
 	private readonly IUpdateUserAvatarCommand updateUserAvatarCommand;
 	private readonly IUpdateTeamManagerRoleCommand updateTeamManagerRoleCommand;
+	private readonly INotificationService notificationService;
 	private readonly ManagementHubDbContext dbContext;
 	private readonly IAttachmentRepository attachmentRepository;
 	private readonly IAccessFileCommand accessFileCommand;
@@ -47,6 +50,7 @@ public class TeamsController : ControllerBase
 		IUserContextAccessor contextAccessor,
 		IUpdateUserAvatarCommand updateUserAvatarCommand,
 		IUpdateTeamManagerRoleCommand updateTeamManagerRoleCommand,
+		INotificationService notificationService,
 		ManagementHubDbContext dbContext,
 		IAttachmentRepository attachmentRepository,
 		IAccessFileCommand accessFileCommand)
@@ -56,6 +60,7 @@ public class TeamsController : ControllerBase
 		this.contextAccessor = contextAccessor;
 		this.updateUserAvatarCommand = updateUserAvatarCommand;
 		this.updateTeamManagerRoleCommand = updateTeamManagerRoleCommand;
+		this.notificationService = notificationService;
 		this.dbContext = dbContext;
 		this.attachmentRepository = attachmentRepository;
 		this.accessFileCommand = accessFileCommand;
@@ -418,6 +423,23 @@ public class TeamsController : ControllerBase
 			email,
 			createUserIfNotExists: false,
 			userContext.UserId);
+
+		if (result is IUpdateTeamManagerRoleCommand.AddRoleResult.RoleAdded or IUpdateTeamManagerRoleCommand.AddRoleResult.UserCreatedWithRole)
+		{
+			var user = await this.dbContext.Users
+				.WithEmail(email)
+				.Select(u => new { u.Id, u.UniqueId })
+				.FirstOrDefaultAsync(this.HttpContext.RequestAborted);
+
+			if (user != null)
+			{
+				var userId = user.UniqueId != null ? UserIdentifier.Parse(user.UniqueId) : UserIdentifier.FromLegacyUserId(user.Id);
+				await this.notificationService.CreateTeamManagerAssignmentNotificationAsync(
+					userId,
+					teamId,
+					cancellationToken: this.HttpContext.RequestAborted);
+			}
+		}
 
 		return result switch
 		{

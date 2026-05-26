@@ -3,14 +3,19 @@ using ManagementHub.Models.Abstraction.Commands;
 using ManagementHub.Models.Abstraction.Contexts.Providers;
 using ManagementHub.Models.Domain.General;
 using ManagementHub.Models.Domain.Ngb;
+using ManagementHub.Models.Domain.Notification;
 using ManagementHub.Models.Domain.Team;
+using ManagementHub.Models.Domain.User;
 using ManagementHub.Models.Domain.User.Roles;
 using ManagementHub.Models.Exceptions;
 using ManagementHub.Service.Areas.Tournaments;
 using ManagementHub.Service.Authorization;
 using ManagementHub.Service.Contexts;
 using ManagementHub.Service.Filtering;
+using ManagementHub.Service.Services;
+using ManagementHub.Storage;
 using ManagementHub.Storage.Collections;
+using ManagementHub.Storage.Extensions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -34,6 +39,9 @@ public class NgbsController : ControllerBase
 	private readonly IUpdateUserAvatarCommand updateUserAvatarCommand;
 	private readonly IUpdateNgbAdminRoleCommand updateNgbAdminRoleCommand;
 	private readonly IUpdateTeamManagerRoleCommand updateTeamManagerRoleCommand;
+	private readonly IUpdateUserDataCommand updateUserDataCommand;
+	private readonly INotificationService notificationService;
+	private readonly ManagementHubDbContext dbContext;
 
 	public NgbsController(
 		IUserContextAccessor contextAccessor,
@@ -43,7 +51,10 @@ public class NgbsController : ControllerBase
 		ISocialAccountsProvider socialAccountsProvider,
 		IUpdateUserAvatarCommand updateUserAvatarCommand,
 		IUpdateNgbAdminRoleCommand updateNgbAdminRoleCommand,
-		IUpdateTeamManagerRoleCommand updateTeamManagerRoleCommand)
+		IUpdateTeamManagerRoleCommand updateTeamManagerRoleCommand,
+		IUpdateUserDataCommand updateUserDataCommand,
+		INotificationService notificationService,
+		ManagementHubDbContext dbContext)
 	{
 		this.contextAccessor = contextAccessor;
 		this.ngbContextProvider = ngbContextProvider;
@@ -53,6 +64,9 @@ public class NgbsController : ControllerBase
 		this.updateUserAvatarCommand = updateUserAvatarCommand;
 		this.updateNgbAdminRoleCommand = updateNgbAdminRoleCommand;
 		this.updateTeamManagerRoleCommand = updateTeamManagerRoleCommand;
+		this.updateUserDataCommand = updateUserDataCommand;
+		this.notificationService = notificationService;
+		this.dbContext = dbContext;
 	}
 
 	/// <summary>
@@ -168,16 +182,34 @@ public class NgbsController : ControllerBase
 		}
 
 		var result = await this.updateNgbAdminRoleCommand.AddNgbAdminRoleAsync(ngb, email, adminModel.CreateAccountIfNotExists);
-		switch (result)
+		switch (result.Result)
 		{
 			case IUpdateNgbAdminRoleCommand.AddRoleResult.UserDoesNotExist:
 				this.Response.StatusCode = StatusCodes.Status404NotFound;
 				return NgbAdminCreationStatus.UserDoesNotExist;
 			case IUpdateNgbAdminRoleCommand.AddRoleResult.RoleAdded:
+			{
+				if (result.UserId.HasValue)
+				{
+					await this.notificationService.CreateNgbAdminAssignmentNotificationAsync(
+						result.UserId.Value,
+						ngb,
+						this.HttpContext.RequestAborted);
+				}
 				return NgbAdminCreationStatus.AdminRoleAdded;
+			}
 			case IUpdateNgbAdminRoleCommand.AddRoleResult.UserCreatedWithRole:
+			{
+				if (result.UserId.HasValue)
+				{
+					await this.notificationService.CreateNgbAdminAssignmentNotificationAsync(
+						result.UserId.Value,
+						ngb,
+						this.HttpContext.RequestAborted);
+				}
 				return NgbAdminCreationStatus.AdminUserCreated;
-			default: throw new InvalidOperationException($"Unexpected result {result}");
+			}
+			default: throw new InvalidOperationException($"Unexpected result {result.Result}");
 		}
 	}
 
@@ -460,6 +492,18 @@ public class NgbsController : ControllerBase
 		var result = await this.updateTeamManagerRoleCommand.AddTeamManagerRoleAsync(
 			teamId, email, managerModel.CreateAccountIfNotExists, userContext.UserId);
 
+		if (result is IUpdateTeamManagerRoleCommand.AddRoleResult.RoleAdded or IUpdateTeamManagerRoleCommand.AddRoleResult.UserCreatedWithRole)
+		{
+			var userId = await this.GetUserIdentifierByEmailAsync(email, this.HttpContext.RequestAborted);
+			if (userId.HasValue)
+			{
+				await this.notificationService.CreateTeamManagerAssignmentNotificationAsync(
+					userId.Value,
+					teamId,
+					cancellationToken: this.HttpContext.RequestAborted);
+			}
+		}
+
 		return result switch
 		{
 			IUpdateTeamManagerRoleCommand.AddRoleResult.UserDoesNotExist =>
@@ -470,6 +514,19 @@ public class NgbsController : ControllerBase
 				TeamManagerCreationStatus.ManagerUserCreated,
 			_ => throw new InvalidOperationException($"Unexpected result {result}")
 		};
+	}
+
+	private async Task<UserIdentifier?> GetUserIdentifierByEmailAsync(Email email, CancellationToken cancellationToken)
+	{
+		var user = await this.dbContext.Users
+			.WithEmail(email)
+			.Select(u => new { u.Id, u.UniqueId })
+			.FirstOrDefaultAsync(cancellationToken);
+
+		if (user == null)
+			return null;
+
+		return user.UniqueId != null ? UserIdentifier.Parse(user.UniqueId) : UserIdentifier.FromLegacyUserId(user.Id);
 	}
 
 	/// <summary>
@@ -629,5 +686,51 @@ public class NgbsController : ControllerBase
 				Date = i.ParticipantApprovalDate
 			}
 		});
+	}
+
+	/// <summary>
+	/// Updates the first and/or last name of a referee on behalf of an NGB admin.
+	/// Only referees whose primary or secondary NGB matches the admin's jurisdiction can be renamed.
+	/// </summary>
+	[HttpPatch("{ngb}/referees/{userId}/name")]
+	[Tags("Referee", "UserInfo")]
+	[Authorize(AuthorizationPolicies.NgbAdminPolicy)]
+	[ProducesResponseType(StatusCodes.Status204NoContent)]
+	[ProducesResponseType(StatusCodes.Status400BadRequest)]
+	[ProducesResponseType(StatusCodes.Status404NotFound)]
+	public async Task<IActionResult> UpdateRefereeName(
+		[FromRoute] NgbIdentifier ngb,
+		[FromRoute] UserIdentifier userId,
+		[FromBody] UpdateRefereeNameRequest request)
+	{
+		if (string.IsNullOrWhiteSpace(request.FirstName) && string.IsNullOrWhiteSpace(request.LastName))
+		{
+			return this.BadRequest("At least one of FirstName or LastName must be provided.");
+		}
+
+		// Verify the target referee belongs to this NGB (primary or secondary)
+		var belongsToNgb = await this.dbContext.Users.WithIdentifier(userId)
+			.AnyAsync(u => u.RefereeLocations.Any(rl => rl.NationalGoverningBody.CountryCode == ngb.NgbCode), this.HttpContext.RequestAborted);
+
+		if (!belongsToNgb)
+		{
+			return this.NotFound();
+		}
+
+		await this.updateUserDataCommand.UpdateUserDataAsync(userId, data =>
+		{
+			var firstName = string.IsNullOrWhiteSpace(request.FirstName) ? data.FirstName : request.FirstName;
+			var lastName = string.IsNullOrWhiteSpace(request.LastName) ? data.LastName : request.LastName;
+			return new ExtendedUserData(data.Email, firstName, lastName)
+			{
+				Bio = data.Bio,
+				ExportName = data.ExportName,
+				Pronouns = data.Pronouns,
+				ShowPronouns = data.ShowPronouns,
+				UserLang = data.UserLang,
+			};
+		}, this.HttpContext.RequestAborted);
+
+		return this.NoContent();
 	}
 }

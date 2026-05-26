@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -87,8 +87,6 @@ public class RefereeEligibilityUnitTests
 		this.clock.Setup(c => c.UtcNow).Returns(TestCurrentDateTime);
 	}
 
-
-
 	[Fact]
 	public async Task ReturnsAllAssistantTests_WhenRefHasNoCerts()
 	{
@@ -127,6 +125,23 @@ public class RefereeEligibilityUnitTests
 		result.Excludes(TestData.Head18);
 		result.Excludes(TestData.Head20);
 		result.Excludes(TestData.Head22);
+	}
+
+	[Fact]
+	public async Task ReturnsFlagRunnerTests_WhenRefHasNoCerts()
+	{
+		this.SetupReferee(Array.Empty<Certification>(), Array.Empty<CertificationVersion>(), Array.Empty<TestAttempt>());
+
+		var result = await this.ExecuteChecksAsync(new[]
+		{
+			TestData.FlagRunner18,
+			TestData.FlagRunner20,
+			TestData.FlagRunner22,
+		});
+
+		result.Includes(TestData.FlagRunner18);
+		result.Includes(TestData.FlagRunner20);
+		result.Includes(TestData.FlagRunner22);
 	}
 
 	[Fact]
@@ -813,6 +828,25 @@ public class RefereeEligibilityUnitTests
 			{
 				new Certification(CertificationLevel.Assistant, CertificationVersion.Twenty),
 				new Certification(CertificationLevel.Scorekeeper, CertificationVersion.TwentyTwo),
+			},
+			Array.Empty<CertificationVersion>(),
+			Array.Empty<TestAttempt>());
+
+		var result = await this.ExecuteChecksAsync(new[]
+		{
+			TestData.RecertAssistant22,
+		});
+
+		result.Includes(TestData.RecertAssistant22);
+	}
+
+	[Fact]
+	public async Task ReturnsRecertTest_WhenTheresFlagRunnerCertification()
+	{
+		this.SetupReferee(new[]
+			{
+				new Certification(CertificationLevel.Assistant, CertificationVersion.Twenty),
+				new Certification(CertificationLevel.FlagRunner, CertificationVersion.TwentyTwo),
 			},
 			Array.Empty<CertificationVersion>(),
 			Array.Empty<TestAttempt>());

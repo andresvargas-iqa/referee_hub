@@ -224,12 +224,31 @@ const injectedRtkApi = api
         }),
         providesTags: ["Referee"],
       }),
+      updateRefereeNameAdmin: build.mutation<
+        UpdateRefereeNameAdminApiResponse,
+        UpdateRefereeNameAdminApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/api/v2/Referees/${queryArg.userId}/name`,
+          method: "PATCH",
+          body: queryArg.updateRefereeNameRequest,
+        }),
+        invalidatesTags: ["Referee", "UserInfo"],
+      }),
       getAvailablePayments: build.query<
         GetAvailablePaymentsApiResponse,
         GetAvailablePaymentsApiArg
       >({
         query: () => ({ url: `/api/v2/certifications/payments` }),
         providesTags: ["Referee"],
+      }),
+      updateRefereeName: build.mutation<UpdateRefereeNameApiResponse, UpdateRefereeNameApiArg>({
+        query: (queryArg) => ({
+          url: `/api/v2/Ngbs/${queryArg.ngb}/referees/${queryArg.userId}/name`,
+          method: "PATCH",
+          body: queryArg.updateRefereeNameRequest,
+        }),
+        invalidatesTags: ["Referee", "UserInfo"],
       }),
       getNationalTeams: build.query<GetNationalTeamsApiResponse, GetNationalTeamsApiArg>({
         query: (queryArg) => ({
@@ -429,6 +448,13 @@ const injectedRtkApi = api
         }),
         providesTags: ["Tournament"],
       }),
+      getPublicTournaments: build.query<
+        GetPublicTournamentsApiResponse,
+        GetPublicTournamentsApiArg
+      >({
+        query: () => ({ url: `/api/v2/public/tournaments` }),
+        providesTags: ["Tournament"],
+      }),
       createTournament: build.mutation<CreateTournamentApiResponse, CreateTournamentApiArg>({
         query: (queryArg) => ({
           url: `/api/v2/Tournaments`,
@@ -439,6 +465,10 @@ const injectedRtkApi = api
       }),
       getTournament: build.query<GetTournamentApiResponse, GetTournamentApiArg>({
         query: (queryArg) => ({ url: `/api/v2/Tournaments/${queryArg.tournamentId}` }),
+        providesTags: ["Tournament"],
+      }),
+      getPublicTournament: build.query<GetPublicTournamentApiResponse, GetPublicTournamentApiArg>({
+        query: (queryArg) => ({ url: `/api/v2/public/tournaments/${queryArg.tournamentId}` }),
         providesTags: ["Tournament"],
       }),
       updateTournament: build.mutation<UpdateTournamentApiResponse, UpdateTournamentApiArg>({
@@ -665,6 +695,36 @@ const injectedRtkApi = api
         query: (queryArg) => ({ url: `/api/v2/Users/${queryArg.userId}/info` }),
         providesTags: ["UserInfo"],
       }),
+      getNotifications: build.query<GetNotificationsApiResponse, GetNotificationsApiArg>({
+        query: () => ({ url: `/api/v2/notifications` }),
+      }),
+      getUnreadCount: build.query<GetUnreadCountApiResponse, GetUnreadCountApiArg>({
+        query: () => ({ url: `/api/v2/notifications/unread-count` }),
+      }),
+      markNotificationRead: build.mutation<
+        MarkNotificationReadApiResponse,
+        MarkNotificationReadApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/api/v2/notifications/${queryArg.id}/read`,
+          method: "PATCH",
+        }),
+      }),
+      markAllNotificationsRead: build.mutation<
+        MarkAllNotificationsReadApiResponse,
+        MarkAllNotificationsReadApiArg
+      >({
+        query: () => ({
+          url: `/api/v2/notifications/read-all`,
+          method: "PATCH",
+        }),
+      }),
+      deleteNotification: build.mutation<DeleteNotificationApiResponse, DeleteNotificationApiArg>({
+        query: (queryArg) => ({
+          url: `/api/v2/notifications/${queryArg.id}`,
+          method: "DELETE",
+        }),
+      }),
     }),
     overrideExisting: false,
   });
@@ -788,8 +848,19 @@ export type GetNgbRefereesApiArg = {
   pageSize?: number;
   skipPaging?: boolean;
 };
+export type UpdateRefereeNameAdminApiResponse = /** status 204 No Content */ void;
+export type UpdateRefereeNameAdminApiArg = {
+  userId: string;
+  updateRefereeNameRequest: UpdateRefereeNameRequest;
+};
 export type GetAvailablePaymentsApiResponse = /** status 200 Success */ CertificationProduct[];
 export type GetAvailablePaymentsApiArg = void;
+export type UpdateRefereeNameApiResponse = /** status 204 No Content */ void;
+export type UpdateRefereeNameApiArg = {
+  ngb: string;
+  userId: string;
+  updateRefereeNameRequest: UpdateRefereeNameRequest;
+};
 export type GetNationalTeamsApiResponse = /** status 200 Success */ NgbTeamViewModelFiltered;
 export type GetNationalTeamsApiArg = {
   filter?: string;
@@ -940,12 +1011,18 @@ export type GetTournamentsApiArg = {
   pageSize?: number;
   skipPaging?: boolean;
 };
+export type GetPublicTournamentsApiResponse = /** status 200 Success */ TournamentViewModel[];
+export type GetPublicTournamentsApiArg = void;
 export type CreateTournamentApiResponse = /** status 200 Success */ TournamentIdResponse;
 export type CreateTournamentApiArg = {
   tournamentModel: TournamentModel;
 };
 export type GetTournamentApiResponse = /** status 200 Success */ TournamentViewModel;
 export type GetTournamentApiArg = {
+  tournamentId: string;
+};
+export type GetPublicTournamentApiResponse = /** status 200 Success */ TournamentViewModel;
+export type GetPublicTournamentApiArg = {
   tournamentId: string;
 };
 export type UpdateTournamentApiResponse = /** status 200 Success */ TournamentIdResponse;
@@ -1085,7 +1162,13 @@ export type GetUserDataApiArg = {
 export type CheckoutSession = {
   sessionId?: string | null;
 };
-export type CertificationLevel = "snitch" | "assistant" | "head" | "field" | "scorekeeper";
+export type CertificationLevel =
+  | "snitch"
+  | "assistant"
+  | "head"
+  | "field"
+  | "scorekeeper"
+  | "flagrunner";
 export type CertificationVersion = "eighteen" | "twenty" | "twentytwo" | "twentyfour";
 export type NgbConstraint = {};
 export type NgbConstraintRead = {
@@ -1375,6 +1458,18 @@ export type RefereeViewModelFiltered = {
   metadata?: FilteringMetadata;
   items?: RefereeViewModel[] | null;
 };
+export type ProblemDetails = {
+  type?: string | null;
+  title?: string | null;
+  status?: number | null;
+  detail?: string | null;
+  instance?: string | null;
+  [key: string]: any;
+};
+export type UpdateRefereeNameRequest = {
+  firstName?: string | null;
+  lastName?: string | null;
+};
 export type Price = {
   priceId?: string | null;
   unitPrice?: number;
@@ -1477,14 +1572,6 @@ export type TeamManagerCreationStatus =
 export type TeamManagerCreationModel = {
   email?: string | null;
   createAccountIfNotExists?: boolean;
-};
-export type ProblemDetails = {
-  type?: string | null;
-  title?: string | null;
-  status?: number | null;
-  detail?: string | null;
-  instance?: string | null;
-  [key: string]: any;
 };
 export type TeamMemberViewModelFiltered = {
   metadata?: FilteringMetadata;
@@ -1752,6 +1839,55 @@ export type UserDataViewModel = {
   language?: string | null;
   createdAt?: string;
 };
+export type NotificationIdentifier = string;
+export type NotificationType =
+  | "ExamResult"
+  | "TournamentInvite"
+  | "TeamTournamentJoinRequest"
+  | "ManagerAssignment"
+  | "InviteAccepted"
+  | "InviteRejected"
+  | "RequestAccepted"
+  | "RequestRejected"
+  | "TeamApprovalNeeded"
+  | "NgbApprovalNeeded"
+  | "RosterRegistration";
+export type NotificationItem = {
+  id: NotificationIdentifier;
+  type: NotificationType;
+  title: string;
+  message: string;
+  relatedEntityId?: string | null;
+  relatedEntityType?: string | null;
+  secondaryEntityId?: string | null;
+  secondaryEntityType?: string | null;
+  isRead: boolean;
+  createdAt: string;
+  readAt?: string | null;
+};
+export type NotificationsResponse = {
+  notifications: NotificationItem[];
+  unreadCount: number;
+};
+export type UnreadCountResponse = {
+  unreadCount: number;
+};
+export type GetNotificationsApiResponse = /** status 200 Success */ NotificationsResponse;
+export type GetNotificationsApiArg = void;
+export type GetUnreadCountApiResponse = /** status 200 Success */ UnreadCountResponse;
+export type GetUnreadCountApiArg = void;
+export type MarkNotificationReadApiResponse = /** status 200 Success */ NotificationItem;
+export type MarkNotificationReadApiArg = {
+  id: NotificationIdentifier;
+};
+export type MarkAllNotificationsReadApiResponse = /** status 200 Success */ {
+  markedAsReadCount: number;
+};
+export type MarkAllNotificationsReadApiArg = void;
+export type DeleteNotificationApiResponse = unknown;
+export type DeleteNotificationApiArg = {
+  id: NotificationIdentifier;
+};
 export const {
   useCreatePaymentSessionMutation,
   useSubmitPaymentSessionMutation,
@@ -1780,7 +1916,9 @@ export const {
   useGetRefereeQuery,
   useGetRefereesQuery,
   useGetNgbRefereesQuery,
+  useUpdateRefereeNameAdminMutation,
   useGetAvailablePaymentsQuery,
+  useUpdateRefereeNameMutation,
   useGetNationalTeamsQuery,
   useUploadTeamLogoMutation,
   useGetTeamDetailsQuery,
@@ -1806,8 +1944,10 @@ export const {
   useImportTestQuestionsMutation,
   useGetTestQuestionsQuery,
   useGetTournamentsQuery,
+  useGetPublicTournamentsQuery,
   useCreateTournamentMutation,
   useGetTournamentQuery,
+  useGetPublicTournamentQuery,
   useUpdateTournamentMutation,
   useDeleteTournamentMutation,
   useUpdateTournamentBannerMutation,
@@ -1838,4 +1978,9 @@ export const {
   useGetCurrentUserDataQuery,
   useUpdateCurrentUserDataMutation,
   useGetUserDataQuery,
+  useGetNotificationsQuery,
+  useGetUnreadCountQuery,
+  useMarkNotificationReadMutation,
+  useMarkAllNotificationsReadMutation,
+  useDeleteNotificationMutation,
 } = injectedRtkApi;
