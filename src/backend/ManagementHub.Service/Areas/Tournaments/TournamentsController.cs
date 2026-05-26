@@ -487,30 +487,13 @@ public class TournamentsController : ControllerBase
 			return validationError;
 		}
 
-		var actingUserDbId = await this.dbContext.Users
-			.WithIdentifier(userContext.UserId)
-			.Select(u => (long?)u.Id)
-			.FirstOrDefaultAsync(this.HttpContext.RequestAborted);
-
-		if (!actingUserDbId.HasValue)
+		var (isTournamentManager, isTeamManager, authorizationError) = await this.GetInviteAuthorizationAsync(
+			tournamentId,
+			teamId,
+			userContext.UserId);
+		if (authorizationError != null)
 		{
-			return this.Forbid();
-		}
-
-		var isTournamentManager = await this.dbContext.TournamentManagers
-			.AnyAsync(
-				tm => tm.Tournament.UniqueId == tournamentId.ToString() && tm.UserId == actingUserDbId.Value,
-				this.HttpContext.RequestAborted);
-
-		var isTeamManager = await this.dbContext.TeamManagers
-			.AnyAsync(
-				tm => tm.TeamId == teamId.Id && tm.UserId == actingUserDbId.Value,
-				this.HttpContext.RequestAborted);
-
-		// Check authorization using persisted DB relationships.
-		if (!isTournamentManager && !isTeamManager)
-		{
-			return this.Forbid();
+			return authorizationError;
 		}
 
 		// Check for existing participant or invite
@@ -540,33 +523,83 @@ public class TournamentsController : ControllerBase
 		// Auto-approved invites don't require team manager action
 		if (invite.GetStatus() == InviteStatus.Pending)
 		{
-			if (isTeamManager && !isTournamentManager)
-			{
-				await this.NotifyTournamentManagersForTeamJoinRequestAsync(
-					tournamentId,
-					teamId,
-					tournament.Name,
-					userContext.UserId);
-			}
-
-			try
-			{
-				var hostUri = this.GetHostBaseUri();
-				await this.sendTournamentInviteEmail.SendTournamentInviteEmailAsync(
-					tournamentId,
-					teamId,
-					hostUri,
-					this.HttpContext.RequestAborted);
-			}
-			catch (Exception ex)
-			{
-				// Log but don't fail the invite creation if email fails
-				// The invite is already created successfully
-				this.logger.LogError(ex, "Failed to send tournament invite email for tournament {TournamentId} to team {TeamId}", tournamentId, teamId);
-			}
+			await this.HandlePendingTeamInviteAsync(
+				tournamentId,
+				teamId,
+				tournament.Name,
+				userContext.UserId,
+				isTournamentManager,
+				isTeamManager);
 		}
 
 		return this.CreateInviteCreatedResponse(tournamentId, invite);
+	}
+
+	private async Task<(bool IsTournamentManager, bool IsTeamManager, ActionResult? Error)> GetInviteAuthorizationAsync(
+		TournamentIdentifier tournamentId,
+		TeamIdentifier teamId,
+		UserIdentifier userId)
+	{
+		var actingUserDbId = await this.dbContext.Users
+			.WithIdentifier(userId)
+			.Select(u => (long?)u.Id)
+			.FirstOrDefaultAsync(this.HttpContext.RequestAborted);
+
+		if (!actingUserDbId.HasValue)
+		{
+			return (false, false, this.Forbid());
+		}
+
+		var isTournamentManager = await this.dbContext.TournamentManagers
+			.AnyAsync(
+				tm => tm.Tournament.UniqueId == tournamentId.ToString() && tm.UserId == actingUserDbId.Value,
+				this.HttpContext.RequestAborted);
+
+		var isTeamManager = await this.dbContext.TeamManagers
+			.AnyAsync(
+				tm => tm.TeamId == teamId.Id && tm.UserId == actingUserDbId.Value,
+				this.HttpContext.RequestAborted);
+
+		if (!isTournamentManager && !isTeamManager)
+		{
+			return (false, false, this.Forbid());
+		}
+
+		return (isTournamentManager, isTeamManager, null);
+	}
+
+	private async Task HandlePendingTeamInviteAsync(
+		TournamentIdentifier tournamentId,
+		TeamIdentifier teamId,
+		string tournamentName,
+		UserIdentifier actingUserId,
+		bool isTournamentManager,
+		bool isTeamManager)
+	{
+		if (isTeamManager && !isTournamentManager)
+		{
+			await this.NotifyTournamentManagersForTeamJoinRequestAsync(
+				tournamentId,
+				teamId,
+				tournamentName,
+				actingUserId);
+		}
+
+		try
+		{
+			var hostUri = this.GetHostBaseUri();
+			await this.sendTournamentInviteEmail.SendTournamentInviteEmailAsync(
+				tournamentId,
+				teamId,
+				hostUri,
+				this.HttpContext.RequestAborted);
+		}
+		catch (Exception ex)
+		{
+			// Log but don't fail the invite creation if email fails
+			// The invite is already created successfully
+			this.logger.LogError(ex, "Failed to send tournament invite email for tournament {TournamentId} to team {TeamId}", tournamentId, teamId);
+		}
 	}
 
 	private async Task NotifyTournamentManagersForTeamJoinRequestAsync(
