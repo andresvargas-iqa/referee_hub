@@ -1008,6 +1008,23 @@ public class TournamentsController : ControllerBase
 	{
 		var userContext = await this.contextAccessor.GetCurrentUserContextAsync();
 
+		var existingRosterEntries = await this.dbContext.TournamentTeamRosterEntries
+			.Where(entry =>
+				entry.Participant.Tournament.UniqueId == tournamentId.ToString()
+				&& entry.Participant.TeamId == teamId.Id)
+			.Select(entry => new
+			{
+				UserId = entry.User.UniqueId != null
+					? UserIdentifier.Parse(entry.User.UniqueId)
+					: UserIdentifier.FromLegacyUserId(entry.UserId),
+				entry.Role
+			})
+			.ToListAsync(this.HttpContext.RequestAborted);
+
+		var existingRosterEntrySet = existingRosterEntries
+			.Select(entry => (entry.UserId, entry.Role))
+			.ToHashSet();
+
 		// Verify team manager for this specific team
 		var isTeamManager = userContext.Roles.OfType<TeamManagerRole>()
 			.Any(r => r.Team.AppliesTo(teamId));
@@ -1080,6 +1097,28 @@ public class TournamentsController : ControllerBase
 		catch (InvalidOperationException ex)
 		{
 			return this.BadRequest(new { error = ex.Message });
+		}
+
+		var requestedRosterEntries = model.Players
+			.Select(player => (player.UserId, RosterRole.Player))
+			.Concat(model.Coaches.Select(coach => (coach.UserId, RosterRole.Coach)))
+			.Concat(model.Staff.Select(staffMember => (staffMember.UserId, RosterRole.Staff)))
+			.Distinct()
+			.ToList();
+
+		var newRosterEntries = requestedRosterEntries
+			.Where(entry => !existingRosterEntrySet.Contains(entry))
+			.ToList();
+
+		foreach (var (rosterUserId, role) in newRosterEntries)
+		{
+			await this.notificationService.CreateRosterRegistrationNotificationAsync(
+				rosterUserId,
+				tournamentId,
+				teamId,
+				tournament.Name,
+				role,
+				this.HttpContext.RequestAborted);
 		}
 
 		return this.Ok();
