@@ -2,6 +2,15 @@ import React, { createContext, useContext } from "react";
 
 import { CurrentUserViewModel, useGetCurrentUserQuery } from "./store/serviceApi";
 
+function getErrorStatus(error: unknown): number | undefined {
+  if (!error || typeof error !== "object") {
+    return undefined;
+  }
+
+  const candidate = error as { status?: unknown };
+  return typeof candidate.status === "number" ? candidate.status : undefined;
+}
+
 interface CurrentUserContextValue {
   currentUser?: CurrentUserViewModel;
   error?: unknown;
@@ -12,14 +21,11 @@ interface CurrentUserContextValue {
 
 const CurrentUserContext = createContext<CurrentUserContextValue | undefined>(undefined);
 
-const PUBLIC_ROUTE_PATTERNS = [/^\/privacy$/, /^\/tournaments$/, /^\/tournaments\/[^/]+$/];
-
 export const CurrentUserProvider: React.FC<React.PropsWithChildren> = ({ children }) => {
-  const isPublicRoute = PUBLIC_ROUTE_PATTERNS.some((pattern) => pattern.test(window.location.pathname));
-  const { currentData: currentUser, error, isError, isLoading } = useGetCurrentUserQuery(undefined, {
-    skip: isPublicRoute,
-  });
-  const isAnonymous = isPublicRoute || (!isLoading && (isError || !currentUser));
+  const { currentData: currentUser, error, isError, isLoading } = useGetCurrentUserQuery();
+  const errorStatus = getErrorStatus(error);
+  const isUnauthorized = errorStatus === 401 || errorStatus === 403;
+  const isAnonymous = !isLoading && (isUnauthorized || (!isError && !currentUser));
 
   return (
     <CurrentUserContext.Provider
