@@ -6,14 +6,28 @@ namespace ManagementHub.Storage.Migrations;
 
 /// <inheritdoc />
 /// <remarks>
-/// This migration adds the observations column to the tournament_invites table
-/// to store free-text notes submitted by players during individual registration.
+/// This migration adds fantasy tournament registration flags to tournaments and
+/// the observations column to tournament_invites.
 /// </remarks>
 public partial class AddObservationsToTournamentInvite : Migration
 {
 	/// <inheritdoc />
 	protected override void Up(MigrationBuilder migrationBuilder)
 	{
+		migrationBuilder.AddColumn<bool>(
+			name: "allows_individual_registration",
+			table: "tournaments",
+			type: "boolean",
+			nullable: false,
+			defaultValue: false);
+
+		migrationBuilder.AddColumn<bool>(
+			name: "allows_team_registration",
+			table: "tournaments",
+			type: "boolean",
+			nullable: false,
+			defaultValue: true);
+
 		migrationBuilder.AddColumn<string>(
 			name: "observations",
 			table: "tournament_invites",
@@ -28,5 +42,13 @@ public partial class AddObservationsToTournamentInvite : Migration
 		migrationBuilder.DropColumn(
 			name: "observations",
 			table: "tournament_invites");
+
+		migrationBuilder.DropColumn(
+			name: "allows_individual_registration",
+			table: "tournaments");
+
+		migrationBuilder.DropColumn(
+			name: "allows_team_registration",
+			table: "tournaments");
 	}
 }
