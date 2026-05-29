@@ -15,6 +15,7 @@ const mockUseRespondToInviteMutation = jest.fn();
 const mockUseGetManagedTeamsQuery = jest.fn();
 const mockUseGetParticipantsQuery = jest.fn();
 const mockUseDeleteTournamentMutation = jest.fn();
+const mockUseCurrentUser = jest.fn();
 
 function mockForwardRefComponent(testId: string, displayName: string) {
   const Component = React.forwardRef(() => <div data-testid={testId} />);
@@ -55,6 +56,10 @@ jest.mock("../../../store/serviceApi", () => ({
   useGetManagedTeamsQuery: (...args: unknown[]) => mockUseGetManagedTeamsQuery(...args),
   useGetParticipantsQuery: (...args: unknown[]) => mockUseGetParticipantsQuery(...args),
   useDeleteTournamentMutation: (...args: unknown[]) => mockUseDeleteTournamentMutation(...args),
+}));
+
+jest.mock("../../../CurrentUserContext", () => ({
+  useCurrentUser: () => mockUseCurrentUser(),
 }));
 
 jest.mock("./components", () => ({
@@ -118,6 +123,17 @@ const setupDefaultMocks = (endDate: string) => {
       userId: "U_1",
       roles: [{ roleType: "TournamentManager", tournament: ["TR_test"] }],
     },
+  });
+
+  mockUseCurrentUser.mockReturnValue({
+    currentUser: {
+      userId: "U_1",
+      roles: [{ roleType: "TournamentManager", tournament: ["TR_test"] }],
+    },
+    error: undefined,
+    isError: false,
+    isLoading: false,
+    isAnonymous: false,
   });
 
   mockUseGetTournamentManagersQuery.mockReturnValue({
