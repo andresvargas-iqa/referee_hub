@@ -31,4 +31,10 @@ public enum NotificationType
 	NgbApprovalNeeded,
 	[EnumMember(Value = nameof(RosterRegistration))]
 	RosterRegistration,
+	[EnumMember(Value = nameof(PlayerRegistrationRequest))]
+	PlayerRegistrationRequest,
+	[EnumMember(Value = nameof(PlayerRegistrationApproved))]
+	PlayerRegistrationApproved,
+	[EnumMember(Value = nameof(PlayerRegistrationRejected))]
+	PlayerRegistrationRejected,
 }
