@@ -474,7 +474,7 @@ const RegisterTournamentModal = forwardRef<RegisterTournamentModalRef>((_props, 
   const [observations, setObservations] = useState("");
 
   const { managedTeams, isLoadingTeams } = useManagedTeamsForRegistration();
-  const { data: currentUser } = useGetCurrentUserQuery();
+  const { currentUser } = useCurrentUser();
   const { data: existingInvites } = useGetTournamentInvitesQuery(
     { tournamentId: tournament?.id || "" },
     { skip: !tournament?.id || !isOpen }
