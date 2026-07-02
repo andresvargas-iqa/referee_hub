@@ -291,7 +291,6 @@ public partial class Program
 	public static void ConfigureWebApp(WebHostBuilderContext context, IApplicationBuilder app)
 	{
 		EnsureTournamentInviteObservationsColumnExists(app);
-		EnsureTournamentVolunteerRegistrationOpenColumnExists(app);
 		var exceptionHandlerPipeline = app.New();
 		exceptionHandlerPipeline.Run(HandleRequestError);
 		app.UseExceptionHandler(new ExceptionHandlerOptions
@@ -370,37 +369,6 @@ public partial class Program
 		{
 			logger.LogWarning(ex,
 				"Failed to apply observations-column startup hotfix for tournament_invites. Runtime errors may occur if schema is out of date.");
-		}
-	}
-
-	private static void EnsureTournamentVolunteerRegistrationOpenColumnExists(IApplicationBuilder app)
-	{
-		using var scope = app.ApplicationServices.CreateScope();
-		var dbContext = scope.ServiceProvider.GetRequiredService<ManagementHubDbContext>();
-		var logger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("SchemaHotfix");
-
-		if (!string.Equals(dbContext.Database.ProviderName, "Npgsql.EntityFrameworkCore.PostgreSQL", StringComparison.Ordinal))
-		{
-			return;
-		}
-
-		try
-		{
-			dbContext.Database.ExecuteSqlRaw(@"
-				DO $$
-				BEGIN
-					IF to_regclass('public.tournaments') IS NOT NULL THEN
-						ALTER TABLE tournaments
-						ADD COLUMN IF NOT EXISTS is_volunteer_registration_open boolean NOT NULL DEFAULT FALSE;
-					END IF;
-				END
-				$$;
-			");
-		}
-		catch (Exception ex)
-		{
-			logger.LogWarning(ex,
-				"Failed to apply volunteer-registration-column startup hotfix for tournaments. Runtime errors may occur if schema is out of date.");
 		}
 	}
 

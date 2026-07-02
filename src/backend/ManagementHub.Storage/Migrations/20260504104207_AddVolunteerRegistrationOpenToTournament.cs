@@ -13,7 +13,7 @@ namespace ManagementHub.Storage.Migrations
             migrationBuilder.AddColumn<bool>(
                 name: "is_volunteer_registration_open",
                 table: "tournaments",
-                type: "INTEGER",
+                type: "boolean",
                 nullable: false,
                 defaultValue: false);
         }
