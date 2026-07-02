@@ -9,7 +9,6 @@
     "lib": ["esnext", "dom"],
     "module": "esnext",
     "moduleResolution": "node",
-    "ignoreDeprecations": "6.0",
     "sourceMap": true,
     "target": "es6",
     "jsx": "react",
