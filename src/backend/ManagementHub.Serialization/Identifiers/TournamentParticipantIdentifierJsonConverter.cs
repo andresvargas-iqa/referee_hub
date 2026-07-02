@@ -58,13 +58,19 @@ public class TournamentParticipantIdentifierJsonConverter : JsonConverter<Tourna
 			return false;
 		}
 
-		if (TryReadStringProperty(root, "teamId", out var teamIdValue) && TeamIdentifier.TryParse(teamIdValue, out var teamId))
+		if (TryReadTeamIdentifier(root, "teamId", out var teamId))
 		{
 			participantIdentifier = TournamentParticipantIdentifier.ForTeam(teamId);
 			return true;
 		}
 
-		if (TryReadStringProperty(root, "participantId", out var participantIdValue) && TeamIdentifier.TryParse(participantIdValue, out teamId))
+		if (TryReadTeamIdentifier(root, "participantId", out teamId))
+		{
+			participantIdentifier = TournamentParticipantIdentifier.ForTeam(teamId);
+			return true;
+		}
+
+		if (TryParseTeamIdentifierElement(root, out teamId))
 		{
 			participantIdentifier = TournamentParticipantIdentifier.ForTeam(teamId);
 			return true;
@@ -82,13 +88,19 @@ public class TournamentParticipantIdentifierJsonConverter : JsonConverter<Tourna
 			return false;
 		}
 
-		if (TryReadStringProperty(root, "userId", out var userIdValue) && UserIdentifier.TryParse(userIdValue, out var userId))
+		if (TryReadUserIdentifier(root, "userId", out var userId))
 		{
 			participantIdentifier = TournamentParticipantIdentifier.ForReferee(userId);
 			return true;
 		}
 
-		if (TryReadStringProperty(root, "participantId", out var participantIdValue) && UserIdentifier.TryParse(participantIdValue, out userId))
+		if (TryReadUserIdentifier(root, "participantId", out userId))
+		{
+			participantIdentifier = TournamentParticipantIdentifier.ForReferee(userId);
+			return true;
+		}
+
+		if (TryParseUserIdentifierElement(root, out userId))
 		{
 			participantIdentifier = TournamentParticipantIdentifier.ForReferee(userId);
 			return true;
@@ -139,5 +151,95 @@ public class TournamentParticipantIdentifierJsonConverter : JsonConverter<Tourna
 
 		value = parsed;
 		return true;
+	}
+
+	private static bool TryReadTeamIdentifier(JsonElement root, string propertyName, out TeamIdentifier teamId)
+	{
+		teamId = default;
+
+		if (!root.TryGetProperty(propertyName, out var property))
+		{
+			return false;
+		}
+
+		return TryParseTeamIdentifierElement(property, out teamId);
+	}
+
+	private static bool TryReadUserIdentifier(JsonElement root, string propertyName, out UserIdentifier userId)
+	{
+		userId = default;
+
+		if (!root.TryGetProperty(propertyName, out var property))
+		{
+			return false;
+		}
+
+		return TryParseUserIdentifierElement(property, out userId);
+	}
+
+	private static bool TryParseTeamIdentifierElement(JsonElement element, out TeamIdentifier teamId)
+	{
+		teamId = default;
+
+		if (element.ValueKind == JsonValueKind.String)
+		{
+			var teamIdString = element.GetString();
+			return teamIdString is not null && TeamIdentifier.TryParse(teamIdString, out teamId);
+		}
+
+		if (element.ValueKind == JsonValueKind.Object)
+		{
+			if (element.TryGetProperty("id", out var idProperty) && idProperty.ValueKind == JsonValueKind.Number && idProperty.TryGetInt64(out var idValue) && idValue > 0)
+			{
+				teamId = new TeamIdentifier(idValue);
+				return true;
+			}
+
+			if (element.TryGetProperty("value", out var valueProperty) && valueProperty.ValueKind == JsonValueKind.String)
+			{
+				var value = valueProperty.GetString();
+				return value is not null && TeamIdentifier.TryParse(value, out teamId);
+			}
+		}
+
+		return false;
+	}
+
+	private static bool TryParseUserIdentifierElement(JsonElement element, out UserIdentifier userId)
+	{
+		userId = default;
+
+		if (element.ValueKind == JsonValueKind.String)
+		{
+			var userIdString = element.GetString();
+			return userIdString is not null && UserIdentifier.TryParse(userIdString, out userId);
+		}
+
+		if (element.ValueKind == JsonValueKind.Object)
+		{
+			if (element.TryGetProperty("uniqueId", out var uniqueIdProperty) && uniqueIdProperty.ValueKind == JsonValueKind.String)
+			{
+				var uniqueIdString = uniqueIdProperty.GetString();
+				if (uniqueIdString is not null && Guid.TryParse(uniqueIdString, out var uniqueId) && uniqueId != default)
+				{
+					userId = new UserIdentifier(uniqueId);
+					return true;
+				}
+			}
+
+			if (element.TryGetProperty("id", out var idProperty) && idProperty.ValueKind == JsonValueKind.Number && idProperty.TryGetInt64(out var idValue) && idValue > 0)
+			{
+				userId = UserIdentifier.FromLegacyUserId(idValue);
+				return true;
+			}
+
+			if (element.TryGetProperty("value", out var valueProperty) && valueProperty.ValueKind == JsonValueKind.String)
+			{
+				var value = valueProperty.GetString();
+				return value is not null && UserIdentifier.TryParse(value, out userId);
+			}
+		}
+
+		return false;
 	}
 }
