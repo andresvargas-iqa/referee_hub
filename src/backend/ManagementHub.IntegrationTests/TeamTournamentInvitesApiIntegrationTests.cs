@@ -8,6 +8,8 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using FluentAssertions;
 using ManagementHub.IntegrationTests.Helpers;
+using ManagementHub.Models.Domain.Team;
+using ManagementHub.Models.Domain.Tournament;
 using ManagementHub.Models.Enums;
 using ManagementHub.Service.Areas.Tournaments;
 using Xunit;
@@ -45,7 +47,7 @@ public class TeamTournamentInvitesApiIntegrationTests : IClassFixture<TestWebApp
 		var createInviteModel = new CreateInviteModel
 		{
 			ParticipantType = ParticipantType.Team,
-			ParticipantId = yankeesTeamId
+			ParticipantId = TournamentParticipantIdentifier.ForTeam(TeamIdentifier.Parse(yankeesTeamId))
 		};
 
 		var createInviteResponse = await this._client.PostAsJsonAsync(
@@ -90,7 +92,7 @@ public class TeamTournamentInvitesApiIntegrationTests : IClassFixture<TestWebApp
 		var createInviteModel = new CreateInviteModel
 		{
 			ParticipantType = ParticipantType.Team,
-			ParticipantId = yankeesTeamId
+			ParticipantId = TournamentParticipantIdentifier.ForTeam(TeamIdentifier.Parse(yankeesTeamId))
 		};
 
 		var createInviteResponse = await this._client.PostAsJsonAsync(
@@ -125,7 +127,7 @@ public class TeamTournamentInvitesApiIntegrationTests : IClassFixture<TestWebApp
 		var createInviteModel = new CreateInviteModel
 		{
 			ParticipantType = ParticipantType.Team,
-			ParticipantId = yankeesTeamId
+			ParticipantId = TournamentParticipantIdentifier.ForTeam(TeamIdentifier.Parse(yankeesTeamId))
 		};
 
 		await this._client.PostAsJsonAsync($"/api/v2/tournaments/{tournament1Id}/invites", createInviteModel);
@@ -194,7 +196,7 @@ public class TeamTournamentInvitesApiIntegrationTests : IClassFixture<TestWebApp
 		var createInviteModel = new CreateInviteModel
 		{
 			ParticipantType = ParticipantType.Team,
-			ParticipantId = yankeesTeamId
+			ParticipantId = TournamentParticipantIdentifier.ForTeam(TeamIdentifier.Parse(yankeesTeamId))
 		};
 
 		var createInviteResponse = await this._client.PostAsJsonAsync(

@@ -7,6 +7,8 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using FluentAssertions;
 using ManagementHub.IntegrationTests.Helpers;
+using ManagementHub.Models.Domain.Team;
+using ManagementHub.Models.Domain.Tournament;
 using ManagementHub.Models.Enums;
 using ManagementHub.Service.Areas.Tournaments;
 using Xunit;
@@ -39,7 +41,7 @@ public class NotificationsApiIntegrationTests : IClassFixture<TestWebApplication
 		var createInviteModel = new CreateInviteModel
 		{
 			ParticipantType = ParticipantType.Team,
-			ParticipantId = teamId,
+			ParticipantId = TournamentParticipantIdentifier.ForTeam(TeamIdentifier.Parse(teamId)),
 		};
 
 		var createInviteResponse = await this.client.PostAsJsonAsync(
@@ -85,7 +87,7 @@ public class NotificationsApiIntegrationTests : IClassFixture<TestWebApplication
 		var createInviteModel = new CreateInviteModel
 		{
 			ParticipantType = ParticipantType.Team,
-			ParticipantId = teamId,
+			ParticipantId = TournamentParticipantIdentifier.ForTeam(TeamIdentifier.Parse(teamId)),
 		};
 		var createInviteResponse = await this.client.PostAsJsonAsync(
 			$"/api/v2/tournaments/{tournamentId}/invites",
