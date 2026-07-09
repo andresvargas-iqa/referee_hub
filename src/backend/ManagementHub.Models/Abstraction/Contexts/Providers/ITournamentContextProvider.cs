@@ -29,6 +29,10 @@ public interface ITournamentContextProvider
 
 	Task<Uri?> GetTournamentBannerUriAsync(TournamentIdentifier tournamentId, CancellationToken cancellationToken = default);
 
+	Task<IReadOnlyDictionary<TournamentIdentifier, Uri?>> GetTournamentBannerUrisAsync(
+		IEnumerable<TournamentIdentifier> tournamentIds,
+		CancellationToken cancellationToken = default);
+
 	Task<HashSet<TournamentIdentifier>> GetUserInvolvedTournamentIdsAsync(IEnumerable<TournamentIdentifier> tournamentIds, UserIdentifier userId, CancellationToken cancellationToken = default);
 
 	Task<IEnumerable<ManagerInfo>> GetTournamentManagersAsync(TournamentIdentifier tournamentId, CancellationToken cancellationToken = default);
@@ -46,21 +50,9 @@ public interface ITournamentContextProvider
 
 	Task<InviteInfo?> GetTeamInviteAsync(TournamentIdentifier tournamentId, TeamIdentifier teamId, CancellationToken cancellationToken = default);
 
-	/// <summary>Creates an individual-player invite for a Fantasy tournament that allows it.</summary>
-	Task<InviteInfo> CreatePlayerInviteAsync(TournamentIdentifier tournamentId, UserIdentifier playerId, UserIdentifier initiatorUserId, string? observations = null, CancellationToken cancellationToken = default);
-
-	/// <summary>Returns the pending player invite for a specific user in a tournament, or null if none exists.</summary>
-	Task<InviteInfo?> GetPlayerInviteAsync(TournamentIdentifier tournamentId, UserIdentifier playerId, CancellationToken cancellationToken = default);
-
 	Task UpdateInviteApprovalAsync(TournamentIdentifier tournamentId, TeamIdentifier teamId, bool isTournamentManager, bool approved, CancellationToken cancellationToken = default);
 
-	/// <summary>Updates the tournament manager's approval for an individual player invite.</summary>
-	Task UpdatePlayerInviteApprovalAsync(TournamentIdentifier tournamentId, UserIdentifier playerId, bool approved, CancellationToken cancellationToken = default);
-
-	Task DeleteTeamInviteAsync(TournamentIdentifier tournamentId, TeamIdentifier teamId, CancellationToken cancellationToken = default);
-
-	/// <summary>Deletes a player invite (allows re-registration).</summary>
-	Task DeletePlayerInviteAsync(TournamentIdentifier tournamentId, UserIdentifier playerId, CancellationToken cancellationToken = default);
+	Task RemoveTeamInviteAsync(TournamentIdentifier tournamentId, TeamIdentifier teamId, CancellationToken cancellationToken = default);
 
 	// Phase 3: Team participant management
 	Task<IEnumerable<TeamParticipantInfo>> GetTournamentTeamParticipantsAsync(TournamentIdentifier tournamentId, CancellationToken cancellationToken = default);

@@ -1530,17 +1530,6 @@ namespace ManagementHub.Storage.Migrations
                         .HasColumnType("INTEGER")
                         .HasColumnName("is_registration_open");
 
-                    b.Property<bool>("AllowsIndividualRegistration")
-                        .HasColumnType("INTEGER")
-                        .HasColumnName("allows_individual_registration")
-                        .HasDefaultValue(false);
-
-                    b.Property<bool>("AllowsTeamRegistration")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER")
-                        .HasColumnName("allows_team_registration")
-                        .HasDefaultValue(true);
-
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("character varying")
@@ -1628,11 +1617,6 @@ namespace ManagementHub.Storage.Migrations
                     b.Property<DateTime?>("TournamentManagerApprovalDate")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("tournament_manager_approval_date");
-
-                    b.Property<string>("Observations")
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)")
-                        .HasColumnName("observations");
 
                     b.HasKey("Id");
 

@@ -106,7 +106,6 @@ const TournamentDetails = () => {
     );
   }
 
-
   return (
     <>
       {alertState.isVisible && (

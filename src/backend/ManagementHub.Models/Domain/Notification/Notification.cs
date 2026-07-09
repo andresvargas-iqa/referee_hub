@@ -174,21 +174,3 @@ public sealed class RosterRegistrationNotification : Notification
 	public required TeamIdentifier TeamId { get; set; }
 	public required UserIdentifier RegisteredUserId { get; set; }
 }
-
-public sealed class PlayerRegistrationRequestNotification : Notification
-{
-	public override NotificationType Type => NotificationType.PlayerRegistrationRequest;
-	public required TournamentIdentifier TournamentId { get; set; }
-}
-
-public sealed class PlayerRegistrationApprovedNotification : Notification
-{
-	public override NotificationType Type => NotificationType.PlayerRegistrationApproved;
-	public required TournamentIdentifier TournamentId { get; set; }
-}
-
-public sealed class PlayerRegistrationRejectedNotification : Notification
-{
-	public override NotificationType Type => NotificationType.PlayerRegistrationRejected;
-	public required TournamentIdentifier TournamentId { get; set; }
-}

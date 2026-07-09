@@ -70,19 +70,6 @@ public interface INotificationService
 		RosterRole role,
 		CancellationToken cancellationToken = default);
 
-	Task<NotificationEntity> CreatePlayerRegistrationRequestNotificationAsync(
-		UserIdentifier userId,
-		TournamentIdentifier tournamentId,
-		string tournamentName,
-		CancellationToken cancellationToken = default);
-
-	Task<NotificationEntity> CreatePlayerRegistrationOutcomeNotificationAsync(
-		UserIdentifier userId,
-		TournamentIdentifier tournamentId,
-		string tournamentName,
-		bool approved,
-		CancellationToken cancellationToken = default);
-
 	Task<NotificationEntity> CreateExamResultNotificationAsync(
 		UserIdentifier userId,
 		TestIdentifier testId,
