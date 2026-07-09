@@ -193,6 +193,12 @@ public class NgbsController : ControllerBase
 	[ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(NgbAdminCreationStatus))]
 	public async Task<NgbAdminCreationStatus> AddNgbAdmin([FromRoute] NgbIdentifier ngb, [FromBody] NgbAdminCreationModel adminModel)
 	{
+		var userContext = await this.contextAccessor.GetCurrentUserContextAsync();
+		if (!userContext.CanAccessNgb(ngb))
+		{
+			throw new AccessDeniedException(ngb.ToString());
+		}
+
 		if (!Email.TryParse(adminModel.Email, out var email))
 		{
 			this.Response.StatusCode = StatusCodes.Status400BadRequest;
@@ -239,6 +245,12 @@ public class NgbsController : ControllerBase
 	[ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(object))]
 	public async Task DeleteNgbAdmin([FromRoute] NgbIdentifier ngb, [FromQuery] string email)
 	{
+		var userContext = await this.contextAccessor.GetCurrentUserContextAsync();
+		if (!userContext.CanAccessNgb(ngb))
+		{
+			throw new AccessDeniedException(ngb.ToString());
+		}
+
 		if (!Email.TryParse(email, out var email_))
 		{
 			this.Response.StatusCode = StatusCodes.Status400BadRequest;
@@ -256,6 +268,10 @@ public class NgbsController : ControllerBase
 	public async Task AdminUpdateNgb([FromRoute] NgbIdentifier ngb, [FromBody] AdminNgbUpdateModel model)
 	{
 		var userContext = await this.contextAccessor.GetCurrentUserContextAsync();
+		if (!userContext.CanAccessNgb(ngb))
+		{
+			throw new AccessDeniedException(ngb.ToString());
+		}
 
 		var context = await this.ngbContextProvider.GetNgbContextAsync(ngb);
 
@@ -281,6 +297,10 @@ public class NgbsController : ControllerBase
 	public async Task AdminCreateNgb([FromRoute] NgbIdentifier ngb, [FromBody] AdminNgbUpdateModel model)
 	{
 		var userContext = await this.contextAccessor.GetCurrentUserContextAsync();
+		if (!userContext.CanAccessNgb(ngb))
+		{
+			throw new AccessDeniedException(ngb.ToString());
+		}
 
 		try
 		{
@@ -721,6 +741,12 @@ public class NgbsController : ControllerBase
 		[FromRoute] UserIdentifier userId,
 		[FromBody] UpdateRefereeNameRequest request)
 	{
+		var userContext = await this.contextAccessor.GetCurrentUserContextAsync();
+		if (!userContext.CanAccessNgb(ngb))
+		{
+			throw new AccessDeniedException(ngb.ToString());
+		}
+
 		if (string.IsNullOrWhiteSpace(request.FirstName) && string.IsNullOrWhiteSpace(request.LastName))
 		{
 			return this.BadRequest("At least one of FirstName or LastName must be provided.");

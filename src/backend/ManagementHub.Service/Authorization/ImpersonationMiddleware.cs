@@ -39,6 +39,10 @@ public class ImpersonationMiddleware : IMiddleware
 			try
 			{
 				var impersonatedUser = await this.userContextAccessor.GetUserContextAsync(impersonatedUserId);
+				if (!impersonatingUser.CanAccessUser(impersonatedUser))
+				{
+					throw new AccessDeniedException($"User does not have permission to impersonate this user.", customMessage: true);
+				}
 
 				// Adds a secondary user identity which will be read in the UserContextAccessor as the current user
 				context.User.AddIdentity(new ClaimsIdentity(new[] { new Claim(ClaimTypes.NameIdentifier, impersonatedUserId.ToString()) }));

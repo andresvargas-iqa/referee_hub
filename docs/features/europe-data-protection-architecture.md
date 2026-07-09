@@ -139,6 +139,59 @@ This branch starts the architecture with a small backend foundation:
 
 This intentionally does not change authorization behavior yet. It creates a stable seam for future scope-aware enforcement.
 
+## RFC Checklist
+
+Use this checklist as the implementation tracker for the privacy-boundary rollout.
+
+### Scope Model
+
+- [x] Introduce first-class privacy scope enum.
+- [x] Introduce NGB-to-privacy-scope classifier.
+- [ ] Confirm jurisdiction list with legal and operations owners.
+- [ ] Decide whether UK and Switzerland remain separate scopes or merge into a single restricted scope.
+
+### Identity and Context
+
+- [x] Add privacy scopes to user context model.
+- [x] Derive context scopes from role/NGB constraints.
+- [ ] Add persistence-level scope assignment for entities that require explicit storage.
+- [ ] Define behavior for multi-scope users and cross-scope accounts.
+
+### Authorization
+
+- [x] Add reusable user-to-scope and user-to-user scope checks.
+- [x] Enforce scope checks on exports.
+- [x] Enforce scope checks on impersonation.
+- [x] Enforce scope checks on high-risk NGB admin flows.
+- [x] Enforce scope checks on sensitive user-attribute admin endpoints.
+- [ ] Enforce scope checks across all other NGB/team/tournament mutation endpoints.
+- [ ] Enforce scope checks in background-job entry points and worker-side execution.
+
+### Data Access
+
+- [ ] Ensure protected queries are scope-filtered before projection.
+- [ ] Remove or refactor fetch-then-filter patterns for protected data.
+- [ ] Add guardrails for writes that could create ambiguous scope inheritance.
+
+### Operations
+
+- [ ] Define scoped production access policy (DB, logs, backups, secrets, deploys).
+- [ ] Implement scoped break-glass access workflow with audit trail.
+- [ ] Confirm telemetry/log redaction for personal and special-category data.
+
+### Testing and Verification
+
+- [x] Add classifier unit tests for representative jurisdictions.
+- [ ] Add authorization tests for cross-scope denial scenarios.
+- [ ] Add integration tests for export, impersonation, and user-admin boundaries.
+- [ ] Add regression tests for existing authorized in-scope paths.
+
+### Compliance Workstream
+
+- [ ] Start and complete DPIA for privacy-scope rollout.
+- [ ] Confirm lawful-basis mapping and data-category treatment with legal counsel/DPO.
+- [ ] Update privacy notices and internal processing records.
+
 ## Open Questions For The Team
 
 - Is the business boundary intended to be EU only, EEA, or broader Europe?

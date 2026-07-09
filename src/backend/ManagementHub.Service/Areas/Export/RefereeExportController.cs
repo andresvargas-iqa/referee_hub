@@ -1,6 +1,7 @@
 ﻿using Hangfire;
 using ManagementHub.Models.Abstraction.Commands.Mailers;
 using ManagementHub.Models.Domain.Ngb;
+using ManagementHub.Models.Domain.User;
 using ManagementHub.Models.Domain.User.Roles;
 using ManagementHub.Models.Exceptions;
 using ManagementHub.Service.Authorization;
@@ -36,6 +37,11 @@ public class RefereeExportController : ControllerBase
 	public async Task<ExportResponse> ExportRefereesForNgb([FromRoute] NgbIdentifier ngb)
 	{
 		var userContext = await this.contextAccessor.GetCurrentUserContextAsync();
+		if (!userContext.CanAccessNgb(ngb))
+		{
+			throw new AccessDeniedException(ngb.ToString());
+		}
+
 		var refereeViewerRole = userContext.Roles.OfType<RefereeViewerRole>().FirstOrDefault();
 		if (refereeViewerRole == null)
 		{

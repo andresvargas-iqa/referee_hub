@@ -24,7 +24,7 @@ namespace ManagementHub.Storage.Contexts.User;
 
 using User = ManagementHub.Models.Data.User;
 
-public record class DbUserContext(UserIdentifier UserId, UserData UserData, IEnumerable<IUserRole> Roles) : IUserContext
+public record class DbUserContext(UserIdentifier UserId, UserData UserData, IEnumerable<IUserRole> Roles, IEnumerable<PrivacyScope> PrivacyScopes) : IUserContext
 {
 }
 
@@ -113,8 +113,64 @@ public class DbUserContextFactory
 		}
 
 		this.logger.LogInformation(-0x58e192ff, "Returning user context with roles: {roles}.", string.Join(", ", roles));
+		var privacyScopes = this.ComputePrivacyScopes(roles);
 
-		return new DbUserContext(userId, userData, roles);
+		return new DbUserContext(userId, userData, roles, privacyScopes);
+	}
+
+	private IReadOnlyCollection<PrivacyScope> ComputePrivacyScopes(IEnumerable<IUserRole> roles)
+	{
+		var scopes = new HashSet<PrivacyScope>();
+
+		foreach (var role in roles)
+		{
+			switch (role)
+			{
+				case IqaAdminRole:
+				case TechAdminRole:
+					foreach (var scope in UserPrivacyScopeExtensions.AllScopes())
+					{
+						scopes.Add(scope);
+					}
+					break;
+
+				case INgbUserRole ngbUserRole:
+					if (ngbUserRole.Ngb.AppliesToAny)
+					{
+						foreach (var scope in UserPrivacyScopeExtensions.AllScopes())
+						{
+							scopes.Add(scope);
+						}
+					}
+					else if (ngbUserRole.Ngb is IEnumerable<NgbIdentifier> ngbSet)
+					{
+						foreach (var ngb in ngbSet)
+						{
+							scopes.Add(NgbPrivacyScopeClassifier.GetScope(ngb));
+						}
+					}
+					break;
+
+				case RefereeRole refereeRole:
+					if (refereeRole.PrimaryNgb.HasValue)
+					{
+						scopes.Add(NgbPrivacyScopeClassifier.GetScope(refereeRole.PrimaryNgb.Value));
+					}
+
+					if (refereeRole.SecondaryNgb.HasValue)
+					{
+						scopes.Add(NgbPrivacyScopeClassifier.GetScope(refereeRole.SecondaryNgb.Value));
+					}
+					break;
+			}
+		}
+
+		if (scopes.Count == 0)
+		{
+			scopes.Add(PrivacyScope.Global);
+		}
+
+		return scopes.ToArray();
 	}
 
 	// TODO: (before db integration) move this out into separate role providers? so that it's more testable

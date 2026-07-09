@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Text.Json;
 using ManagementHub.Models.Domain.User;
+using ManagementHub.Models.Enums;
 
 namespace ManagementHub.Models.Abstraction.Contexts;
 
@@ -15,4 +16,6 @@ public interface IUserContext
 	UserData UserData { get; }
 
 	IEnumerable<IUserRole> Roles { get; }
+
+	IEnumerable<PrivacyScope> PrivacyScopes { get; }
 }

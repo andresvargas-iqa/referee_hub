@@ -3,6 +3,7 @@ using ManagementHub.Models.Abstraction;
 using ManagementHub.Models.Abstraction.Contexts;
 using ManagementHub.Models.Domain.Language;
 using ManagementHub.Models.Domain.User;
+using ManagementHub.Models.Enums;
 
 namespace ManagementHub.Service.Areas.User;
 
@@ -15,6 +16,7 @@ public class CurrentUserViewModel
 		this.LastName = userContext.UserData.LastName;
 		this.LanguageId = userContext.UserData.UserLang;
 		this.Roles = userContext.Roles.ToList();
+		this.PrivacyScopes = userContext.PrivacyScopes.ToList();
 		this.Attributes = attributes.RootAttributes;
 	}
 
@@ -24,5 +26,6 @@ public class CurrentUserViewModel
 	public Uri? AvatarUri { get; set; }
 	public LanguageIdentifier? LanguageId { get; set; }
 	public IReadOnlyCollection<IUserRole> Roles { get; set; }
+	public IReadOnlyCollection<PrivacyScope> PrivacyScopes { get; set; }
 	public IReadOnlyDictionary<string, JsonDocument> Attributes { get; set; }
 }
