@@ -419,6 +419,57 @@ public class TournamentApiIntegrationTests : IClassFixture<TestWebApplicationFac
 	}
 
 	[Fact]
+	public async Task AddTournamentManager_WhenTargetUserIsOutOfScope_ShouldReturnForbidden()
+	{
+		await AuthenticationHelper.AuthenticateAsAsync(this._client, "referee@example.com", "password");
+
+		var tournamentId = await this.CreateTestTournamentAsync("Scope Tournament", TournamentType.Club, "Test", "Test");
+		var outOfScopeEmail = "eu.referee.scope@example.com";
+
+		using (var scope = this._factory.Services.CreateScope())
+		{
+			var dbContext = scope.ServiceProvider.GetRequiredService<ManagementHubDbContext>();
+
+			var euReferee = new User
+			{
+				CreatedAt = DateTime.UtcNow,
+				Email = outOfScopeEmail,
+				EncryptedPassword = "$2a$11$YURdUdxxppPle1z32ZExtu8Jk7lXJxpcckfOtpznfw3VT2zsZmzne",
+				FirstName = "Euro",
+				LastName = "Referee",
+			};
+
+			dbContext.Users.Add(euReferee);
+			dbContext.Roles.Add(new Role
+			{
+				AccessType = UserAccessType.Referee,
+				User = euReferee,
+				CreatedAt = DateTime.UtcNow,
+			});
+
+			var deuNgb = await dbContext.NationalGoverningBodies.SingleAsync(n => n.CountryCode == "DEU");
+			dbContext.RefereeLocations.Add(new RefereeLocation
+			{
+				Referee = euReferee,
+				AssociationType = RefereeNgbAssociationType.Primary,
+				NationalGoverningBody = deuNgb,
+				CreatedAt = DateTime.UtcNow,
+				UpdatedAt = DateTime.UtcNow,
+			});
+
+			await dbContext.SaveChangesAsync();
+		}
+
+		var addResponse = await this._client.PostAsJsonAsync($"/api/v2/tournaments/{tournamentId}/managers", new
+		{
+			email = outOfScopeEmail
+		});
+
+		addResponse.StatusCode.Should().Be(HttpStatusCode.Forbidden,
+			"adding a manager from a privacy scope outside the acting user's scope should be denied");
+	}
+
+	[Fact]
 	public async Task RemoveTournamentManager_LastManager_ShouldReturnBadRequest()
 	{
 		// Sign in and create a tournament

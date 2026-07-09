@@ -111,13 +111,23 @@ public class TeamsController : ControllerBase
 	[IgnoreAntiforgeryToken]
 	public async Task<ActionResult<Uri>> UploadTeamLogo([FromRoute] TeamIdentifier teamId, [FromForm] IFormFile logoBlob)
 	{
+		var team = await this.teamContextProvider.GetTeamAsync(teamId, NgbConstraint.Any);
+		if (team == null)
+		{
+			return this.NotFound();
+		}
+
 		// Authorization: user must be a team manager OR an NGB admin of the team's NGB
 		var userContext = await this.contextAccessor.GetCurrentUserContextAsync();
+		if (!userContext.CanAccessNgb(team.NgbId))
+		{
+			return this.Forbid();
+		}
+
 		var isTeamManager = userContext.Roles.OfType<TeamManagerRole>().Any(r => r.Team.AppliesTo(teamId));
 		if (!isTeamManager)
 		{
-			var team = await this.teamContextProvider.GetTeamAsync(teamId, NgbConstraint.Any);
-			var isNgbAdmin = team != null && userContext.Roles.OfType<NgbAdminRole>().Any(r => r.Ngb.AppliesTo(team.NgbId));
+			var isNgbAdmin = userContext.Roles.OfType<NgbAdminRole>().Any(r => r.Ngb.AppliesTo(team.NgbId));
 			if (!isNgbAdmin)
 			{
 				return this.Forbid();
@@ -272,6 +282,11 @@ public class TeamsController : ControllerBase
 				throw new ManagementHub.Models.Exceptions.NotFoundException($"Team {teamId} not found");
 			}
 
+			if (!userContext.CanAccessNgb(existingTeam.NgbId))
+			{
+				return this.Forbid();
+			}
+
 			var teamData = new TeamData
 			{
 				Name = viewModel.Name,
@@ -404,14 +419,19 @@ public class TeamsController : ControllerBase
 			.OfType<TeamManagerRole>()
 			.Any(role => role.Team.AppliesTo(teamId));
 
+		var team = await this.teamContextProvider.GetTeamAsync(teamId, NgbConstraint.Any);
+		if (team == null)
+		{
+			return this.NotFound($"Team {teamId} not found");
+		}
+
+		if (!userContext.CanAccessNgb(team.NgbId))
+		{
+			return this.Forbid();
+		}
+
 		if (!isTeamManager)
 		{
-			var team = await this.teamContextProvider.GetTeamAsync(teamId, NgbConstraint.Any);
-			if (team == null)
-			{
-				return this.NotFound($"Team {teamId} not found");
-			}
-
 			var isNgbAdmin = userContext.Roles
 				.OfType<NgbAdminRole>()
 				.Any(role => role.Ngb.AppliesTo(team.NgbId));
@@ -482,6 +502,17 @@ public class TeamsController : ControllerBase
 		var isTeamManager = userContext.Roles
 			.OfType<TeamManagerRole>()
 			.Any(role => role.Team.AppliesTo(teamId));
+
+		var team = await this.teamContextProvider.GetTeamAsync(teamId, NgbConstraint.Any);
+		if (team == null)
+		{
+			return this.NotFound();
+		}
+
+		if (!userContext.CanAccessNgb(team.NgbId))
+		{
+			return this.Forbid();
+		}
 
 		if (!isTeamManager)
 		{

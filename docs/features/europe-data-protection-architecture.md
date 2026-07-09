@@ -182,7 +182,7 @@ Use this checklist as the implementation tracker for the privacy-boundary rollou
 ### Testing and Verification
 
 - [x] Add classifier unit tests for representative jurisdictions.
-- [ ] Add authorization tests for cross-scope denial scenarios.
+- [x] Add authorization tests for cross-scope denial scenarios.
 - [ ] Add integration tests for export, impersonation, and user-admin boundaries.
 - [ ] Add regression tests for existing authorized in-scope paths.
 

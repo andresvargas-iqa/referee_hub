@@ -8,6 +8,7 @@ using ManagementHub.Models.Abstraction.Contexts;
 using ManagementHub.Models.Abstraction.Contexts.Providers;
 using ManagementHub.Models.Abstraction.Services;
 using ManagementHub.Models.Domain.General;
+using ManagementHub.Models.Domain.Ngb;
 using ManagementHub.Models.Domain.Team;
 using ManagementHub.Models.Domain.Tournament;
 using ManagementHub.Models.Domain.User;
@@ -340,6 +341,12 @@ public class TournamentsController : ControllerBase
 
 		// Get current user for audit trail
 		var currentUser = await this.contextAccessor.GetCurrentUserContextAsync();
+		var targetUser = await this.userContextProvider.GetUserContextAsync(userId.Value, this.HttpContext.RequestAborted);
+		if (!currentUser.CanAccessUser(targetUser))
+		{
+			return this.Forbid();
+		}
+
 		var tournament = await this.tournamentContextProvider.GetTournamentContextAsync(
 			tournamentId,
 			currentUser.UserId,
@@ -373,6 +380,13 @@ public class TournamentsController : ControllerBase
 	{
 		try
 		{
+			var currentUser = await this.contextAccessor.GetCurrentUserContextAsync();
+			var targetUser = await this.userContextProvider.GetUserContextAsync(userId, this.HttpContext.RequestAborted);
+			if (!currentUser.CanAccessUser(targetUser))
+			{
+				return this.Forbid();
+			}
+
 			var removed = await this.tournamentContextProvider.RemoveTournamentManagerAsync(
 				tournamentId, userId, this.HttpContext.RequestAborted);
 
@@ -531,6 +545,17 @@ public class TournamentsController : ControllerBase
 		if (teamValidation != null)
 		{
 			return teamValidation;
+		}
+
+		var teamNgb = await this.GetTeamNgbAsync(teamId);
+		if (!teamNgb.HasValue)
+		{
+			return this.BadRequest(new { error = "Team not found" });
+		}
+
+		if (!userContext.CanAccessNgb(teamNgb.Value))
+		{
+			return this.Forbid();
 		}
 
 		// Create invite and handle auto-approval
@@ -945,6 +970,21 @@ public class TournamentsController : ControllerBase
 		var isTeamParticipant = IsTeamParticipantManager(userContext, parsedTeamId);
 		var isRefereeParticipant = IsRefereeParticipant(userContext, parsedUserId);
 		var isParticipant = isTeamParticipant || isRefereeParticipant;
+
+		if (parsedTeamId.HasValue)
+		{
+			var teamNgb = await this.GetTeamNgbAsync(parsedTeamId.Value);
+			if (!teamNgb.HasValue)
+			{
+				return this.BadRequest(new { error = "Team not found" });
+			}
+
+			if (!userContext.CanAccessNgb(teamNgb.Value))
+			{
+				return this.Forbid();
+			}
+		}
+
 		if (!CanRespondToInvite(invite, isTournamentManager, isParticipant))
 		{
 			return this.Forbid();
@@ -986,6 +1026,17 @@ public class TournamentsController : ControllerBase
 		var userContext = await this.contextAccessor.GetCurrentUserContextAsync();
 		var tournament = await this.tournamentContextProvider
 			.GetTournamentContextAsync(tournamentId, userContext.UserId, this.HttpContext.RequestAborted);
+
+		var teamNgb = await this.GetTeamNgbAsync(teamId);
+		if (!teamNgb.HasValue)
+		{
+			return this.BadRequest(new { error = "Team not found" });
+		}
+
+		if (!userContext.CanAccessNgb(teamNgb.Value))
+		{
+			return this.Forbid();
+		}
 
 		if (tournament.EndDate < DateOnly.FromDateTime(DateTime.UtcNow))
 		{
@@ -1133,6 +1184,21 @@ public class TournamentsController : ControllerBase
 			tournamentId, teamId, this.HttpContext.RequestAborted);
 
 		return this.Ok();
+	}
+
+	private async Task<NgbIdentifier?> GetTeamNgbAsync(TeamIdentifier teamId)
+	{
+		var ngbCode = await this.dbContext.Teams
+			.Where(t => t.Id == teamId.Id)
+			.Select(t => t.NationalGoverningBody.CountryCode)
+			.FirstOrDefaultAsync(this.HttpContext.RequestAborted);
+
+		if (string.IsNullOrWhiteSpace(ngbCode))
+		{
+			return null;
+		}
+
+		return NgbIdentifier.Parse(ngbCode);
 	}
 
 	// Phase 4: Roster management
