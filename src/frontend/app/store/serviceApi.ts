@@ -1879,7 +1879,6 @@ export const {
   useLoginMutation,
   useGetLanguagesQuery,
   useGetNgbsQuery,
-  useGetEligibleNgbsQuery,
   useGetNgbInfoQuery,
   useUpdateNgbMutation,
   useUpdateNgbAvatarMutation,
@@ -1978,3 +1977,4 @@ export const useGetEligibleNgbsQuery = (
         .filter((id): id is string => typeof id === "string") ?? [],
   };
 };
+
