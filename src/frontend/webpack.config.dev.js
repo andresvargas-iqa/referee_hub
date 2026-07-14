@@ -16,6 +16,8 @@ module.exports = merge(common, {
   output: {
     filename: '[name].js',
     chunkFilename: '[name].js',
+    // Keep pre-generated CSS and copied images in dist while webpack-dev-server runs.
+    clean: false,
   },
   plugins: [
     new Dotenv(),
