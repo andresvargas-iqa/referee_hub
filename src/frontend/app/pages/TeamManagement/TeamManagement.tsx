@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { useNavigationParams, useNavigate } from "../../utils/navigationUtils";
 import { 
   useGetTeamDetailsQuery,
@@ -78,8 +78,13 @@ const TeamManagement = () => {
     );
   }
 
+  useEffect(() => {
+    if (team && !team.isCurrentUserManager && teamId) {
+      navigate(`/teams/${teamId}`, { replace: true });
+    }
+  }, [team, teamId, navigate]);
+
   if (!team.isCurrentUserManager) {
-    navigate(`/teams/${teamId}`, { replace: true });
     return null;
   }
 
@@ -192,8 +197,13 @@ const TeamManagement = () => {
                     <td className="px-4 py-3 text-right">
                       <button
                         className="text-red-600 hover:underline disabled:opacity-50"
-                        onClick={() => handleRemovePlayer(member.userId, member.name)}
-                        disabled={isRemovingPlayer}
+                        onClick={() => {
+                          const playerId = member.userId ?? "";
+                          const playerName = member.name ?? "this player";
+                          if (!playerId) return;
+                          handleRemovePlayer(playerId, playerName);
+                        }}
+                        disabled={isRemovingPlayer || !(member.userId ?? "")}
                       >
                         Remove
                       </button>
