@@ -3,9 +3,7 @@ import React, { useState } from "react";
 interface SearchProps {
   onSearch: (term: string) => void;
   onTypeFilter: (type: string) => void;
-  onShowOlderChange: (showOlder: boolean) => void;
   selectedType: string;
-  showOlderTournaments: boolean;
 }
 
 const TOURNAMENT_TYPES = [
@@ -16,13 +14,7 @@ const TOURNAMENT_TYPES = [
   { value: "Fantasy", label: "Fantasy" },
 ];
 
-const Search: React.FC<SearchProps> = ({
-  onSearch,
-  onTypeFilter,
-  onShowOlderChange,
-  selectedType,
-  showOlderTournaments,
-}) => {
+const Search: React.FC<SearchProps> = ({ onSearch, onTypeFilter, selectedType }) => {
   const [searchTerm, setSearchTerm] = useState("");
 
   const handleSearch = () => {
@@ -37,40 +29,30 @@ const Search: React.FC<SearchProps> = ({
 
   return (
     <div className="tournament-search">
-      <div className="tournament-search-controls">
-        <div className="tournament-search-input-wrapper">
-          <input
-            type="text"
-            placeholder="Search tournaments..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            onKeyPress={handleKeyPress}
-            className="tournament-search-input"
-          />
-        </div>
-        <select
-          value={selectedType}
-          onChange={(e) => onTypeFilter(e.target.value)}
-          className="tournament-search-select"
-        >
-          {TOURNAMENT_TYPES.map((type) => (
-            <option key={type.value} value={type.value}>
-              {type.label}
-            </option>
-          ))}
-        </select>
-        <button onClick={handleSearch} className="btn btn-outline">
-          Search
-        </button>
-      </div>
-      <label className="tournament-search-option">
+      <div className="tournament-search-input-wrapper">
         <input
-          type="checkbox"
-          checked={showOlderTournaments}
-          onChange={(event) => onShowOlderChange(event.target.checked)}
+          type="text"
+          placeholder="Search tournaments..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          onKeyPress={handleKeyPress}
+          className="tournament-search-input"
         />
-        Show older tournaments
-      </label>
+      </div>
+      <select
+        value={selectedType}
+        onChange={(e) => onTypeFilter(e.target.value)}
+        className="tournament-search-select"
+      >
+        {TOURNAMENT_TYPES.map((type) => (
+          <option key={type.value} value={type.value}>
+            {type.label}
+          </option>
+        ))}
+      </select>
+      <button onClick={handleSearch} className="btn btn-outline">
+        Search
+      </button>
     </div>
   );
 };
