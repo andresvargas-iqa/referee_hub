@@ -1,4 +1,5 @@
 const path = require('path');
+const webpack = require('webpack');
 const Dotenv = require('dotenv-webpack');
 const { merge } = require('webpack-merge');
 const common = require('./webpack.config.common.js');
@@ -21,6 +22,7 @@ module.exports = merge(common, {
   },
   plugins: [
     new Dotenv(),
+    new webpack.HotModuleReplacementPlugin(),
   ],
   devServer: {
     // Write files to disk so backend can serve them
