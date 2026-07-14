@@ -348,6 +348,13 @@
    ======================== */
 .tournament-search {
   display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.tournament-search-controls {
+  display: flex;
   gap: 0.5rem;
   width: 100%;
   align-items: center;
@@ -385,6 +392,18 @@
 
 .tournament-search-select:focus {
   border-color: #16a34a;
+}
+
+.tournament-search-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #374151;
+  font-size: 0.875rem;
+}
+
+.tournament-search-option input {
+  accent-color: #16a34a;
 }
 
 /* ========================

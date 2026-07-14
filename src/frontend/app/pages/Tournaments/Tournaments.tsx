@@ -17,6 +17,7 @@ const Tournament = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const searchTerm = searchParams.get("q") || "";
   const typeFilter = searchParams.get("type") || "";
+  const showOlderTournaments = searchParams.get("showOlder") === "true";
   const currentPage = parseInt(searchParams.get("page") || "1", 10);
   const viewParam = searchParams.get("view");
   const viewMode: "list" | "calendar" = viewParam === "calendar" ? "calendar" : "list";
@@ -29,6 +30,7 @@ const Tournament = () => {
     isAnonymous,
     currentPage,
     typeFilter,
+    showOlderTournaments,
     publicTournamentsFromApi,
     allTournaments,
     paginatedTournaments
@@ -67,6 +69,18 @@ const Tournament = () => {
     setSearchParams(params);
   };
 
+  const handleShowOlderTournamentsChange = (showOlder: boolean) => {
+    const params = new URLSearchParams(searchParams);
+    if (showOlder) {
+      params.set("showOlder", "true");
+    } else {
+      params.delete("showOlder");
+    }
+    params.delete("page");
+    setSearchParams(params);
+  };
+
+  // Handle page change
   const handlePageChange = (page: number) => {
     const params = new URLSearchParams(searchParams);
     if (page > 1) {
@@ -88,7 +102,17 @@ const Tournament = () => {
       <div className="tournament-page-container">
         <div className="tournament-page-header">
           <div className="tournament-search-wrapper">
+<<<<<<< HEAD
             <Search onSearch={handleSearch} onTypeFilter={handleTypeFilter} selectedType={typeFilter} />
+=======
+            <Search
+              onSearch={handleSearch}
+              onTypeFilter={handleTypeFilter}
+              onShowOlderChange={handleShowOlderTournamentsChange}
+              selectedType={typeFilter}
+              showOlderTournaments={showOlderTournaments}
+            />
+>>>>>>> 70351ac9 (Hide old tournaments by default and harden tournament reload auth state)
           </div>
           <div className="view-toggle" aria-label="Tournament view toggle">
             <button
