@@ -121,11 +121,11 @@ export const useTournamentsData = (
   );
 
   useEffect(() => {
-    if (!shouldFetchTournaments || !isAnonymous) {
-      return;
-    }
-
     const controller = new AbortController();
+
+    if (!shouldFetchTournaments || !isAnonymous) {
+      return undefined;
+    }
 
     const loadPublicTournaments = async () => {
       setIsLoadingPublic(true);
