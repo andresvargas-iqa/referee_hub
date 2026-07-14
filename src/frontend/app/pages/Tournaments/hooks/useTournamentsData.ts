@@ -1,6 +1,5 @@
 import {
   useGetTournamentsQuery,
-  useGetPublicTournamentsQuery,
   TournamentViewModel,
 } from "../../../store/serviceApi";
 import { useCurrentUser } from "../../../CurrentUserContext";
@@ -18,10 +17,8 @@ interface QueryState {
   isCurrentUserLoading: boolean;
   isLoadingAll: boolean;
   isLoadingPaginated: boolean;
-  isLoadingPublic: boolean;
   isErrorAll: boolean;
   isErrorPaginated: boolean;
-  isErrorPublic: boolean;
 }
 
 const getSearchText = (tournament: TournamentViewModel): string => {
@@ -66,12 +63,12 @@ const getAnonymousPage = (
 
 const getLoadingState = (isAnonymous: boolean, state: QueryState): boolean => {
   return isAnonymous
-    ? state.isCurrentUserLoading || state.isLoadingPublic
+    ? state.isCurrentUserLoading || state.isLoadingAll
     : state.isCurrentUserLoading || state.isLoadingAll || state.isLoadingPaginated;
 };
 
 const getErrorState = (isAnonymous: boolean, state: QueryState): boolean => {
-  return isAnonymous ? state.isErrorPublic : state.isErrorAll || state.isErrorPaginated;
+  return isAnonymous ? state.isErrorAll : state.isErrorAll || state.isErrorPaginated;
 };
 
 export const useTournamentsData = (
@@ -97,7 +94,7 @@ export const useTournamentsData = (
       skipPaging: true,
     },
     {
-      skip: !shouldFetchTournaments || isAnonymous,
+      skip: !shouldFetchTournaments,
     }
   );
 
@@ -117,24 +114,14 @@ export const useTournamentsData = (
     }
   );
 
-  const {
-    data: publicTournamentsData,
-    isLoading: isLoadingPublic,
-    isError: isErrorPublic,
-  } = useGetPublicTournamentsQuery(undefined, {
-    skip: !shouldFetchTournaments || !isAnonymous,
-  });
-
-  const filteredPublicTournaments = getFilteredPublicTournaments(publicTournamentsData, searchTerm);
+  const filteredPublicTournaments = getFilteredPublicTournaments(allTournamentsData?.items, searchTerm);
 
   const queryState: QueryState = {
     isCurrentUserLoading,
     isLoadingAll,
     isLoadingPaginated,
-    isLoadingPublic,
     isErrorAll,
     isErrorPaginated,
-    isErrorPublic,
   };
 
   // Calculate loading and error states
