@@ -7,7 +7,7 @@ import Avatar from "./components/Avatar";
 import NotificationCenter from "./components/NotificationCenter/NotificationCenter";
 import Loader from "./components/Loader";
 
-const PUBLIC_ROUTE_PATTERNS = [/^\/privacy$/, /^\/tournaments$/, /^\/tournaments\/[^/]+$/];
+const PUBLIC_ROUTE_PATTERNS = [/^\/privacy\/?$/, /^\/tournaments\/?$/, /^\/tournaments\/[^/]+\/?$/];
 
 function getErrorStatus(error: unknown): number | undefined {
   if (!error || typeof error !== "object") {
