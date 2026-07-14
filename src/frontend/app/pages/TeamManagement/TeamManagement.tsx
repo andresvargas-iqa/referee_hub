@@ -54,6 +54,12 @@ const TeamManagement = () => {
     };
   }, [team]);
 
+  useEffect(() => {
+    if (team && !team.isCurrentUserManager && teamId) {
+      navigate(`/teams/${teamId}`, { replace: true });
+    }
+  }, [team, teamId, navigate]);
+
   if (isLoading) {
     return (
       <div className="m-auto w-full my-10 px-4 xl:w-3/4 xl:px-0">
@@ -77,12 +83,6 @@ const TeamManagement = () => {
       </div>
     );
   }
-
-  useEffect(() => {
-    if (team && !team.isCurrentUserManager && teamId) {
-      navigate(`/teams/${teamId}`, { replace: true });
-    }
-  }, [team, teamId, navigate]);
 
   if (!team.isCurrentUserManager) {
     return null;
