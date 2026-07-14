@@ -86,13 +86,9 @@ public class PublicTournamentsController : ControllerBase
 	private async Task<IReadOnlyList<TournamentViewModel>> MapPublicTournamentsAsync(
 		IReadOnlyList<PublicTournamentSnapshotTournament> tournaments)
 	{
-		var bannerUrls = new Dictionary<TournamentIdentifier, Uri?>();
-
-		foreach (var tournament in tournaments)
-		{
-			bannerUrls[tournament.Id] = await this.tournamentContextProvider
-				.GetTournamentBannerUriAsync(tournament.Id, this.HttpContext.RequestAborted);
-		}
+		var bannerUrls = await this.tournamentContextProvider.GetTournamentBannerUrisAsync(
+			tournaments.Select(tournament => tournament.Id),
+			this.HttpContext.RequestAborted);
 
 		return tournaments.Select(tournament => new TournamentViewModel
 		{
@@ -182,7 +178,6 @@ public class PublicTournamentsController : ControllerBase
 			: $"-{scope.ToLowerInvariant()}";
 
 		this.Response.Headers.CacheControl = "public,max-age=300,s-maxage=86400,stale-while-revalidate=600";
-		this.Response.Headers.ETag = $"W/\"public-tournaments{suffix}-{updatedAt.ToFileTimeUtc()}\"";
-		this.Response.Headers.LastModified = updatedAt.ToUniversalTime().ToString("R");
-	}
-}
+					var bannerUrls = await this.tournamentContextProvider.GetTournamentBannerUrisAsync(
+						tournaments.Select(tournament => tournament.Id),
+						this.HttpContext.RequestAborted);
