@@ -17,6 +17,7 @@ const Tournament = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const searchTerm = searchParams.get("q") || "";
   const typeFilter = searchParams.get("type") || "";
+  const showOlderTournaments = searchParams.get("showOlder") === "true";
   const currentPage = parseInt(searchParams.get("page") || "1", 10);
   const [viewMode, setViewMode] = useState<"grid" | "calendar">("grid");
   const modalRef = useRef<AddTournamentModalRef>(null);
@@ -30,6 +31,7 @@ const Tournament = () => {
     isAnonymous,
     currentPage,
     typeFilter,
+    showOlderTournaments,
     publicTournamentsFromApi,
     allTournaments,
     paginatedTournaments
@@ -71,6 +73,17 @@ const Tournament = () => {
     setSearchParams(params);
   };
 
+  const handleShowOlderTournamentsChange = (showOlder: boolean) => {
+    const params = new URLSearchParams(searchParams);
+    if (showOlder) {
+      params.set("showOlder", "true");
+    } else {
+      params.delete("showOlder");
+    }
+    params.delete("page");
+    setSearchParams(params);
+  };
+
   // Handle page change
   const handlePageChange = (page: number) => {
     const params = new URLSearchParams(searchParams);
@@ -90,7 +103,9 @@ const Tournament = () => {
             <Search
               onSearch={handleSearch}
               onTypeFilter={handleTypeFilter}
+              onShowOlderChange={handleShowOlderTournamentsChange}
               selectedType={typeFilter}
+              showOlderTournaments={showOlderTournaments}
             />
           </div>
           <div className="view-toggle" aria-label="Tournament view toggle">

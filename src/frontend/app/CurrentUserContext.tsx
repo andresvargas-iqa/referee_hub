@@ -2,6 +2,15 @@ import React, { createContext, useContext } from "react";
 
 import { CurrentUserViewModel, useGetCurrentUserQuery } from "./store/serviceApi";
 
+function getErrorStatus(error: unknown): number | undefined {
+  if (!error || typeof error !== "object") {
+    return undefined;
+  }
+
+  const candidate = error as { status?: unknown };
+  return typeof candidate.status === "number" ? candidate.status : undefined;
+}
+
 interface CurrentUserContextValue {
   currentUser?: CurrentUserViewModel;
   error?: unknown;
@@ -14,7 +23,9 @@ const CurrentUserContext = createContext<CurrentUserContextValue | undefined>(un
 
 export const CurrentUserProvider: React.FC<React.PropsWithChildren> = ({ children }) => {
   const { currentData: currentUser, error, isError, isLoading } = useGetCurrentUserQuery();
-  const isAnonymous = !isLoading && (isError || !currentUser);
+  const errorStatus = getErrorStatus(error);
+  const isUnauthorized = errorStatus === 401 || errorStatus === 403;
+  const isAnonymous = !isLoading && (isUnauthorized || (!isError && !currentUser));
 
   return (
     <CurrentUserContext.Provider

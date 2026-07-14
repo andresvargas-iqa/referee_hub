@@ -2,6 +2,9 @@ import { useMemo } from "react";
 import { TournamentViewModel } from "../../../store/serviceApi";
 import { TournamentData } from "../components/TournamentsSection";
 
+const OLDER_TOURNAMENT_DAYS = 30;
+const ONE_DAY_IN_MS = 24 * 60 * 60 * 1000;
+
 export const convertToDisplayFormat = (t: TournamentViewModel): TournamentData => ({
   id: t.id,
   title: t.name || "",
@@ -21,6 +24,31 @@ export const applyTypeFilter = (tournaments: TournamentViewModel[], typeFilter: 
     return tournaments;
   }
   return tournaments.filter((t) => t.type === typeFilter);
+};
+
+export const applyOlderTournamentsFilter = (
+  tournaments: TournamentViewModel[],
+  showOlderTournaments: boolean,
+  now: Date = new Date()
+): TournamentViewModel[] => {
+  if (showOlderTournaments) {
+    return tournaments;
+  }
+
+  const cutoffTimestamp = now.getTime() - OLDER_TOURNAMENT_DAYS * ONE_DAY_IN_MS;
+
+  return tournaments.filter((tournament) => {
+    if (!tournament.endDate) {
+      return true;
+    }
+
+    const endDateTimestamp = Date.parse(tournament.endDate);
+    if (Number.isNaN(endDateTimestamp)) {
+      return true;
+    }
+
+    return endDateTimestamp >= cutoffTimestamp;
+  });
 };
 
 export const calculatePublicTournamentCount = (
