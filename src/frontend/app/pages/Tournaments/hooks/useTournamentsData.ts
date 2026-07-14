@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import {
   useGetTournamentsQuery,
   TournamentViewModel,
@@ -17,8 +18,10 @@ interface QueryState {
   isCurrentUserLoading: boolean;
   isLoadingAll: boolean;
   isLoadingPaginated: boolean;
+  isLoadingPublic: boolean;
   isErrorAll: boolean;
   isErrorPaginated: boolean;
+  isErrorPublic: boolean;
 }
 
 const getSearchText = (tournament: TournamentViewModel): string => {
@@ -63,12 +66,12 @@ const getAnonymousPage = (
 
 const getLoadingState = (isAnonymous: boolean, state: QueryState): boolean => {
   return isAnonymous
-    ? state.isCurrentUserLoading || state.isLoadingAll
+    ? state.isCurrentUserLoading || state.isLoadingPublic
     : state.isCurrentUserLoading || state.isLoadingAll || state.isLoadingPaginated;
 };
 
 const getErrorState = (isAnonymous: boolean, state: QueryState): boolean => {
-  return isAnonymous ? state.isErrorAll : state.isErrorAll || state.isErrorPaginated;
+  return isAnonymous ? state.isErrorPublic : state.isErrorAll || state.isErrorPaginated;
 };
 
 export const useTournamentsData = (
@@ -77,6 +80,9 @@ export const useTournamentsData = (
   DEFAULT_PAGE_SIZE: number
 ): UseTournamentsDataReturn => {
   const { isAnonymous, isLoading: isCurrentUserLoading } = useCurrentUser();
+  const [publicTournamentsData, setPublicTournamentsData] = useState<TournamentViewModel[]>([]);
+  const [isLoadingPublic, setIsLoadingPublic] = useState(false);
+  const [isErrorPublic, setIsErrorPublic] = useState(false);
 
   // Wait until current-user state is resolved before querying tournaments.
   const shouldFetchTournaments = !isCurrentUserLoading;
@@ -94,7 +100,7 @@ export const useTournamentsData = (
       skipPaging: true,
     },
     {
-      skip: !shouldFetchTournaments,
+      skip: !shouldFetchTournaments || isAnonymous,
     }
   );
 
@@ -114,14 +120,57 @@ export const useTournamentsData = (
     }
   );
 
-  const filteredPublicTournaments = getFilteredPublicTournaments(allTournamentsData?.items, searchTerm);
+  useEffect(() => {
+    if (!shouldFetchTournaments || !isAnonymous) {
+      return;
+    }
+
+    const controller = new AbortController();
+
+    const loadPublicTournaments = async () => {
+      setIsLoadingPublic(true);
+      setIsErrorPublic(false);
+
+      try {
+        const response = await fetch("/api/v2/public/tournaments", {
+          signal: controller.signal,
+        });
+
+        if (!response.ok) {
+          throw new Error(`Failed to fetch public tournaments: ${response.status}`);
+        }
+
+        const data: unknown = await response.json();
+        setPublicTournamentsData(Array.isArray(data) ? (data as TournamentViewModel[]) : []);
+      } catch (error) {
+        if ((error as { name?: string }).name !== "AbortError") {
+          setIsErrorPublic(true);
+          setPublicTournamentsData([]);
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setIsLoadingPublic(false);
+        }
+      }
+    };
+
+    loadPublicTournaments();
+
+    return () => {
+      controller.abort();
+    };
+  }, [isAnonymous, shouldFetchTournaments]);
+
+  const filteredPublicTournaments = getFilteredPublicTournaments(publicTournamentsData, searchTerm);
 
   const queryState: QueryState = {
     isCurrentUserLoading,
     isLoadingAll,
     isLoadingPaginated,
+    isLoadingPublic,
     isErrorAll,
     isErrorPaginated,
+    isErrorPublic,
   };
 
   // Calculate loading and error states
