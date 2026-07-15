@@ -43,7 +43,7 @@ const AppContent = () => {
   const ownedNgbIds = currentUser?.roles
     ?.filter((r) => r.roleType === "NgbAdmin")
     .map((r) => r.ngb)
-    .filter(isConcreteNgbId) ?? [];
+    .filter(isConcreteNgbId) || [];
 
   const shouldShowSignInButton = isPublicRoute && !isLoading && !currentUser;
 
