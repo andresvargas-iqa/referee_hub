@@ -12,6 +12,7 @@ public partial class Tournament : IIdentifiable
 		this.TournamentManagers = new HashSet<TournamentManager>();
 		this.TournamentInvites = new HashSet<TournamentInvite>();
 		this.TournamentTeamParticipants = new HashSet<TournamentTeamParticipant>();
+		this.TournamentTeamRankings = new HashSet<TournamentTeamRanking>();
 	}
 
 	public long Id { get; set; }
@@ -35,4 +36,5 @@ public partial class Tournament : IIdentifiable
 	public virtual ICollection<TournamentManager> TournamentManagers { get; set; }
 	public virtual ICollection<TournamentInvite> TournamentInvites { get; set; }
 	public virtual ICollection<TournamentTeamParticipant> TournamentTeamParticipants { get; set; }
+	public virtual ICollection<TournamentTeamRanking> TournamentTeamRankings { get; set; }
 }

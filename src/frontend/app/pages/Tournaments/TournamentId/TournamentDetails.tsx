@@ -5,6 +5,7 @@ import AddTournamentModal, { AddTournamentModalRef } from "../components/AddTour
 import RegistrationsModal, { RegistrationsModalRef } from "./RegistrationsModal";
 import InviteTeamsModal, { InviteTeamsModalRef } from "./InviteTeamsModal";
 import AddTournamentManagerModal from "./AddTournamentManagerModal";
+import TournamentRankingModal from "./TournamentRankingModal";
 import CustomAlert from "../../../components/CustomAlert";
 import { useAlert } from "../../../hooks/useAlert";
 import {
@@ -28,6 +29,31 @@ import {
   useRespondToInviteHandler,
 } from "./hooks";
 
+const toDateOnlyString = (date: Date): string => {
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, "0");
+  const day = `${date.getDate()}`.padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const extractDateOnlyString = (dateValue?: string | null): string | null => {
+  if (!dateValue) {
+    return null;
+  }
+
+  const match = dateValue.match(/\d{4}-\d{2}-\d{2}/);
+  if (match?.[0]) {
+    return match[0];
+  }
+
+  const parsed = new Date(dateValue);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+
+  return toDateOnlyString(parsed);
+};
+
 const TournamentDetails = () => {
   const { tournamentId } = useNavigationParams<"tournamentId">();
   const registerModalRef = useRef<RegisterTournamentModalRef>(null);
@@ -37,6 +63,7 @@ const TournamentDetails = () => {
   const rosterSectionRef = useRef<HTMLDivElement>(null);
   const [respondingTo, setRespondingTo] = useState<string | null>(null);
   const [isAddManagerModalOpen, setIsAddManagerModalOpen] = useState(false);
+  const [isRankingModalOpen, setIsRankingModalOpen] = useState(false);
   const { alertState, showAlert, hideAlert } = useAlert();
 
   // Load all tournament data with a single hook
@@ -69,6 +96,11 @@ const TournamentDetails = () => {
 
   // Handle date range formatting
   const formattedDateRange = useTournamentDateRange(tournament?.startDate, tournament?.endDate);
+  const todayDateOnly = toDateOnlyString(new Date());
+  const tournamentEndDateOnly =
+    extractDateOnlyString(tournament?.endDate) ?? extractDateOnlyString(tournament?.startDate);
+  const isTournamentFinished =
+    tournamentEndDateOnly !== null && tournamentEndDateOnly <= todayDateOnly;
 
   // Handle edit tournament (for managers)
   const { editModalRef, handleEdit } = useTournamentEditHandler(tournament);
@@ -105,6 +137,7 @@ const TournamentDetails = () => {
       </div>
     );
   }
+
 
   return (
     <>
@@ -144,6 +177,7 @@ const TournamentDetails = () => {
 
             {/* Right sidebar - Different content for managers vs regular users */}
             <div>
+
               <TournamentDetailsSidebar
                 isTournamentManager={isTournamentManager}
                 isAnonymous={isAnonymous}
@@ -158,6 +192,7 @@ const TournamentDetails = () => {
                 }
                 onInviteTeams={() => inviteTeamsModalRef.current?.open(tournament)}
                 onAddManager={() => setIsAddManagerModalOpen(true)}
+                onOpenRanking={() => setIsRankingModalOpen(true)}
                 onDelete={handleDelete}
                 onContactOrganizer={() =>
                   contactOrganizerModalRef.current?.open({
@@ -181,7 +216,9 @@ const TournamentDetails = () => {
                 totalPlayerCount={totalPlayerCount}
                 invitesCount={invites?.filter((i) => i.status === "approved").length || 0}
                 isPrivate={tournament.isPrivate || false}
+                isTournamentFinished={isTournamentFinished}
               />
+
             </div>
           </div>
 
@@ -214,6 +251,13 @@ const TournamentDetails = () => {
         <AddTournamentManagerModal
           tournamentId={tournamentId}
           onClose={() => setIsAddManagerModalOpen(false)}
+        />
+      )}
+      {isRankingModalOpen && tournamentId && (
+        <TournamentRankingModal
+          isOpen={isRankingModalOpen}
+          tournamentId={tournamentId}
+          onClose={() => setIsRankingModalOpen(false)}
         />
       )}
     </>

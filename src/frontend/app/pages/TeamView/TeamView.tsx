@@ -12,6 +12,7 @@ import { useNavigationParams } from "../../utils/navigationUtils";
 import { SocialAccount, useGetTeamDetailsQuery } from "../../store/serviceApi";
 import { getErrorString } from "../../utils/errorUtils";
 import { toDateTime } from "../../utils/dateUtils";
+import TeamTournamentRankingsSection from "../../components/TeamTournamentRankingsSection";
 
 type SocialConfig = {
   [key: string]: {
@@ -136,6 +137,8 @@ const TeamView = () => {
           </div>
         </div>
       )}
+
+      {teamId && <TeamTournamentRankingsSection teamId={teamId} />}
 
       <div className="flex flex-col lg:flex-row gap-8">
         {/* Team Managers */}
