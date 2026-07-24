@@ -5,6 +5,7 @@ import RefereeLocation from "./RefereeLocation";
 import RefereeTeam from "./RefereeTeam";
 import { capitalize } from "lodash";
 import {
+  useGetCurrentUserQuery,
   useGetRefereeQuery,
   useUpdateCurrentRefereeMutation,
   useGetUserDataQuery,
@@ -43,6 +44,27 @@ const DetailsRow = ({ label, isEditing, value, editContent }: DetailsRowProps) =
   </div>
 );
 
+interface PrivateFieldConfig {
+  key: string;
+  label: string;
+  multiline?: boolean;
+  type?: "text" | "date";
+  placeholder?: string;
+}
+
+const privateFieldConfigs: PrivateFieldConfig[] = [
+  { key: "preferredName", label: "Preferred Name", placeholder: "Preferred name" },
+  { key: "gender", label: "Gender", placeholder: "Gender" },
+  { key: "dateOfBirth", label: "Date of Birth", type: "date" },
+  { key: "citizenshipOrPermanentResidence", label: "Citizenship and/or Permanent Residence", placeholder: "Citizenship and/or permanent residence" },
+  { key: "countryOfResidence", label: "Country of Residence", placeholder: "Country of residence" },
+  { key: "placeOfBirth", label: "Player, Parents or Grandparents Place of Birth", placeholder: "Place of birth" },
+  { key: "nationality", label: "Nationality", placeholder: "Nationality" },
+  { key: "dietaryRestrictionsOrAllergies", label: "Dietary Restrictions/Allergies", multiline: true, placeholder: "Dietary restrictions or allergies" },
+  { key: "medicalConditions", label: "Medical Conditions", multiline: true, placeholder: "Medical conditions" },
+  { key: "emergencyContacts", label: "Emergency Contacts", multiline: true, placeholder: "Emergency contacts" },
+];
+
 // Special pronouns row — includes a visibility toggle alongside the text input.
 interface PronounsRowProps {
   isEditing: boolean;
@@ -78,13 +100,41 @@ interface BasicDetailsProps {
 
 const BasicDetails = ({ userData, isEditing, isEditable, onChange, onEdit, onSave, onCancel }: BasicDetailsProps) => {
   const handleStringChange =
-    (key: keyof UserDataViewModel) =>
+    (key: string) =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
-      onChange({ [key]: e.currentTarget.value });
+      onChange({ [key]: e.currentTarget.value } as Partial<UserDataViewModel>);
 
   const handleToggleChange =
-    (key: keyof UserDataViewModel) => (e: React.ChangeEvent<HTMLInputElement>) =>
-      onChange({ [key]: e.currentTarget.checked });
+    (key: string) => (e: React.ChangeEvent<HTMLInputElement>) =>
+      onChange({ [key]: e.currentTarget.checked } as Partial<UserDataViewModel>);
+
+  const renderPrivateField = ({ key, label, multiline, placeholder, type = "text" }: PrivateFieldConfig) => (
+    <DetailsRow
+      key={key}
+      label={label}
+      isEditing={isEditing}
+      value={(userData as Record<string, unknown>)[key] as string | null | undefined}
+      editContent={
+        multiline ? (
+          <textarea
+            className="bg-gray-100 rounded p-2 text-sm w-full"
+            style={{ resize: "vertical", minHeight: "4rem" }}
+            onChange={handleStringChange(key)}
+            value={((userData as Record<string, unknown>)[key] as string | null | undefined) ?? ""}
+            placeholder={placeholder}
+          />
+        ) : (
+          <input
+            className="form-input w-full"
+            type={type}
+            value={((userData as Record<string, unknown>)[key] as string | null | undefined) ?? ""}
+            onChange={handleStringChange(key)}
+            placeholder={placeholder}
+          />
+        )
+      }
+    />
+  );
 
   return (
     <div className="card card-mb">
@@ -112,6 +162,7 @@ const BasicDetails = ({ userData, isEditing, isEditable, onChange, onEdit, onSav
         onShowPronounsChange={handleToggleChange("showPronouns")}
       />
 
+      {isEditable && privateFieldConfigs.map(renderPrivateField)}
       <DetailsRow
         label="Bio"
         isEditing={isEditing}
@@ -132,11 +183,18 @@ const BasicDetails = ({ userData, isEditing, isEditable, onChange, onEdit, onSav
 
 const PlayerDetails = () => {
   const { refereeId } = useNavigationParams<"refereeId">();
+  const refereeQueryId = refereeId ?? "";
   const [isEditing, setIsEditing] = useState(false);
 
-  const { currentData: referee } = useGetRefereeQuery({ userId: refereeId });
-  const [editableReferee, setReferee] = useState<RefereeLocationOptions & RefereeTeamOptions>(referee);
+  const { currentData: referee } = useGetRefereeQuery({ userId: refereeQueryId });
+  const [editableReferee, setReferee] = useState<RefereeLocationOptions & RefereeTeamOptions>({} as RefereeLocationOptions & RefereeTeamOptions);
   const [updateReferee, { error: updateRefereeError }] = useUpdateCurrentRefereeMutation();
+
+  useEffect(() => {
+    if (referee) {
+      setReferee(referee);
+    }
+  }, [referee]);
 
   const handleChange = (newState: RefereeLocationOptions | RefereeTeamOptions) => {
     setReferee({ ...editableReferee, ...newState });
@@ -339,9 +397,18 @@ const CertificationHistory = () => {
 const RefereeProfile = () => {
   const navigate = useNavigate();
   const { refereeId } = useNavigationParams<"refereeId">();
+  const refereeQueryId = refereeId ?? "";
+  const isEditable = refereeId === "me";
 
-  const { currentData: referee, error: refereeGetError } = useGetRefereeQuery({ userId: refereeId });
-  const { data: userData } = useGetUserDataQuery({ userId: refereeId });
+  const { data: currentUser } = useGetCurrentUserQuery(undefined, { skip: !isEditable });
+  const currentUserIsReferee = currentUser?.roles?.some((role) => role.roleType === "Referee") === true;
+  const shouldSkipRefereeQuery = isEditable && !currentUserIsReferee;
+
+  const { currentData: referee, error: refereeGetError } = useGetRefereeQuery(
+    { userId: refereeQueryId },
+    { skip: shouldSkipRefereeQuery }
+  );
+  const { data: userData } = useGetUserDataQuery({ userId: refereeQueryId });
   const [updateUser, { error: updateUserError }] = useUpdateCurrentUserDataMutation();
 
   const [editableUser, setEditableUser] = useState<UserDataViewModel>(userData ?? {});
@@ -351,10 +418,11 @@ const RefereeProfile = () => {
     if (userData) setEditableUser(userData);
   }, [userData]);
 
-  if (refereeGetError) return <p style={{ color: "red" }}>{getErrorString(refereeGetError)}</p>;
-  if (!referee) return null;
+  if (refereeGetError && !isEditable) return <p style={{ color: "red" }}>{getErrorString(refereeGetError)}</p>;
 
-  const isEditable = refereeId === "me";
+  const headerName = referee?.name
+    || [editableUser?.firstName, editableUser?.lastName].filter(Boolean).join(" ").trim()
+    || "My Profile";
 
   const handleDetailsChange = (partial: Partial<UserDataViewModel>) =>
     setEditableUser((prev) => ({ ...prev, ...partial }));
@@ -374,8 +442,8 @@ const RefereeProfile = () => {
       <div className="tournament-details-wrapper">
         {/* Page header — certifications badges + Take Tests button */}
         <RefereeHeader
-          name={referee.name}
-          certifications={referee.acquiredCertifications}
+          name={headerName}
+          certifications={referee?.acquiredCertifications ?? []}
           isEditable={isEditable}
           onTakeTests={isEditable ? () => navigate("/referees/me/tests") : undefined}
         />
@@ -390,7 +458,7 @@ const RefereeProfile = () => {
         <div className="tournament-details-grid" style={{ marginTop: "1.5rem" }}>
           {/* Column 1: Player Details + Upcoming Events */}
           <div>
-            <PlayerDetails />
+            {referee && <PlayerDetails />}
             {isEditable && <UpcomingEvents />}
           </div>
 
@@ -416,4 +484,8 @@ const RefereeProfile = () => {
 };
 
 export default RefereeProfile;
+
+
+
+
 
