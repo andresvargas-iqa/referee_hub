@@ -25,7 +25,6 @@ using ManagementHub.Service.Jobs;
 using ManagementHub.Service.Services;
 using ManagementHub.Service.Swagger;
 using ManagementHub.Service.Telemetry;
-using ManagementHub.Storage;
 using ManagementHub.Storage.BlobStorage.LocalFilesystem;
 using ManagementHub.Storage.Contexts.Tests;
 using ManagementHub.Storage.DependencyInjection;
@@ -36,7 +35,6 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AmbientMetadata;
 using Microsoft.Extensions.Telemetry.Enrichment;
 using Microsoft.Extensions.Telemetry.Logging;
@@ -290,7 +288,6 @@ public partial class Program
 
 	public static void ConfigureWebApp(WebHostBuilderContext context, IApplicationBuilder app)
 	{
-		EnsureTournamentInviteObservationsColumnExists(app);
 		var exceptionHandlerPipeline = app.New();
 		exceptionHandlerPipeline.Run(HandleRequestError);
 		app.UseExceptionHandler(new ExceptionHandlerOptions
@@ -339,37 +336,6 @@ public partial class Program
 			endpoints.MapFallbackToFile("index.html");
 		});
 		app.UseSwaggerUI();
-	}
-
-	private static void EnsureTournamentInviteObservationsColumnExists(IApplicationBuilder app)
-	{
-		using var scope = app.ApplicationServices.CreateScope();
-		var dbContext = scope.ServiceProvider.GetRequiredService<ManagementHubDbContext>();
-		var logger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("SchemaHotfix");
-
-		if (!string.Equals(dbContext.Database.ProviderName, "Npgsql.EntityFrameworkCore.PostgreSQL", StringComparison.Ordinal))
-		{
-			return;
-		}
-
-		try
-		{
-			dbContext.Database.ExecuteSqlRaw(@"
-				DO $$
-				BEGIN
-					IF to_regclass('public.tournament_invites') IS NOT NULL THEN
-						ALTER TABLE tournament_invites
-						ADD COLUMN IF NOT EXISTS observations text;
-					END IF;
-				END
-				$$;
-			");
-		}
-		catch (Exception ex)
-		{
-			logger.LogWarning(ex,
-				"Failed to apply observations-column startup hotfix for tournament_invites. Runtime errors may occur if schema is out of date.");
-		}
 	}
 
 	private static readonly Dictionary<Type, int> ExceptionStatusCodes = new()

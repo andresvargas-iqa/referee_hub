@@ -100,12 +100,6 @@ public class TournamentParticipantIdentifierJsonConverter : JsonConverter<Tourna
 			return true;
 		}
 
-		if (TryParseUserIdentifierElement(root, out userId))
-		{
-			participantIdentifier = TournamentParticipantIdentifier.ForReferee(userId);
-			return true;
-		}
-
 		return false;
 	}
 
@@ -132,25 +126,6 @@ public class TournamentParticipantIdentifierJsonConverter : JsonConverter<Tourna
 		}
 
 		return false;
-	}
-
-	private static bool TryReadStringProperty(JsonElement root, string propertyName, out string value)
-	{
-		value = string.Empty;
-
-		if (!root.TryGetProperty(propertyName, out var property) || property.ValueKind != JsonValueKind.String)
-		{
-			return false;
-		}
-
-		var parsed = property.GetString();
-		if (string.IsNullOrWhiteSpace(parsed))
-		{
-			return false;
-		}
-
-		value = parsed;
-		return true;
 	}
 
 	private static bool TryReadTeamIdentifier(JsonElement root, string propertyName, out TeamIdentifier teamId)
@@ -214,65 +189,7 @@ public class TournamentParticipantIdentifierJsonConverter : JsonConverter<Tourna
 			return TryParseUserIdentifierString(element.GetString(), out userId);
 		}
 
-		if (element.ValueKind == JsonValueKind.Object)
-		{
-			return TryParseUserIdentifierObject(element, out userId);
-		}
-
 		return false;
-	}
-
-	private static bool TryParseUserIdentifierObject(JsonElement element, out UserIdentifier userId)
-	{
-		userId = default;
-
-		return TryParseUserIdentifierFromUniqueId(element, out userId)
-			|| TryParseUserIdentifierFromLegacyId(element, out userId)
-			|| TryParseUserIdentifierFromValue(element, out userId);
-	}
-
-	private static bool TryParseUserIdentifierFromUniqueId(JsonElement element, out UserIdentifier userId)
-	{
-		userId = default;
-
-		if (!element.TryGetProperty("uniqueId", out var uniqueIdProperty) || uniqueIdProperty.ValueKind != JsonValueKind.String)
-		{
-			return false;
-		}
-
-		var uniqueIdString = uniqueIdProperty.GetString();
-		if (uniqueIdString is null || !Guid.TryParse(uniqueIdString, out var uniqueId) || uniqueId == default)
-		{
-			return false;
-		}
-
-		userId = new UserIdentifier(uniqueId);
-		return true;
-	}
-
-	private static bool TryParseUserIdentifierFromLegacyId(JsonElement element, out UserIdentifier userId)
-	{
-		userId = default;
-
-		if (!element.TryGetProperty("id", out var idProperty) || idProperty.ValueKind != JsonValueKind.Number || !idProperty.TryGetInt64(out var idValue) || idValue <= 0)
-		{
-			return false;
-		}
-
-		userId = UserIdentifier.FromLegacyUserId(idValue);
-		return true;
-	}
-
-	private static bool TryParseUserIdentifierFromValue(JsonElement element, out UserIdentifier userId)
-	{
-		userId = default;
-
-		if (!element.TryGetProperty("value", out var valueProperty) || valueProperty.ValueKind != JsonValueKind.String)
-		{
-			return false;
-		}
-
-		return TryParseUserIdentifierString(valueProperty.GetString(), out userId);
 	}
 
 	private static bool TryParseUserIdentifierString(string? value, out UserIdentifier userId)
