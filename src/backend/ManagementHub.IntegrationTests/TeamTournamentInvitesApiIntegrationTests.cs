@@ -44,10 +44,10 @@ public class TeamTournamentInvitesApiIntegrationTests : IClassFixture<TestWebApp
 		var yankeesTeamId = await this.GetYankeesTeamIdAsync();
 
 		// Step 4: Create an invite for the Yankees team
-		var createInviteModel = new CreateInviteModel
+		var createInviteModel = new
 		{
 			ParticipantType = ParticipantType.Team,
-			ParticipantId = TournamentParticipantIdentifier.ForTeam(TeamIdentifier.Parse(yankeesTeamId))
+			ParticipantId = yankeesTeamId,
 		};
 
 		var createInviteResponse = await this._client.PostAsJsonAsync(
@@ -89,10 +89,10 @@ public class TeamTournamentInvitesApiIntegrationTests : IClassFixture<TestWebApp
 		var yankeesTeamId = await this.GetYankeesTeamIdAsync();
 
 		// Step 3: Create an invite
-		var createInviteModel = new CreateInviteModel
+		var createInviteModel = new
 		{
 			ParticipantType = ParticipantType.Team,
-			ParticipantId = TournamentParticipantIdentifier.ForTeam(TeamIdentifier.Parse(yankeesTeamId))
+			ParticipantId = yankeesTeamId,
 		};
 
 		var createInviteResponse = await this._client.PostAsJsonAsync(
@@ -124,10 +124,10 @@ public class TeamTournamentInvitesApiIntegrationTests : IClassFixture<TestWebApp
 		var yankeesTeamId = await this.GetYankeesTeamIdAsync();
 
 		// Step 3: Create invites for both tournaments
-		var createInviteModel = new CreateInviteModel
+		var createInviteModel = new
 		{
 			ParticipantType = ParticipantType.Team,
-			ParticipantId = TournamentParticipantIdentifier.ForTeam(TeamIdentifier.Parse(yankeesTeamId))
+			ParticipantId = yankeesTeamId,
 		};
 
 		await this._client.PostAsJsonAsync($"/api/v2/tournaments/{tournament1Id}/invites", createInviteModel);
@@ -193,10 +193,10 @@ public class TeamTournamentInvitesApiIntegrationTests : IClassFixture<TestWebApp
 		var yankeesTeamId = await this.GetYankeesTeamIdAsync();
 
 		// Step 3: Create an invite for the Yankees team
-		var createInviteModel = new CreateInviteModel
+		var createInviteModel = new
 		{
 			ParticipantType = ParticipantType.Team,
-			ParticipantId = TournamentParticipantIdentifier.ForTeam(TeamIdentifier.Parse(yankeesTeamId))
+			ParticipantId = yankeesTeamId,
 		};
 
 		var createInviteResponse = await this._client.PostAsJsonAsync(

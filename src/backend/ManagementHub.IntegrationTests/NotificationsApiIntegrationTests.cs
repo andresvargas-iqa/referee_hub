@@ -38,10 +38,10 @@ public class NotificationsApiIntegrationTests : IClassFixture<TestWebApplication
 
 		await AuthenticationHelper.AuthenticateAsAsync(this.client, "team_manager@example.com", "password");
 
-		var createInviteModel = new CreateInviteModel
+		var createInviteModel = new
 		{
 			ParticipantType = ParticipantType.Team,
-			ParticipantId = TournamentParticipantIdentifier.ForTeam(TeamIdentifier.Parse(teamId)),
+			ParticipantId = teamId,
 		};
 
 		var createInviteResponse = await this.client.PostAsJsonAsync(
@@ -84,10 +84,10 @@ public class NotificationsApiIntegrationTests : IClassFixture<TestWebApplication
 		var teamId = await this.GetYankeesTeamIdAsync();
 
 		await AuthenticationHelper.AuthenticateAsAsync(this.client, "team_manager@example.com", "password");
-		var createInviteModel = new CreateInviteModel
+		var createInviteModel = new
 		{
 			ParticipantType = ParticipantType.Team,
-			ParticipantId = TournamentParticipantIdentifier.ForTeam(TeamIdentifier.Parse(teamId)),
+			ParticipantId = teamId,
 		};
 		var createInviteResponse = await this.client.PostAsJsonAsync(
 			$"/api/v2/tournaments/{tournamentId}/invites",

@@ -570,10 +570,10 @@ public class TournamentRosterApiIntegrationTests : IClassFixture<TestWebApplicat
 
 	private async Task<string> AddTeamToTournamentAsync(string tournamentId, string teamId)
 	{
-		var createInviteModel = new CreateInviteModel
+		var createInviteModel = new
 		{
 			ParticipantType = ParticipantType.Team,
-			ParticipantId = TournamentParticipantIdentifier.ForTeam(TeamIdentifier.Parse(teamId))
+			ParticipantId = teamId,
 		};
 
 		var inviteResponse = await this._client.PostAsJsonAsync(
