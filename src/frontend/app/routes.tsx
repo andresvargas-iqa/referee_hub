@@ -32,6 +32,9 @@ const TeamView = lazy(() => import("./pages/TeamView"));
 const TeamManagement = lazy(() => import("./pages/TeamManagement"));
 
 const isConcreteNgbId = (ngb: unknown): ngb is string => typeof ngb === "string" && ngb.length > 0 && ngb !== "ANY";
+type UserRole = { roleType?: string };
+type NgbAdminRole = UserRole & { ngb?: string };
+const isNgbAdminRole = (role: UserRole): role is NgbAdminRole => role.roleType === "NgbAdmin";
 
 const AppContent = () => {
   const isPublicRoute = PUBLIC_ROUTE_PATTERNS.some((pattern) => pattern.test(window.location.pathname));
@@ -41,7 +44,7 @@ const AppContent = () => {
   const roles = currentUser?.roles?.map((r) => r.roleType).filter((r): r is string => typeof r === "string") ?? [];
 
   const ownedNgbIds = currentUser?.roles
-    ?.filter((r) => r.roleType === "NgbAdmin")
+    ?.filter(isNgbAdminRole)
     .map((r) => r.ngb)
     .filter(isConcreteNgbId) ?? [];
 
