@@ -633,9 +633,7 @@ public class TournamentsController : ControllerBase
 			// Log but don't fail the invite creation if email fails.
 			this.logger.LogError(
 				ex,
-				"Failed to send tournament invite email for tournament {TournamentId} to team {TeamId}",
-				tournamentId,
-				teamId);
+				"Failed to send tournament invite email.");
 		}
 	}
 
