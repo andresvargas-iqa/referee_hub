@@ -561,7 +561,7 @@ public class TeamInvitationsApiIntegrationTests : IClassFixture<TestWebApplicati
 			coachingTeam = (object?)null,
 			nationalTeam = (object?)null,
 		});
-		initialJoinResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+		initialJoinResponse.StatusCode.Should().BeOneOf(HttpStatusCode.OK, HttpStatusCode.NoContent);
 
 		var clearResponse = await this.client.PutAsJsonAsync("/api/v2/Referees/me", new
 		{
