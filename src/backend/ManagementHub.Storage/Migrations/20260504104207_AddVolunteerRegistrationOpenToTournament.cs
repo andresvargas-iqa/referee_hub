@@ -10,6 +10,12 @@ namespace ManagementHub.Storage.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.AddColumn<string>(
+                name: "observations",
+                table: "tournament_invites",
+                type: "text",
+                nullable: true);
+
             migrationBuilder.AddColumn<bool>(
                 name: "is_volunteer_registration_open",
                 table: "tournaments",
@@ -24,6 +30,10 @@ namespace ManagementHub.Storage.Migrations
             migrationBuilder.DropColumn(
                 name: "is_volunteer_registration_open",
                 table: "tournaments");
+
+            migrationBuilder.DropColumn(
+                name: "observations",
+                table: "tournament_invites");
         }
     }
 }

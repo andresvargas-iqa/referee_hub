@@ -38,13 +38,6 @@ function parseVolunteerObservation(raw?: string | null): VolunteerObservation | 
   }
 }
 
-function csvEscape(value: string): string {
-  if (value.includes(",") || value.includes('"') || value.includes("\n")) {
-    return `"${value.replace(/"/g, '""')}"`;
-  }
-  return value;
-}
-
 const VolunteerRegistrationsModal = forwardRef<VolunteerRegistrationsModalRef>((_props, ref) => {
   const { alertState, showAlert, hideAlert } = useAlert();
   const [isOpen, setIsOpen] = useState(false);
@@ -112,45 +105,6 @@ const VolunteerRegistrationsModal = forwardRef<VolunteerRegistrationsModalRef>((
     return "Pending";
   }
 
-  function exportCsv() {
-    if (volunteerInvites.length === 0) return;
-
-    const header = [
-      "Participant",
-      "Participant Type",
-      "Status",
-      "Excitement",
-      "Experience",
-      "Affiliated Team",
-      "Associated Teams",
-      "Positions",
-    ];
-
-    const rows = volunteerInvites.map((invite) => {
-      const inviteWithVolunteer = invite as TournamentInviteWithVolunteer;
-      const observation = parseVolunteerObservation(inviteWithVolunteer.observations);
-      return [
-        invite.participantName || "",
-        invite.participantType || "",
-        invite.status || "",
-        observation?.excitement?.toString() || "",
-        observation?.experience?.toString() || "",
-        observation?.affiliatedTeamId || "",
-        (observation?.associatedTeamIds || []).join(" | "),
-        (observation?.positions || []).join(" | "),
-      ].map((value) => csvEscape(value));
-    });
-
-    const content = [header.map(csvEscape).join(","), ...rows.map((r) => r.join(","))].join("\n");
-    const blob = new Blob([content], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    const safeName = (tournamentName || "tournament").replace(/[^a-zA-Z0-9-_]/g, "_").toLowerCase();
-    link.href = url;
-    link.download = `${safeName}_volunteer_registrations.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
-  }
 
   return (
     <>
@@ -190,11 +144,7 @@ const VolunteerRegistrationsModal = forwardRef<VolunteerRegistrationsModalRef>((
                   ← Back to list
                 </button>
               )}
-              {!selectedInvite && volunteerInvites.length > 0 && (
-                <button onClick={exportCsv} className="text-blue-600 text-sm mt-2 hover:underline">
-                  Export Volunteer CSV
-                </button>
-              )}
+
             </div>
 
             <div className="p-6 overflow-y-auto" style={{ maxHeight: "60vh" }}>
