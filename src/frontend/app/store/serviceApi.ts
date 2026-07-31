@@ -1319,6 +1319,7 @@ export type INgbStatsContextRead = {
   headRefereesCount?: number;
   assistantRefereesCount?: number;
   flagRefereesCount?: number;
+  flagRunnerRefereesCount?: number;
   scorekeeperRefereesCount?: number;
   uncertifiedRefereesCount?: number;
   competitiveTeamsCount?: number;
