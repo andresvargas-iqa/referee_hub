@@ -25,6 +25,10 @@ module.exports = merge(common, {
     new webpack.HotModuleReplacementPlugin(),
   ],
   devServer: {
+    // Keep a fixed dev port to avoid split runtimes across 8080/8081.
+    port: 8080,
+    // Serve index.html for client-side routes such as /sign_in.
+    historyApiFallback: true,
     // Write files to disk so backend can serve them
     devMiddleware: {
       writeToDisk: true,
@@ -62,6 +66,15 @@ module.exports = merge(common, {
     headers: {
       'Access-Control-Allow-Origin': '*',
     },
+    // Forward API/auth/signalr routes to backend service.
+    proxy: [
+      {
+        context: ['/api', '/hubs', '/sign_in'],
+        target: 'http://localhost:5000',
+        changeOrigin: true,
+        secure: false,
+      },
+    ],
     // Static files configuration
     static: {
       directory: path.join(__dirname, 'dist'),
