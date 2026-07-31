@@ -162,21 +162,6 @@ public class TournamentParticipantIdentifierJsonConverter : JsonConverter<Tourna
 			return teamIdString is not null && TeamIdentifier.TryParse(teamIdString, out teamId);
 		}
 
-		if (element.ValueKind == JsonValueKind.Object)
-		{
-			if (element.TryGetProperty("id", out var idProperty) && idProperty.ValueKind == JsonValueKind.Number && idProperty.TryGetInt64(out var idValue) && idValue > 0)
-			{
-				teamId = new TeamIdentifier(idValue);
-				return true;
-			}
-
-			if (element.TryGetProperty("value", out var valueProperty) && valueProperty.ValueKind == JsonValueKind.String)
-			{
-				var value = valueProperty.GetString();
-				return value is not null && TeamIdentifier.TryParse(value, out teamId);
-			}
-		}
-
 		return false;
 	}
 
