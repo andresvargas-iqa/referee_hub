@@ -87,9 +87,8 @@ public class RefereesController : ControllerBase
 		{
 			IsActive = refereeRole.IsActive,
 			CoachingTeam = refereeUpdate.CoachingTeam?.Id,
-			PlayingTeam = currentPlayingTeamId != null && refereeUpdate.PlayingTeam == null
-				? null
-				: refereeRole.PlayingTeam,
+			// Keep existing membership unless explicitly clearing; non-null requests are handled through invite workflow below.
+			PlayingTeam = refereeUpdate.PlayingTeam == null ? null : refereeRole.PlayingTeam,
 			NationalTeam = refereeUpdate.NationalTeam?.Id,
 			PrimaryNgb = refereeUpdate.PrimaryNgb,
 			SecondaryNgb = refereeUpdate.SecondaryNgb,

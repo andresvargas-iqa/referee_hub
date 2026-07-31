@@ -547,6 +547,58 @@ public class TeamInvitationsApiIntegrationTests : IClassFixture<TestWebApplicati
 	}
 
 	[Fact]
+	public async Task UpdateReferee_ClearPlayingTeamThenRejoinSameTeam_ShouldCreatePendingRequest()
+	{
+		// Ensure any prior TM_1 pending requests are resolved before the rejoin assertion.
+		await this.SetTeamAutoApprovePlayerRequestsAsync("TM_1", true);
+		await AuthenticationHelper.AuthenticateAsAsync(this.client, "referee@example.com", "password");
+
+		var initialJoinResponse = await this.client.PutAsJsonAsync("/api/v2/Referees/me", new
+		{
+			primaryNgb = "USA",
+			secondaryNgb = (string?)null,
+			playingTeam = new { id = "TM_1" },
+			coachingTeam = (object?)null,
+			nationalTeam = (object?)null,
+		});
+		initialJoinResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+		var clearResponse = await this.client.PutAsJsonAsync("/api/v2/Referees/me", new
+		{
+			primaryNgb = "USA",
+			secondaryNgb = (string?)null,
+			playingTeam = (object?)null,
+			coachingTeam = (object?)null,
+			nationalTeam = (object?)null,
+		});
+		clearResponse.StatusCode.Should().Be(HttpStatusCode.NoContent);
+
+		await this.SetTeamAutoApprovePlayerRequestsAsync("TM_1", false);
+		await AuthenticationHelper.AuthenticateAsAsync(this.client, "referee@example.com", "password");
+
+		var rejoinResponse = await this.client.PutAsJsonAsync("/api/v2/Referees/me", new
+		{
+			primaryNgb = "USA",
+			secondaryNgb = (string?)null,
+			playingTeam = new { id = "TM_1" },
+			coachingTeam = (object?)null,
+			nationalTeam = (object?)null,
+		});
+		rejoinResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+		var rejoinStatus = await rejoinResponse.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>();
+		rejoinStatus.GetProperty("playingTeam").GetProperty("teamId").GetString().Should().Be("TM_1");
+		rejoinStatus.GetProperty("playingTeam").GetProperty("status").GetString().Should().Be("pending");
+		rejoinStatus.GetProperty("playingTeam").GetProperty("requestCreated").GetBoolean().Should().BeTrue();
+
+		var myInvitesResponse = await this.client.GetAsync("/api/v2/users/me/teamInvites");
+		myInvitesResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+		var myInvites = await myInvitesResponse.Content.ReadFromJsonAsync<List<CurrentUserTeamInviteViewModelDto>>();
+		myInvites.Should().NotBeNull();
+		myInvites!.Should().Contain(i => i.TeamId == "TM_1" && i.Email == "referee@example.com" && i.CanRespond == false);
+	}
+
+	[Fact]
 	public async Task SetAutoApprovePlayerRequests_Enable_ShouldBulkApprovePendingRequests()
 	{
 		await this.SetTeamAutoApprovePlayerRequestsAsync("TM_2", false);
