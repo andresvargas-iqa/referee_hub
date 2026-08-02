@@ -1734,8 +1734,14 @@ export type TeamInvitationViewModel = {
   createdAt?: string;
   /** Name of the person who sent the invitation (if available). */
   invitedByName?: string | null;
-  /** True when this pending item is a player join request awaiting manager approval. */
+  /** True when this pending item is a player join request awaiting manager decision. */
   requiresManagerDecision?: boolean;
+  /** Current transfer approval status. Null for first-time joins (no transfer required). */
+  transferStatus?: TransferApprovalStatus | null;
+  /** Name of the team the player is transferring from. Null for first-time joins. */
+  originTeamName?: string | null;
+  /** Whether this is an internal (same NGB) or international transfer. */
+  isInternalTransfer?: boolean | null;
 };
 export type TeamPlayerActivityType =
   | "inviteCreated"
@@ -2109,6 +2115,85 @@ export const {
   useDeleteNotificationMutation,
   useSetTeamAutoApprovePlayerRequestsMutation,
 } = injectedRtkApi;
+
+// ── NGB Transfer types & endpoints (manually maintained) ─────────────────────
+
+export type TransferApprovalStatus =
+  | "notATransfer"
+  | "pendingNgbApproval"
+  | "pendingTeamApproval"
+  | "rejectedByNgb"
+  | "approved"
+  | "declined";
+
+export type NgbTransferViewModel = {
+  /** Transfer invitation identifier. */
+  invitationId?: string | null;
+  /** Player email address. */
+  playerEmail?: string | null;
+  /** Player display name. */
+  playerName?: string | null;
+  /** Destination team identifier. */
+  destinationTeamId?: string | null;
+  /** Destination team name. */
+  destinationTeamName?: string | null;
+  /** Origin team identifier. Null for first-time joins. */
+  originTeamId?: string | null;
+  /** Origin team name. Null for first-time joins. */
+  originTeamName?: string | null;
+  /** True when both teams are in the same NGB. */
+  isInternalTransfer?: boolean;
+  /** When this NGB approved the transfer. */
+  approvedAt?: string | null;
+  /** When this NGB rejected the transfer. */
+  rejectedAt?: string | null;
+  /** When the invitation was created. */
+  createdAt?: string;
+  /** Current transfer approval status from this NGB's perspective. */
+  status?: TransferApprovalStatus;
+};
+
+export type NgbTransferSettingsRequest = {
+  autoApproveInternalTransfers: boolean;
+};
+
+const ngbTransferApi = injectedRtkApi.injectEndpoints({
+  endpoints: (build) => ({
+    getNgbTransfers: build.query<NgbTransferViewModel[], { ngb: string }>({
+      query: ({ ngb }) => ({ url: `/api/v2/Ngbs/${ngb}/transfers` }),
+      providesTags: (_r, _e, { ngb }) => [{ type: 'NgbTransfer' as never, id: ngb }],
+    }),
+    approveNgbTransfer: build.mutation<void, { ngb: string; invitationId: string }>({
+      query: ({ ngb, invitationId }) => ({
+        url: `/api/v2/Ngbs/${ngb}/transfers/${invitationId}/approve`,
+        method: 'POST',
+      }),
+      invalidatesTags: (_r, _e, { ngb }) => [{ type: 'NgbTransfer' as never, id: ngb }],
+    }),
+    rejectNgbTransfer: build.mutation<void, { ngb: string; invitationId: string }>({
+      query: ({ ngb, invitationId }) => ({
+        url: `/api/v2/Ngbs/${ngb}/transfers/${invitationId}/reject`,
+        method: 'POST',
+      }),
+      invalidatesTags: (_r, _e, { ngb }) => [{ type: 'NgbTransfer' as never, id: ngb }],
+    }),
+    updateNgbTransferSettings: build.mutation<void, { ngb: string; body: NgbTransferSettingsRequest }>({
+      query: ({ ngb, body }) => ({
+        url: `/api/v2/Ngbs/${ngb}/settings/transfers`,
+        method: 'PUT',
+        body,
+      }),
+    }),
+  }),
+  overrideExisting: false,
+});
+
+export const {
+  useGetNgbTransfersQuery,
+  useApproveNgbTransferMutation,
+  useRejectNgbTransferMutation,
+  useUpdateNgbTransferSettingsMutation,
+} = ngbTransferApi;
 export const useGetEligibleNgbsQuery = (
   _arg: { groupAffiliations: TeamGroupAffiliation[] },
   options?: Parameters<typeof injectedRtkApi.endpoints.getNgbs.useQuery>[1]

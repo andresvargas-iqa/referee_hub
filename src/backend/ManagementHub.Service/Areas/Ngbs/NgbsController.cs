@@ -754,4 +754,266 @@ public class NgbsController : ControllerBase
 
 		return this.NoContent();
 	}
+
+	// ──────────────────────────────────────────────────────────────────────────
+	// NGB Transfer endpoints
+	// ──────────────────────────────────────────────────────────────────────────
+
+	/// <summary>
+	/// List all transfers where the origin or destination team belongs to this NGB.
+	/// </summary>
+	[HttpGet("{ngb}/transfers")]
+	[Tags("NgbTransfers")]
+	[Authorize(AuthorizationPolicies.NgbAdminPolicy)]
+	public async Task<ActionResult<IEnumerable<NgbTransferViewModel>>> GetNgbTransfers(
+		[FromRoute] NgbIdentifier ngb)
+	{
+		var userContext = await this.contextAccessor.GetCurrentUserContextAsync();
+		if (!userContext.Roles.OfType<NgbAdminRole>().Any(r => r.Ngb.AppliesTo(ngb)))
+		{
+			return this.Forbid();
+		}
+
+		var ngbDbId = await this.dbContext.NationalGoverningBodies
+			.Where(n => n.CountryCode == ngb.NgbCode)
+			.Select(n => (long?)n.Id)
+			.FirstOrDefaultAsync(this.HttpContext.RequestAborted);
+
+		if (ngbDbId == null)
+		{
+			return this.NotFound();
+		}
+
+		var rows = await this.dbContext.NgbTransferApprovals
+			.Where(a => a.NgbId == ngbDbId.Value)
+			.OrderByDescending(a => a.CreatedAt)
+			.Select(a => new
+			{
+				a.TeamInvitationId,
+				a.ApprovedAt,
+				a.RejectedAt,
+				a.IsOriginNgb,
+				a.CreatedAt,
+				InvitationEmail = a.TeamInvitation.Email,
+				InvitationCreatedAt = a.TeamInvitation.CreatedAt,
+				IsInternalTransfer = a.TeamInvitation.IsInternalTransfer ?? false,
+				InvitationAcceptedAt = a.TeamInvitation.AcceptedAt,
+				InvitationDeclinedAt = a.TeamInvitation.DeclinedAt,
+				InvitationRevokedAt = a.TeamInvitation.RevokedAt,
+				DestinationTeamId = a.TeamInvitation.Team.Id,
+				DestinationTeamName = a.TeamInvitation.Team.Name,
+				OriginTeamId = (long?)a.TeamInvitation.OriginTeamId,
+				OriginTeamName = a.TeamInvitation.OriginTeam != null ? a.TeamInvitation.OriginTeam.Name : null,
+				PlayerUserId = (long?)null,
+				PlayerUniqueId = (string?)null,
+				PlayerFirstName = (string?)null,
+				PlayerLastName = (string?)null,
+			})
+			.ToListAsync(this.HttpContext.RequestAborted);
+
+		// Load player names by email separately to avoid complex joins.
+		var emails = rows.Select(r => r.InvitationEmail.ToLower()).Distinct().ToList();
+		var playersByEmail = await this.dbContext.Users
+			.Where(u => emails.Contains(u.Email.ToLower()))
+			.Select(u => new { Email = u.Email.ToLower(), u.FirstName, u.LastName })
+			.ToDictionaryAsync(u => u.Email, this.HttpContext.RequestAborted);
+
+		return this.Ok(rows.Select(r =>
+		{
+			playersByEmail.TryGetValue(r.InvitationEmail.ToLower(), out var player);
+			var playerName = player != null
+				? ManagementHub.Service.Areas.Teams.TeamInviteHelpers.BuildDisplayName(player.FirstName, player.LastName)
+				: null;
+
+			// Build fake approval objects just for status computation (avoids loading full EF graph).
+			var fakeApprovals = new[] { new ManagementHub.Models.Data.NgbTransferApproval
+			{
+				ApprovedAt = r.ApprovedAt,
+				RejectedAt = r.RejectedAt,
+			}};
+
+			var status = ManagementHub.Service.Areas.Teams.TeamInviteHelpers.ComputeTransferStatus(
+				isTransfer: true,
+				ngbApprovals: fakeApprovals,
+				isAccepted: r.InvitationAcceptedAt != null,
+				isDeclinedOrRevoked: r.InvitationDeclinedAt != null || r.InvitationRevokedAt != null);
+
+			return new NgbTransferViewModel
+			{
+				InvitationId = new ManagementHub.Models.Domain.Team.TeamInvitationIdentifier(r.TeamInvitationId).ToString(),
+				PlayerEmail = r.InvitationEmail,
+				PlayerName = playerName,
+				DestinationTeamId = new ManagementHub.Models.Domain.Team.TeamIdentifier(r.DestinationTeamId).ToString(),
+				DestinationTeamName = r.DestinationTeamName,
+				OriginTeamId = r.OriginTeamId.HasValue
+					? new ManagementHub.Models.Domain.Team.TeamIdentifier(r.OriginTeamId.Value).ToString()
+					: null,
+				OriginTeamName = r.OriginTeamName,
+				IsInternalTransfer = r.IsInternalTransfer,
+				ApprovedAt = r.ApprovedAt,
+				RejectedAt = r.RejectedAt,
+				CreatedAt = r.InvitationCreatedAt,
+				Status = status,
+			};
+		}));
+	}
+
+	/// <summary>
+	/// Approve a player transfer on behalf of the NGB.
+	/// </summary>
+	[HttpPost("{ngb}/transfers/{invitationId}/approve")]
+	[Tags("NgbTransfers")]
+	[Authorize(AuthorizationPolicies.NgbAdminPolicy)]
+	public async Task<IActionResult> ApproveNgbTransfer(
+		[FromRoute] NgbIdentifier ngb,
+		[FromRoute] ManagementHub.Models.Domain.Team.TeamInvitationIdentifier invitationId)
+	{
+		var userContext = await this.contextAccessor.GetCurrentUserContextAsync();
+		if (!userContext.Roles.OfType<NgbAdminRole>().Any(r => r.Ngb.AppliesTo(ngb)))
+		{
+			return this.Forbid();
+		}
+
+		var ngbDbId = await this.dbContext.NationalGoverningBodies
+			.Where(n => n.CountryCode == ngb.NgbCode)
+			.Select(n => (long?)n.Id)
+			.FirstOrDefaultAsync(this.HttpContext.RequestAborted);
+
+		if (ngbDbId == null)
+		{
+			return this.NotFound();
+		}
+
+		var approval = await this.dbContext.NgbTransferApprovals
+			.FirstOrDefaultAsync(
+				a => a.TeamInvitationId == invitationId.Id && a.NgbId == ngbDbId.Value,
+				this.HttpContext.RequestAborted);
+
+		if (approval == null)
+		{
+			return this.NotFound();
+		}
+
+		if (approval.ApprovedAt != null || approval.RejectedAt != null)
+		{
+			return this.Conflict("Transfer has already been reviewed by this NGB.");
+		}
+
+		var currentUserDbId = await this.dbContext.Users
+			.WithIdentifier(userContext.UserId)
+			.Select(u => u.Id)
+			.SingleAsync(this.HttpContext.RequestAborted);
+
+		approval.ApprovedAt = DateTime.UtcNow;
+		approval.ReviewedByUserId = currentUserDbId;
+		await this.dbContext.SaveChangesAsync(this.HttpContext.RequestAborted);
+
+		return this.NoContent();
+	}
+
+	/// <summary>
+	/// Reject a player transfer on behalf of the NGB.
+	/// </summary>
+	[HttpPost("{ngb}/transfers/{invitationId}/reject")]
+	[Tags("NgbTransfers")]
+	[Authorize(AuthorizationPolicies.NgbAdminPolicy)]
+	public async Task<IActionResult> RejectNgbTransfer(
+		[FromRoute] NgbIdentifier ngb,
+		[FromRoute] ManagementHub.Models.Domain.Team.TeamInvitationIdentifier invitationId)
+	{
+		var userContext = await this.contextAccessor.GetCurrentUserContextAsync();
+		if (!userContext.Roles.OfType<NgbAdminRole>().Any(r => r.Ngb.AppliesTo(ngb)))
+		{
+			return this.Forbid();
+		}
+
+		var ngbDbId = await this.dbContext.NationalGoverningBodies
+			.Where(n => n.CountryCode == ngb.NgbCode)
+			.Select(n => (long?)n.Id)
+			.FirstOrDefaultAsync(this.HttpContext.RequestAborted);
+
+		if (ngbDbId == null)
+		{
+			return this.NotFound();
+		}
+
+		var approval = await this.dbContext.NgbTransferApprovals
+			.FirstOrDefaultAsync(
+				a => a.TeamInvitationId == invitationId.Id && a.NgbId == ngbDbId.Value,
+				this.HttpContext.RequestAborted);
+
+		if (approval == null)
+		{
+			return this.NotFound();
+		}
+
+		if (approval.ApprovedAt != null || approval.RejectedAt != null)
+		{
+			return this.Conflict("Transfer has already been reviewed by this NGB.");
+		}
+
+		var currentUserDbId = await this.dbContext.Users
+			.WithIdentifier(userContext.UserId)
+			.Select(u => u.Id)
+			.SingleAsync(this.HttpContext.RequestAborted);
+
+		approval.RejectedAt = DateTime.UtcNow;
+		approval.ReviewedByUserId = currentUserDbId;
+
+		// Also revoke the team invitation so the player is not left in limbo.
+		var invitation = await this.dbContext.TeamInvitations
+			.FirstOrDefaultAsync(
+				i => i.Id == invitationId.Id
+					&& i.RevokedAt == null
+					&& i.AcceptedAt == null
+					&& i.DeclinedAt == null,
+				this.HttpContext.RequestAborted);
+
+		if (invitation != null)
+		{
+			invitation.RevokedAt = DateTime.UtcNow;
+			this.dbContext.TeamPlayerActivities.Add(new ManagementHub.Models.Data.TeamPlayerActivity
+			{
+				TeamId = invitation.TeamId,
+				Email = invitation.Email,
+				InitiatorUserId = currentUserDbId,
+				ActivityType = ManagementHub.Models.Enums.TeamPlayerActivityType.InviteRevoked,
+				CreatedAt = DateTime.UtcNow,
+			});
+		}
+
+		await this.dbContext.SaveChangesAsync(this.HttpContext.RequestAborted);
+
+		return this.NoContent();
+	}
+
+	/// <summary>
+	/// Update NGB transfer settings (auto-approve internal transfers).
+	/// </summary>
+	[HttpPut("{ngb}/settings/transfers")]
+	[Tags("NgbTransfers")]
+	[Authorize(AuthorizationPolicies.NgbAdminPolicy)]
+	public async Task<IActionResult> UpdateNgbTransferSettings(
+		[FromRoute] NgbIdentifier ngb,
+		[FromBody] NgbTransferSettingsRequest request)
+	{
+		var userContext = await this.contextAccessor.GetCurrentUserContextAsync();
+		if (!userContext.Roles.OfType<NgbAdminRole>().Any(r => r.Ngb.AppliesTo(ngb)))
+		{
+			return this.Forbid();
+		}
+
+		var ngbEntity = await this.dbContext.NationalGoverningBodies
+			.FirstOrDefaultAsync(n => n.CountryCode == ngb.NgbCode, this.HttpContext.RequestAborted);
+
+		if (ngbEntity == null)
+		{
+			return this.NotFound();
+		}
+
+		ngbEntity.AutoApproveInternalTransfers = request.AutoApproveInternalTransfers;
+		await this.dbContext.SaveChangesAsync(this.HttpContext.RequestAborted);
+
+		return this.NoContent();
+	}
 }
