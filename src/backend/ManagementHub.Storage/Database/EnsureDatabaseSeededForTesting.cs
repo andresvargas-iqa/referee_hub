@@ -106,21 +106,45 @@ public class EnsureDatabaseSeededForTesting : DatabaseStartupService
 		var random = new Random(421337);
 		const string passwordHash = "$2a$11$YURdUdxxppPle1z32ZExtu8Jk7lXJxpcckfOtpznfw3VT2zsZmzne";
 
+		var extraReferees = this.CreateExtraReferees(now, passwordHash);
+		this.SeedExtraRefereeAssociations(dbContext, ngbs, teams, extraReferees, now);
+
+		var inviteTargets = this.BuildInviteTargets(extraReferees, users);
+		var seedData = new AdditionalSeedData(this.additionalSeedTeamInvites, this.additionalSeedTransfers);
+
+		this.SeedAdditionalTeamInvites(dbContext, teams, users, inviteTargets, now, seedData);
+		this.SeedAdditionalTransfers(teams, users, inviteTargets, now, random, seedData);
+
+		dbContext.TeamInvitations.AddRange(seedData.TeamInvitations);
+		dbContext.TeamPlayerActivities.AddRange(seedData.TeamPlayerActivities);
+		dbContext.NgbTransferApprovals.AddRange(seedData.TransferApprovals);
+	}
+
+	private List<User> CreateExtraReferees(DateTime now, string passwordHash)
+	{
 		var extraReferees = new List<User>(this.additionalSeedReferees);
 		for (var i = 1; i <= this.additionalSeedReferees; i++)
 		{
-			var referee = new User
+			extraReferees.Add(new User
 			{
 				CreatedAt = now.AddMinutes(-(i + 10)),
 				Email = $"dev.referee.{i:D4}@example.test",
 				EncryptedPassword = passwordHash,
 				FirstName = "Dev",
 				LastName = $"Referee{i:D4}",
-			};
-
-			extraReferees.Add(referee);
+			});
 		}
 
+		return extraReferees;
+	}
+
+	private void SeedExtraRefereeAssociations(
+		ManagementHubDbContext dbContext,
+		IReadOnlyList<NationalGoverningBody> ngbs,
+		IReadOnlyList<Team> teams,
+		IReadOnlyList<User> extraReferees,
+		DateTime now)
+	{
 		dbContext.Users.AddRange(extraReferees);
 		dbContext.Roles.AddRange(extraReferees.Select(referee => new Role
 		{
@@ -157,20 +181,23 @@ public class EnsureDatabaseSeededForTesting : DatabaseStartupService
 		}
 
 		dbContext.RefereeTeams.AddRange(playerAssociations);
+	}
 
-		var inviteTargets = extraReferees.Count > 0
+	private IReadOnlyList<User> BuildInviteTargets(IReadOnlyList<User> extraReferees, SeedUsers users)
+	{
+		return extraReferees.Count > 0
 			? extraReferees
 			: new List<User> { users.Referee, users.PlayerSarah, users.CoachMike, users.RecertTestReferee };
+	}
 
-		var teamInvites = new List<TeamInvitation>(this.additionalSeedTeamInvites + this.additionalSeedTransfers);
-		var teamActivities = new List<TeamPlayerActivity>(this.additionalSeedTeamInvites + this.additionalSeedTransfers);
-		var transferApprovals = new List<NgbTransferApproval>(this.additionalSeedTransfers * 2);
-		var eligibleTransferTeams = teams
-			.Where(team =>
-				team.GroupAffiliation != TeamGroupAffiliation.National
-				&& team.GroupAffiliation != TeamGroupAffiliation.NotApplicable)
-			.ToArray();
-
+	private void SeedAdditionalTeamInvites(
+		ManagementHubDbContext dbContext,
+		IReadOnlyList<Team> teams,
+		SeedUsers users,
+		IReadOnlyList<User> inviteTargets,
+		DateTime now,
+		AdditionalSeedData seedData)
+	{
 		for (var i = 1; i <= this.additionalSeedTeamInvites; i++)
 		{
 			var targetUser = inviteTargets[(i - 1) % inviteTargets.Count];
@@ -185,52 +212,13 @@ public class EnsureDatabaseSeededForTesting : DatabaseStartupService
 				CreatedAt = createdAt,
 			};
 
-			TeamPlayerActivityType resultActivityType;
-			if (i % 6 == 0)
-			{
-				invitation.RevokedAt = createdAt.AddMinutes(30);
-				resultActivityType = TeamPlayerActivityType.InviteRevoked;
-			}
-			else if (i % 5 == 0)
-			{
-				invitation.DeclinedAt = createdAt.AddMinutes(40);
-				invitation.RespondedByUser = targetUser;
-				resultActivityType = TeamPlayerActivityType.InviteDeclined;
-			}
-			else if (i % 4 == 0)
-			{
-				invitation.AcceptedAt = createdAt.AddMinutes(20);
-				invitation.RespondedByUser = targetUser;
-				resultActivityType = TeamPlayerActivityType.InviteAccepted;
-
-				dbContext.RefereeTeams.Add(new RefereeTeam
-				{
-					Referee = targetUser,
-					AssociationType = RefereeTeamAssociationType.Player,
-					Team = destinationTeam,
-					CreatedAt = invitation.AcceptedAt.Value,
-					UpdatedAt = invitation.AcceptedAt.Value,
-				});
-			}
-			else
-			{
-				resultActivityType = TeamPlayerActivityType.InviteCreated;
-			}
-
-			teamInvites.Add(invitation);
-			teamActivities.Add(new TeamPlayerActivity
-			{
-				Team = destinationTeam,
-				User = targetUser,
-				Email = targetUser.Email,
-				Initiator = users.TeamManager,
-				ActivityType = TeamPlayerActivityType.InviteCreated,
-				CreatedAt = createdAt,
-			});
+			var resultActivityType = this.ApplyInviteOutcomeAndMembership(dbContext, invitation, targetUser, destinationTeam, createdAt, i);
+			seedData.TeamInvitations.Add(invitation);
+			seedData.TeamPlayerActivities.Add(BuildInviteCreatedActivity(destinationTeam, targetUser, users.TeamManager, createdAt));
 
 			if (resultActivityType != TeamPlayerActivityType.InviteCreated)
 			{
-				teamActivities.Add(new TeamPlayerActivity
+				seedData.TeamPlayerActivities.Add(new TeamPlayerActivity
 				{
 					Team = destinationTeam,
 					User = targetUser,
@@ -241,6 +229,62 @@ public class EnsureDatabaseSeededForTesting : DatabaseStartupService
 				});
 			}
 		}
+	}
+
+	private TeamPlayerActivityType ApplyInviteOutcomeAndMembership(
+		ManagementHubDbContext dbContext,
+		TeamInvitation invitation,
+		User targetUser,
+		Team destinationTeam,
+		DateTime createdAt,
+		int index)
+	{
+		if (index % 6 == 0)
+		{
+			invitation.RevokedAt = createdAt.AddMinutes(30);
+			return TeamPlayerActivityType.InviteRevoked;
+		}
+
+		if (index % 5 == 0)
+		{
+			invitation.DeclinedAt = createdAt.AddMinutes(40);
+			invitation.RespondedByUser = targetUser;
+			return TeamPlayerActivityType.InviteDeclined;
+		}
+
+		if (index % 4 != 0)
+		{
+			return TeamPlayerActivityType.InviteCreated;
+		}
+
+		invitation.AcceptedAt = createdAt.AddMinutes(20);
+		invitation.RespondedByUser = targetUser;
+
+		dbContext.RefereeTeams.Add(new RefereeTeam
+		{
+			Referee = targetUser,
+			AssociationType = RefereeTeamAssociationType.Player,
+			Team = destinationTeam,
+			CreatedAt = invitation.AcceptedAt.Value,
+			UpdatedAt = invitation.AcceptedAt.Value,
+		});
+
+		return TeamPlayerActivityType.InviteAccepted;
+	}
+
+	private void SeedAdditionalTransfers(
+		IReadOnlyList<Team> teams,
+		SeedUsers users,
+		IReadOnlyList<User> inviteTargets,
+		DateTime now,
+		Random random,
+		AdditionalSeedData seedData)
+	{
+		var eligibleTransferTeams = teams
+			.Where(team =>
+				team.GroupAffiliation != TeamGroupAffiliation.National
+				&& team.GroupAffiliation != TeamGroupAffiliation.NotApplicable)
+			.ToArray();
 
 		if (this.additionalSeedTransfers > 0 && eligibleTransferTeams.Length < 2)
 		{
@@ -263,6 +307,10 @@ public class EnsureDatabaseSeededForTesting : DatabaseStartupService
 			var createdAt = now.AddHours(-(this.additionalSeedTeamInvites + i));
 			var originNgb = originTeam.NationalGoverningBody;
 			var destinationNgb = destinationTeam.NationalGoverningBody;
+			if (originNgb == null || destinationNgb == null)
+			{
+				continue;
+			}
 
 			var transferInvite = new TeamInvitation
 			{
@@ -279,20 +327,12 @@ public class EnsureDatabaseSeededForTesting : DatabaseStartupService
 				transferInvite.RevokedAt = createdAt.AddMinutes(50);
 			}
 
-			teamInvites.Add(transferInvite);
-			teamActivities.Add(new TeamPlayerActivity
-			{
-				Team = destinationTeam,
-				User = targetUser,
-				Email = targetUser.Email,
-				Initiator = users.TeamManager,
-				ActivityType = TeamPlayerActivityType.InviteCreated,
-				CreatedAt = createdAt,
-			});
+			seedData.TeamInvitations.Add(transferInvite);
+			seedData.TeamPlayerActivities.Add(BuildInviteCreatedActivity(destinationTeam, targetUser, users.TeamManager, createdAt));
 
 			if (transferInvite.RevokedAt != null)
 			{
-				teamActivities.Add(new TeamPlayerActivity
+				seedData.TeamPlayerActivities.Add(new TeamPlayerActivity
 				{
 					Team = destinationTeam,
 					User = targetUser,
@@ -303,61 +343,96 @@ public class EnsureDatabaseSeededForTesting : DatabaseStartupService
 				});
 			}
 
-			if (originNgb.Id == destinationNgb.Id)
+			this.AddTransferApprovalsForInvite(seedData.TransferApprovals, transferInvite, originNgb, destinationNgb, createdAt, random, users, i);
+		}
+	}
+
+	private static TeamPlayerActivity BuildInviteCreatedActivity(Team destinationTeam, User targetUser, User initiator, DateTime createdAt)
+	{
+		return new TeamPlayerActivity
+		{
+			Team = destinationTeam,
+			User = targetUser,
+			Email = targetUser.Email,
+			Initiator = initiator,
+			ActivityType = TeamPlayerActivityType.InviteCreated,
+			CreatedAt = createdAt,
+		};
+	}
+
+	private void AddTransferApprovalsForInvite(
+		ICollection<NgbTransferApproval> transferApprovals,
+		TeamInvitation transferInvite,
+		NationalGoverningBody originNgb,
+		NationalGoverningBody destinationNgb,
+		DateTime createdAt,
+		Random random,
+		SeedUsers users,
+		int index)
+	{
+		if (originNgb.Id == destinationNgb.Id)
+		{
+			transferApprovals.Add(new NgbTransferApproval
 			{
-				transferApprovals.Add(new NgbTransferApproval
-				{
-					TeamInvitation = transferInvite,
-					Ngb = originNgb,
-					IsOriginNgb = true,
-					CreatedAt = createdAt,
-					ApprovedAt = i % 3 == 0 ? createdAt.AddMinutes(15) : null,
-					ReviewedByUser = i % 3 == 0 ? users.NgbAdmin : null,
-				});
-			}
-			else
+				TeamInvitation = transferInvite,
+				Ngb = originNgb,
+				IsOriginNgb = true,
+				CreatedAt = createdAt,
+				ApprovedAt = index % 3 == 0 ? createdAt.AddMinutes(15) : null,
+				ReviewedByUser = index % 3 == 0 ? users.NgbAdmin : null,
+			});
+			return;
+		}
+
+		var originApproval = new NgbTransferApproval
+		{
+			TeamInvitation = transferInvite,
+			Ngb = originNgb,
+			IsOriginNgb = true,
+			CreatedAt = createdAt,
+		};
+
+		var destinationApproval = new NgbTransferApproval
+		{
+			TeamInvitation = transferInvite,
+			Ngb = destinationNgb,
+			IsOriginNgb = false,
+			CreatedAt = createdAt,
+		};
+
+		if (index % 7 == 0)
+		{
+			originApproval.RejectedAt = createdAt.AddMinutes(20 + random.Next(10));
+			originApproval.ReviewedByUser = users.NgbAdmin;
+		}
+		else
+		{
+			originApproval.ApprovedAt = createdAt.AddMinutes(10 + random.Next(20));
+			originApproval.ReviewedByUser = users.NgbAdmin;
+
+			if (index % 2 == 0)
 			{
-				var originApproval = new NgbTransferApproval
-				{
-					TeamInvitation = transferInvite,
-					Ngb = originNgb,
-					IsOriginNgb = true,
-					CreatedAt = createdAt,
-				};
-
-				var destinationApproval = new NgbTransferApproval
-				{
-					TeamInvitation = transferInvite,
-					Ngb = destinationNgb,
-					IsOriginNgb = false,
-					CreatedAt = createdAt,
-				};
-
-				if (i % 7 == 0)
-				{
-					originApproval.RejectedAt = createdAt.AddMinutes(20 + random.Next(10));
-					originApproval.ReviewedByUser = users.NgbAdmin;
-				}
-				else
-				{
-					originApproval.ApprovedAt = createdAt.AddMinutes(10 + random.Next(20));
-					originApproval.ReviewedByUser = users.NgbAdmin;
-
-					if (i % 2 == 0)
-					{
-						destinationApproval.ApprovedAt = createdAt.AddMinutes(40 + random.Next(20));
-						destinationApproval.ReviewedByUser = users.NgbAdmin;
-					}
-				}
-
-				transferApprovals.Add(originApproval);
-				transferApprovals.Add(destinationApproval);
+				destinationApproval.ApprovedAt = createdAt.AddMinutes(40 + random.Next(20));
+				destinationApproval.ReviewedByUser = users.NgbAdmin;
 			}
 		}
 
-		dbContext.TeamInvitations.AddRange(teamInvites);
-		dbContext.TeamPlayerActivities.AddRange(teamActivities);
-		dbContext.NgbTransferApprovals.AddRange(transferApprovals);
+		transferApprovals.Add(originApproval);
+		transferApprovals.Add(destinationApproval);
+	}
+
+	private sealed class AdditionalSeedData
+	{
+		public AdditionalSeedData(int additionalSeedTeamInvites, int additionalSeedTransfers)
+		{
+			this.TeamInvitations = new List<TeamInvitation>(additionalSeedTeamInvites + additionalSeedTransfers);
+			this.TeamPlayerActivities = new List<TeamPlayerActivity>(additionalSeedTeamInvites + additionalSeedTransfers);
+			this.TransferApprovals = new List<NgbTransferApproval>(additionalSeedTransfers * 2);
+		}
+
+		public List<TeamInvitation> TeamInvitations { get; }
+		public List<TeamPlayerActivity> TeamPlayerActivities { get; }
+		public List<NgbTransferApproval> TransferApprovals { get; }
 	}
 
 	private NationalGoverningBody[] SeedNgbs(ManagementHubDbContext dbContext)
