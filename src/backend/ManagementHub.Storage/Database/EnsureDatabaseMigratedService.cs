@@ -23,30 +23,22 @@ public class EnsureDatabaseMigratedService : DatabaseStartupService
 	// IMPORTANT: This method must execute synchronously in order to block startup until migrations are applied
 	protected override Task ExecuteAsync(ManagementHubDbContext dbContext, CancellationToken stoppingToken)
 	{
-		try
+		this.logger.LogInformation(0x5225da00, "Ensuring database is migrated...");
+
+		var migrations = new List<string>(dbContext.Database.GetPendingMigrations());
+		if (migrations.Count > 0)
 		{
-			this.logger.LogInformation(0x5225da00, "Ensuring database is migrated...");
+			this.logger.LogInformation(0x5225da01, "Applying database migrations: {migrations}", string.Join(", ", migrations));
 
-			var migrations = new List<string>(dbContext.Database.GetPendingMigrations());
-			if (migrations.Count > 0)
-			{
-				this.logger.LogInformation(0x5225da01, "Applying database migrations: {migrations}", string.Join(", ", migrations));
+			dbContext.Database.Migrate();
 
-				dbContext.Database.Migrate();
-
-				this.logger.LogInformation(0x5225da02, "Database migrations have been successfully applied.");
-			}
-			else
-			{
-				this.logger.LogInformation(0x5225da03, "Database already up to date.");
-			}
-
-			return Task.CompletedTask;
+			this.logger.LogInformation(0x5225da02, "Database migrations have been successfully applied.");
 		}
-		catch (Exception ex)
+		else
 		{
-			this.logger.LogError(0x5225da04, ex, "Error while applying database migrations.");
-			throw;
+			this.logger.LogInformation(0x5225da03, "Database already up to date.");
 		}
+
+		return Task.CompletedTask;
 	}
 }
