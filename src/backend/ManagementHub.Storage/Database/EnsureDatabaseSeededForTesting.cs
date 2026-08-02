@@ -165,6 +165,11 @@ public class EnsureDatabaseSeededForTesting : DatabaseStartupService
 		var teamInvites = new List<TeamInvitation>(this.additionalSeedTeamInvites + this.additionalSeedTransfers);
 		var teamActivities = new List<TeamPlayerActivity>(this.additionalSeedTeamInvites + this.additionalSeedTransfers);
 		var transferApprovals = new List<NgbTransferApproval>(this.additionalSeedTransfers * 2);
+		var eligibleTransferTeams = teams
+			.Where(team =>
+				team.GroupAffiliation != TeamGroupAffiliation.National
+				&& team.GroupAffiliation != TeamGroupAffiliation.NotApplicable)
+			.ToArray();
 
 		for (var i = 1; i <= this.additionalSeedTeamInvites; i++)
 		{
@@ -237,13 +242,21 @@ public class EnsureDatabaseSeededForTesting : DatabaseStartupService
 			}
 		}
 
-		for (var i = 1; i <= this.additionalSeedTransfers; i++)
+		if (this.additionalSeedTransfers > 0 && eligibleTransferTeams.Length < 2)
 		{
-			var originTeam = teams[(i + 1) % teams.Count];
-			var destinationTeam = teams[(i + 2) % teams.Count];
+			this.logger.LogWarning(
+				"Skipping additional transfer seed data because fewer than 2 eligible playing teams are available (found {EligibleTeamCount}).",
+				eligibleTransferTeams.Length);
+		}
+
+		var transferSeedCount = eligibleTransferTeams.Length >= 2 ? this.additionalSeedTransfers : 0;
+		for (var i = 1; i <= transferSeedCount; i++)
+		{
+			var originTeam = eligibleTransferTeams[(i + 1) % eligibleTransferTeams.Length];
+			var destinationTeam = eligibleTransferTeams[(i + 2) % eligibleTransferTeams.Length];
 			if (ReferenceEquals(originTeam, destinationTeam))
 			{
-				destinationTeam = teams[(i + 3) % teams.Count];
+				destinationTeam = eligibleTransferTeams[(i + 3) % eligibleTransferTeams.Length];
 			}
 
 			var targetUser = inviteTargets[(i * 7) % inviteTargets.Count];
