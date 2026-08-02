@@ -17,7 +17,7 @@ const STATUS_LABELS: Record<TransferApprovalStatus, string> = {
   pendingTeamApproval: "Pending team approval",
   rejectedByNgb: "Rejected by NGB",
   approved: "Accepted",
-  declined: "Declined",
+  declined: "Cancelled",
 };
 
 const STATUS_COLORS: Record<TransferApprovalStatus, string> = {
@@ -45,23 +45,49 @@ interface TransferActionsProps {
   ngbId: string;
 }
 
+const normalizeStatus = (status?: string | null): TransferApprovalStatus | undefined => {
+  switch (status) {
+    case "notATransfer":
+    case "NotATransfer":
+      return "notATransfer";
+    case "pendingNgbApproval":
+    case "PendingNgbApproval":
+      return "pendingNgbApproval";
+    case "pendingTeamApproval":
+    case "PendingTeamApproval":
+      return "pendingTeamApproval";
+    case "rejectedByNgb":
+    case "RejectedByNgb":
+      return "rejectedByNgb";
+    case "approved":
+    case "Approved":
+      return "approved";
+    case "declined":
+    case "Declined":
+      return "declined";
+    default:
+      return undefined;
+  }
+};
+
 const TransferActions: React.FC<TransferActionsProps> = ({ transfer, ngbId }) => {
   const [open, setOpen] = useState(false);
   const [approve] = useApproveNgbTransferMutation();
   const [reject] = useRejectNgbTransferMutation();
+  const status = normalizeStatus(transfer.status);
 
   const canAct =
-    transfer.status === "pendingNgbApproval" &&
+    status === "pendingNgbApproval" &&
     transfer.invitationId;
 
-  if (!canAct) return null;
-
   const handleApprove = async () => {
+    if (!canAct) return;
     setOpen(false);
     await approve({ ngb: ngbId, invitationId: transfer.invitationId! });
   };
 
   const handleReject = async () => {
+    if (!canAct) return;
     setOpen(false);
     if (confirm(`Reject transfer for ${transfer.playerEmail ?? "this player"}?`)) {
       await reject({ ngb: ngbId, invitationId: transfer.invitationId! });
@@ -80,17 +106,22 @@ const TransferActions: React.FC<TransferActionsProps> = ({ transfer, ngbId }) =>
       {open && (
         <div className="absolute right-0 z-10 mt-1 w-44 rounded-md border border-gray-200 bg-white shadow-lg">
           <button
-            className="block w-full px-4 py-2 text-left text-sm hover:bg-gray-50"
+            className="block w-full px-4 py-2 text-left text-sm hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
             onClick={handleApprove}
+            disabled={!canAct}
           >
             ✓ Approve transfer
           </button>
           <button
-            className="block w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-gray-50"
+            className="block w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
             onClick={handleReject}
+            disabled={!canAct}
           >
             ✗ Reject transfer
           </button>
+          {!canAct && (
+            <p className="border-t px-4 py-2 text-xs text-gray-500">No actions available for this status</p>
+          )}
         </div>
       )}
     </div>
@@ -112,8 +143,8 @@ const NgbTransfersTab: React.FC<NgbTransfersTabProps> = ({ ngbId }) => {
 
     const isPending = (status?: TransferApprovalStatus) => status === "pendingNgbApproval";
     return [...transfers].sort((a, b) => {
-      const aPending = isPending(a.status);
-      const bPending = isPending(b.status);
+      const aPending = isPending(normalizeStatus(a.status));
+      const bPending = isPending(normalizeStatus(b.status));
       if (aPending !== bPending) return aPending ? -1 : 1;
 
       const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
@@ -200,7 +231,7 @@ const NgbTransfersTab: React.FC<NgbTransfersTabProps> = ({ ngbId }) => {
                     ) : "—"}
                   </td>
                   <td className="px-4 py-3">
-                    <StatusBadge status={t.status} />
+                    <StatusBadge status={normalizeStatus(t.status)} />
                   </td>
                   <td className="px-4 py-3 text-gray-500">
                     {t.createdAt ? new Date(t.createdAt).toLocaleDateString() : "—"}
