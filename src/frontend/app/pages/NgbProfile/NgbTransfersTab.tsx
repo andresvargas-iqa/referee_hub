@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import Toggle from "../../components/Toggle";
 import {
   NgbTransferViewModel,
@@ -16,7 +16,7 @@ const STATUS_LABELS: Record<TransferApprovalStatus, string> = {
   pendingNgbApproval: "Pending NGB approval",
   pendingTeamApproval: "Pending team approval",
   rejectedByNgb: "Rejected by NGB",
-  approved: "Approved",
+  approved: "Accepted",
   declined: "Declined",
 };
 
@@ -107,6 +107,21 @@ const NgbTransfersTab: React.FC<NgbTransfersTabProps> = ({ ngbId }) => {
   const { data: transfers, isLoading, error } = useGetNgbTransfersQuery({ ngb: ngbId });
   const [updateSettings, { isLoading: isSaving }] = useUpdateNgbTransferSettingsMutation();
 
+  const orderedTransfers = useMemo(() => {
+    if (!transfers) return [];
+
+    const isPending = (status?: TransferApprovalStatus) => status === "pendingNgbApproval";
+    return [...transfers].sort((a, b) => {
+      const aPending = isPending(a.status);
+      const bPending = isPending(b.status);
+      if (aPending !== bPending) return aPending ? -1 : 1;
+
+      const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return bTime - aTime;
+    });
+  }, [transfers]);
+
   // Derive current auto-approve state from first record (all share same NGB setting).
   // We don't have a direct GET for NGB settings yet, so we derive it optimistically.
   const [autoApprove, setAutoApprove] = useState(false);
@@ -150,7 +165,7 @@ const NgbTransfersTab: React.FC<NgbTransfersTabProps> = ({ ngbId }) => {
       </div>
 
       {/* Transfer table */}
-      {!transfers || transfers.length === 0 ? (
+      {orderedTransfers.length === 0 ? (
         <div className="rounded-md border border-gray-200 bg-gray-50 p-4 text-gray-500">
           No transfers to show yet.
         </div>
@@ -169,7 +184,7 @@ const NgbTransfersTab: React.FC<NgbTransfersTabProps> = ({ ngbId }) => {
               </tr>
             </thead>
             <tbody>
-              {transfers.map((t) => (
+              {orderedTransfers.map((t) => (
                 <tr key={t.invitationId} className="border-t hover:bg-gray-50">
                   <td className="px-4 py-3">
                     <p className="font-medium">{t.playerName ?? "—"}</p>

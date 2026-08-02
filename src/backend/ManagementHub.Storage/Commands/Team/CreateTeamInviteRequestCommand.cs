@@ -23,6 +23,7 @@ public class CreateTeamInviteRequestCommand : ICreateTeamInviteRequestCommand
 		TeamIdentifier teamId,
 		string normalizedEmail,
 		long currentUserDbId,
+		RefereeTeamAssociationType requestedAssociationType,
 		CancellationToken cancellationToken)
 	{
 		var teamSettings = await this.dbContext.Teams
@@ -33,6 +34,7 @@ public class CreateTeamInviteRequestCommand : ICreateTeamInviteRequestCommand
 				team.Name,
 				team.AutoApprovePlayerRequests,
 				team.NationalGoverningBodyId,
+				team.GroupAffiliation,
 			})
 			.FirstOrDefaultAsync(cancellationToken);
 
@@ -98,8 +100,13 @@ public class CreateTeamInviteRequestCommand : ICreateTeamInviteRequestCommand
 			CreatedAt = requestedAt,
 		});
 
-		// Create NGB transfer approval records when a transfer is involved.
-		if (originTeamId.HasValue)
+		// NGB transfer approvals apply only to playing-team transfer requests and
+		// not to destination national teams.
+		var requiresNgbTransferApproval =
+			requestedAssociationType == RefereeTeamAssociationType.Player
+			&& teamSettings.GroupAffiliation != TeamGroupAffiliation.National;
+
+		if (requiresNgbTransferApproval && originTeamId.HasValue)
 		{
 			await this.CreateNgbTransferApprovalsAsync(
 				invitation,

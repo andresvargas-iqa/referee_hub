@@ -786,7 +786,8 @@ public class NgbsController : ControllerBase
 
 		var rows = await this.dbContext.NgbTransferApprovals
 			.Where(a => a.NgbId == ngbDbId.Value)
-			.OrderByDescending(a => a.CreatedAt)
+			.OrderBy(a => a.ApprovedAt != null || a.RejectedAt != null)
+			.ThenByDescending(a => a.CreatedAt)
 			.Select(a => new
 			{
 				a.TeamInvitationId,
@@ -825,18 +826,16 @@ public class NgbsController : ControllerBase
 				? ManagementHub.Service.Areas.Teams.TeamInviteHelpers.BuildDisplayName(player.FirstName, player.LastName)
 				: null;
 
-			// Build fake approval objects just for status computation (avoids loading full EF graph).
-			var fakeApprovals = new[] { new ManagementHub.Models.Data.NgbTransferApproval
-			{
-				ApprovedAt = r.ApprovedAt,
-				RejectedAt = r.RejectedAt,
-			}};
-
-			var status = ManagementHub.Service.Areas.Teams.TeamInviteHelpers.ComputeTransferStatus(
-				isTransfer: true,
-				ngbApprovals: fakeApprovals,
-				isAccepted: r.InvitationAcceptedAt != null,
-				isDeclinedOrRevoked: r.InvitationDeclinedAt != null || r.InvitationRevokedAt != null);
+			// NGB tab shows this NGB's decision status for audit visibility.
+			var status = r.RejectedAt != null
+				? ManagementHub.Service.Areas.Teams.TransferApprovalStatus.RejectedByNgb
+				: r.ApprovedAt != null
+					? ManagementHub.Service.Areas.Teams.TransferApprovalStatus.Approved
+					: (r.InvitationDeclinedAt != null || r.InvitationRevokedAt != null)
+						? ManagementHub.Service.Areas.Teams.TransferApprovalStatus.Declined
+						: (r.InvitationAcceptedAt != null
+							? ManagementHub.Service.Areas.Teams.TransferApprovalStatus.Approved
+							: ManagementHub.Service.Areas.Teams.TransferApprovalStatus.PendingNgbApproval);
 
 			return new NgbTransferViewModel
 			{
