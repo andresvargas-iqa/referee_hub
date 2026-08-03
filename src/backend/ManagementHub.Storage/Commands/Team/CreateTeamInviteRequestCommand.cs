@@ -5,7 +5,9 @@ using System.Threading.Tasks;
 using ManagementHub.Models.Abstraction.Commands;
 using ManagementHub.Models.Data;
 using ManagementHub.Models.Domain.Team;
+using ManagementHub.Models.Domain.User;
 using ManagementHub.Models.Enums;
+using ManagementHub.Storage.Extensions;
 using Microsoft.EntityFrameworkCore;
 
 namespace ManagementHub.Storage.Commands.Team;
@@ -22,10 +24,15 @@ public class CreateTeamInviteRequestCommand : ICreateTeamInviteRequestCommand
 	public async Task<ICreateTeamInviteRequestCommand.CreateResult> CreateTeamInviteRequestAsync(
 		TeamIdentifier teamId,
 		string normalizedEmail,
-		long currentUserDbId,
+		UserIdentifier userId,
 		RefereeTeamAssociationType requestedAssociationType,
 		CancellationToken cancellationToken)
 	{
+		var currentUserDbId = await this.dbContext.Users
+			.WithIdentifier(userId)
+			.Select(user => user.Id)
+			.SingleAsync(cancellationToken);
+
 		var teamSettings = await this.dbContext.Teams
 			.Where(team => team.Id == teamId.Id)
 			.Select(team => new

@@ -1,6 +1,7 @@
 using System.Threading;
 using System.Threading.Tasks;
 using ManagementHub.Models.Domain.Team;
+using ManagementHub.Models.Domain.User;
 using ManagementHub.Models.Enums;
 
 namespace ManagementHub.Models.Abstraction.Commands;
@@ -32,7 +33,7 @@ public interface ICreateTeamInviteRequestCommand
 	Task<CreateResult> CreateTeamInviteRequestAsync(
 		TeamIdentifier teamId,
 		string normalizedEmail,
-		long currentUserDbId,
+		UserIdentifier userId,
 		RefereeTeamAssociationType requestedAssociationType,
 		CancellationToken cancellationToken);
 }

@@ -99,13 +99,10 @@ public class RefereesController : ControllerBase
 			return this.NoContent();
 		}
 
-		var currentUserDbId = await this.ResolveCurrentUserDbIdAsync(userContext.UserId);
-
 		var (playingError, playingStatus) = await this.TryProcessTeamRequestAsync(
 			requestedPlayingTeamId,
 			shouldCreatePlayingTeamRequest,
 			normalizedEmail,
-			currentUserDbId,
 			userContext.UserId,
 			RefereeTeamAssociationType.Player);
 		if (playingError != null)
@@ -117,7 +114,6 @@ public class RefereesController : ControllerBase
 			requestedCoachingTeamId,
 			shouldCreateCoachingTeamRequest,
 			normalizedEmail,
-			currentUserDbId,
 			userContext.UserId,
 			RefereeTeamAssociationType.Coach);
 		if (coachingError != null)
@@ -148,7 +144,6 @@ public class RefereesController : ControllerBase
 		long? requestedTeamId,
 		bool shouldCreate,
 		string normalizedEmail,
-		long currentUserDbId,
 		UserIdentifier currentUserId,
 		RefereeTeamAssociationType requestedAssociationType)
 	{
@@ -170,7 +165,6 @@ public class RefereesController : ControllerBase
 		var result = await this.CreateOrUpdateTeamInviteAsync(
 			requestedTeamId.Value,
 			normalizedEmail,
-			currentUserDbId,
 			currentUserId,
 			requestedAssociationType);
 		return (result.ErrorResult, result.Status);
@@ -223,21 +217,12 @@ public class RefereesController : ControllerBase
 		return teamIdsWithInvites.ToHashSet();
 	}
 
-	private Task<long> ResolveCurrentUserDbIdAsync(UserIdentifier userId)
-	{
-		return this.dbContext.Users
-			.WithIdentifier(userId)
-			.Select(user => user.Id)
-			.SingleAsync(this.HttpContext.RequestAborted);
-	}
-
 	/// <summary>
 	/// Delegates invite-request creation to the command layer and handles notification dispatch.
 	/// </summary>
 	private async Task<TeamInviteRequestResult> CreateOrUpdateTeamInviteAsync(
 		long requestedTeamId,
 		string normalizedEmail,
-		long currentUserDbId,
 		UserIdentifier currentUserId,
 		RefereeTeamAssociationType requestedAssociationType)
 	{
@@ -245,7 +230,7 @@ public class RefereesController : ControllerBase
 		var commandResult = await this.createTeamInviteRequestCommand.CreateTeamInviteRequestAsync(
 			teamId,
 			normalizedEmail,
-			currentUserDbId,
+			currentUserId,
 			requestedAssociationType,
 			this.HttpContext.RequestAborted);
 

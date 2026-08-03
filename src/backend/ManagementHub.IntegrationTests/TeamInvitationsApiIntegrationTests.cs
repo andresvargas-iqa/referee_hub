@@ -464,6 +464,12 @@ public class TeamInvitationsApiIntegrationTests : IClassFixture<TestWebApplicati
 
 		await AuthenticationHelper.AuthenticateAsAsync(this.client, "ngb_admin@example.com", "password");
 
+		var ngbApproveResponse = await this.client.PostAsJsonAsync(
+			$"/api/v2/Ngbs/USA/transfers/{pendingRequest.InvitationId}/approve",
+			new { });
+
+		ngbApproveResponse.StatusCode.Should().Be(HttpStatusCode.NoContent);
+
 		var approveResponse = await this.client.PostAsJsonAsync(
 			$"/api/v2/Teams/{targetTeamId}/invites/{pendingRequest.InvitationId}/response",
 			new { Approved = true });

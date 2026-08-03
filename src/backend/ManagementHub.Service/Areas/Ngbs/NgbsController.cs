@@ -1,5 +1,6 @@
 ﻿using Amazon.S3.Model;
 using ManagementHub.Models.Abstraction.Commands;
+using ManagementHub.Models.Abstraction.Contexts;
 using ManagementHub.Models.Abstraction.Contexts.Providers;
 using ManagementHub.Models.Domain.General;
 using ManagementHub.Models.Domain.Ngb;
@@ -41,6 +42,7 @@ public class NgbsController : ControllerBase
 	private readonly IUpdateNgbAdminRoleCommand updateNgbAdminRoleCommand;
 	private readonly IUpdateTeamManagerRoleCommand updateTeamManagerRoleCommand;
 	private readonly IUpdateUserDataCommand updateUserDataCommand;
+	private readonly IReviewNgbTransferCommand reviewNgbTransferCommand;
 	private readonly INotificationService notificationService;
 	private readonly ManagementHubDbContext dbContext;
 
@@ -54,6 +56,7 @@ public class NgbsController : ControllerBase
 		IUpdateNgbAdminRoleCommand updateNgbAdminRoleCommand,
 		IUpdateTeamManagerRoleCommand updateTeamManagerRoleCommand,
 		IUpdateUserDataCommand updateUserDataCommand,
+		IReviewNgbTransferCommand reviewNgbTransferCommand,
 		INotificationService notificationService,
 		ManagementHubDbContext dbContext)
 	{
@@ -66,6 +69,7 @@ public class NgbsController : ControllerBase
 		this.updateNgbAdminRoleCommand = updateNgbAdminRoleCommand;
 		this.updateTeamManagerRoleCommand = updateTeamManagerRoleCommand;
 		this.updateUserDataCommand = updateUserDataCommand;
+		this.reviewNgbTransferCommand = reviewNgbTransferCommand;
 		this.notificationService = notificationService;
 		this.dbContext = dbContext;
 	}
@@ -768,24 +772,19 @@ public class NgbsController : ControllerBase
 	public async Task<ActionResult<IEnumerable<NgbTransferViewModel>>> GetNgbTransfers(
 		[FromRoute] NgbIdentifier ngb)
 	{
-		var userContext = await this.contextAccessor.GetCurrentUserContextAsync();
-		if (!userContext.Roles.OfType<NgbAdminRole>().Any(r => r.Ngb.AppliesTo(ngb)))
+		var authAndNgbResult = await this.TryResolveAuthorizedNgbDbIdAsync(ngb);
+		if (authAndNgbResult.ErrorResult != null)
 		{
-			return this.Forbid();
-		}
-
-		var ngbDbId = await this.dbContext.NationalGoverningBodies
-			.Where(n => n.CountryCode == ngb.NgbCode)
-			.Select(n => (long?)n.Id)
-			.FirstOrDefaultAsync(this.HttpContext.RequestAborted);
-
-		if (ngbDbId == null)
-		{
-			return this.NotFound();
+			return authAndNgbResult.ErrorResult switch
+			{
+				ForbidResult forbidResult => forbidResult,
+				NotFoundResult notFoundResult => notFoundResult,
+				_ => this.StatusCode(StatusCodes.Status500InternalServerError),
+			};
 		}
 
 		var rows = await this.dbContext.NgbTransferApprovals
-			.Where(a => a.NgbId == ngbDbId.Value)
+			.Where(a => a.NgbId == authAndNgbResult.NgbDbId)
 			.OrderBy(a => a.ApprovedAt != null || a.RejectedAt != null)
 			.ThenByDescending(a => a.CreatedAt)
 			.Select(a => new
@@ -868,46 +867,25 @@ public class NgbsController : ControllerBase
 		[FromRoute] ManagementHub.Models.Domain.Team.TeamInvitationIdentifier invitationId)
 	{
 		var userContext = await this.contextAccessor.GetCurrentUserContextAsync();
-		if (!userContext.Roles.OfType<NgbAdminRole>().Any(r => r.Ngb.AppliesTo(ngb)))
+		if (!this.HasNgbAdminAccess(userContext, ngb))
 		{
 			return this.Forbid();
 		}
 
-		var ngbDbId = await this.dbContext.NationalGoverningBodies
-			.Where(n => n.CountryCode == ngb.NgbCode)
-			.Select(n => (long?)n.Id)
-			.FirstOrDefaultAsync(this.HttpContext.RequestAborted);
+		var result = await this.reviewNgbTransferCommand.ReviewAsync(
+			ngb,
+			invitationId,
+			userContext.UserId,
+			IReviewNgbTransferCommand.ReviewDecision.Approve,
+			this.HttpContext.RequestAborted);
 
-		if (ngbDbId == null)
+		return result switch
 		{
-			return this.NotFound();
-		}
-
-		var approval = await this.dbContext.NgbTransferApprovals
-			.FirstOrDefaultAsync(
-				a => a.TeamInvitationId == invitationId.Id && a.NgbId == ngbDbId.Value,
-				this.HttpContext.RequestAborted);
-
-		if (approval == null)
-		{
-			return this.NotFound();
-		}
-
-		if (approval.ApprovedAt != null || approval.RejectedAt != null)
-		{
-			return this.Conflict("Transfer has already been reviewed by this NGB.");
-		}
-
-		var currentUserDbId = await this.dbContext.Users
-			.WithIdentifier(userContext.UserId)
-			.Select(u => u.Id)
-			.SingleAsync(this.HttpContext.RequestAborted);
-
-		approval.ApprovedAt = DateTime.UtcNow;
-		approval.ReviewedByUserId = currentUserDbId;
-		await this.dbContext.SaveChangesAsync(this.HttpContext.RequestAborted);
-
-		return this.NoContent();
+			IReviewNgbTransferCommand.ReviewResultCode.NotFound => this.NotFound(),
+			IReviewNgbTransferCommand.ReviewResultCode.AlreadyReviewed => this.Conflict("Transfer has already been reviewed by this NGB."),
+			IReviewNgbTransferCommand.ReviewResultCode.Reviewed => this.NoContent(),
+			_ => this.StatusCode(StatusCodes.Status500InternalServerError),
+		};
 	}
 
 	/// <summary>
@@ -921,69 +899,25 @@ public class NgbsController : ControllerBase
 		[FromRoute] ManagementHub.Models.Domain.Team.TeamInvitationIdentifier invitationId)
 	{
 		var userContext = await this.contextAccessor.GetCurrentUserContextAsync();
-		if (!userContext.Roles.OfType<NgbAdminRole>().Any(r => r.Ngb.AppliesTo(ngb)))
+		if (!this.HasNgbAdminAccess(userContext, ngb))
 		{
 			return this.Forbid();
 		}
 
-		var ngbDbId = await this.dbContext.NationalGoverningBodies
-			.Where(n => n.CountryCode == ngb.NgbCode)
-			.Select(n => (long?)n.Id)
-			.FirstOrDefaultAsync(this.HttpContext.RequestAborted);
+		var result = await this.reviewNgbTransferCommand.ReviewAsync(
+			ngb,
+			invitationId,
+			userContext.UserId,
+			IReviewNgbTransferCommand.ReviewDecision.Reject,
+			this.HttpContext.RequestAborted);
 
-		if (ngbDbId == null)
+		return result switch
 		{
-			return this.NotFound();
-		}
-
-		var approval = await this.dbContext.NgbTransferApprovals
-			.FirstOrDefaultAsync(
-				a => a.TeamInvitationId == invitationId.Id && a.NgbId == ngbDbId.Value,
-				this.HttpContext.RequestAborted);
-
-		if (approval == null)
-		{
-			return this.NotFound();
-		}
-
-		if (approval.ApprovedAt != null || approval.RejectedAt != null)
-		{
-			return this.Conflict("Transfer has already been reviewed by this NGB.");
-		}
-
-		var currentUserDbId = await this.dbContext.Users
-			.WithIdentifier(userContext.UserId)
-			.Select(u => u.Id)
-			.SingleAsync(this.HttpContext.RequestAborted);
-
-		approval.RejectedAt = DateTime.UtcNow;
-		approval.ReviewedByUserId = currentUserDbId;
-
-		// Also revoke the team invitation so the player is not left in limbo.
-		var invitation = await this.dbContext.TeamInvitations
-			.FirstOrDefaultAsync(
-				i => i.Id == invitationId.Id
-					&& i.RevokedAt == null
-					&& i.AcceptedAt == null
-					&& i.DeclinedAt == null,
-				this.HttpContext.RequestAborted);
-
-		if (invitation != null)
-		{
-			invitation.RevokedAt = DateTime.UtcNow;
-			this.dbContext.TeamPlayerActivities.Add(new ManagementHub.Models.Data.TeamPlayerActivity
-			{
-				TeamId = invitation.TeamId,
-				Email = invitation.Email,
-				InitiatorUserId = currentUserDbId,
-				ActivityType = ManagementHub.Models.Enums.TeamPlayerActivityType.InviteRevoked,
-				CreatedAt = DateTime.UtcNow,
-			});
-		}
-
-		await this.dbContext.SaveChangesAsync(this.HttpContext.RequestAborted);
-
-		return this.NoContent();
+			IReviewNgbTransferCommand.ReviewResultCode.NotFound => this.NotFound(),
+			IReviewNgbTransferCommand.ReviewResultCode.AlreadyReviewed => this.Conflict("Transfer has already been reviewed by this NGB."),
+			IReviewNgbTransferCommand.ReviewResultCode.Reviewed => this.NoContent(),
+			_ => this.StatusCode(StatusCodes.Status500InternalServerError),
+		};
 	}
 
 	/// <summary>
@@ -996,23 +930,44 @@ public class NgbsController : ControllerBase
 		[FromRoute] NgbIdentifier ngb,
 		[FromBody] NgbTransferSettingsRequest request)
 	{
-		var userContext = await this.contextAccessor.GetCurrentUserContextAsync();
-		if (!userContext.Roles.OfType<NgbAdminRole>().Any(r => r.Ngb.AppliesTo(ngb)))
+		var authAndNgbResult = await this.TryResolveAuthorizedNgbDbIdAsync(ngb);
+		if (authAndNgbResult.ErrorResult != null)
 		{
-			return this.Forbid();
+			return authAndNgbResult.ErrorResult;
 		}
 
 		var ngbEntity = await this.dbContext.NationalGoverningBodies
-			.FirstOrDefaultAsync(n => n.CountryCode == ngb.NgbCode, this.HttpContext.RequestAborted);
-
-		if (ngbEntity == null)
-		{
-			return this.NotFound();
-		}
+			.SingleAsync(n => n.Id == authAndNgbResult.NgbDbId, this.HttpContext.RequestAborted);
 
 		ngbEntity.AutoApproveInternalTransfers = request.AutoApproveInternalTransfers;
 		await this.dbContext.SaveChangesAsync(this.HttpContext.RequestAborted);
 
 		return this.NoContent();
+	}
+
+	private async Task<(IActionResult? ErrorResult, long NgbDbId)> TryResolveAuthorizedNgbDbIdAsync(NgbIdentifier ngb)
+	{
+		var userContext = await this.contextAccessor.GetCurrentUserContextAsync();
+		if (!this.HasNgbAdminAccess(userContext, ngb))
+		{
+			return (this.Forbid(), default);
+		}
+
+		var ngbDbId = await this.dbContext.NationalGoverningBodies
+			.Where(n => n.CountryCode == ngb.NgbCode)
+			.Select(n => (long?)n.Id)
+			.FirstOrDefaultAsync(this.HttpContext.RequestAborted);
+
+		if (ngbDbId == null)
+		{
+			return (this.NotFound(), default);
+		}
+
+		return (null, ngbDbId.Value);
+	}
+
+	private bool HasNgbAdminAccess(IUserContext userContext, NgbIdentifier ngb)
+	{
+		return userContext.Roles.OfType<NgbAdminRole>().Any(role => role.Ngb.AppliesTo(ngb));
 	}
 }

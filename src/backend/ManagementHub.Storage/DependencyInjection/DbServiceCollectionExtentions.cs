@@ -136,6 +136,7 @@ public static class DbServiceCollectionExtentions
 		services.AddScoped<IUpdateNgbAdminRoleCommand, UpdateNgbAdminRoleCommand>();
 		services.AddScoped<IUpdateTeamManagerRoleCommand, UpdateTeamManagerRoleCommand>();
 		services.AddScoped<ICreateTeamInviteRequestCommand, CreateTeamInviteRequestCommand>();
+		services.AddScoped<IReviewNgbTransferCommand, ReviewNgbTransferCommand>();
 
 		services.AddScoped<IUserIdMigrationCommand, UserIdMigrationCommand>();
 
