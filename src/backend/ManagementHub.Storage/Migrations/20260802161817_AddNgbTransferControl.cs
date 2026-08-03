@@ -14,7 +14,7 @@ namespace ManagementHub.Storage.Migrations
             migrationBuilder.AddColumn<bool>(
                 name: "is_internal_transfer",
                 table: "team_invitations",
-                type: "INTEGER",
+                type: "boolean",
                 nullable: true);
 
             migrationBuilder.AddColumn<long>(
@@ -26,7 +26,7 @@ namespace ManagementHub.Storage.Migrations
             migrationBuilder.AddColumn<bool>(
                 name: "auto_approve_internal_transfers",
                 table: "national_governing_bodies",
-                type: "INTEGER",
+                type: "boolean",
                 nullable: false,
                 defaultValue: false);
 
@@ -38,7 +38,7 @@ namespace ManagementHub.Storage.Migrations
                         .Annotation("Sqlite:Autoincrement", true),
                     team_invitation_id = table.Column<long>(type: "INTEGER", nullable: false),
                     ngb_id = table.Column<long>(type: "INTEGER", nullable: false),
-                    is_origin_ngb = table.Column<bool>(type: "INTEGER", nullable: false),
+                    is_origin_ngb = table.Column<bool>(type: "boolean", nullable: false),
                     approved_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
                     rejected_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
                     reviewed_by_user_id = table.Column<long>(type: "INTEGER", nullable: true),
