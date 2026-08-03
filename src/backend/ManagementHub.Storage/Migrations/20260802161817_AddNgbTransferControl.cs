@@ -1,5 +1,6 @@
 ﻿using System;
 using Microsoft.EntityFrameworkCore.Migrations;
+using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
@@ -34,7 +35,8 @@ namespace ManagementHub.Storage.Migrations
                 name: "ngb_transfer_approvals",
                 columns: table => new
                 {
-                    id = table.Column<long>(type: "INTEGER", nullable: false)
+                    id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn)
                         .Annotation("Sqlite:Autoincrement", true),
                     team_invitation_id = table.Column<long>(type: "INTEGER", nullable: false),
                     ngb_id = table.Column<long>(type: "INTEGER", nullable: false),
