@@ -521,6 +521,7 @@ const injectedRtkApi = api
             Page: queryArg.page,
             PageSize: queryArg.pageSize,
             SkipPaging: queryArg.skipPaging,
+            TournamentTypeFilter: queryArg.tournamentType,
           },
         }),
         providesTags: ["Tournament"],
@@ -1097,6 +1098,7 @@ export type GetTournamentsApiArg = {
   page?: number;
   pageSize?: number;
   skipPaging?: boolean;
+  tournamentType?: string;
 };
 export type CreateTournamentApiResponse = /** status 200 Success */ TournamentIdResponse;
 export type CreateTournamentApiArg = {
