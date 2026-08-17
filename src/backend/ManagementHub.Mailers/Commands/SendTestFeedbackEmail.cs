@@ -39,12 +39,13 @@ internal class SendTestFeedbackEmail : ISendTestFeedbackEmail
 
 	public async Task SendTestFeedbackEmailAsync(TestAttemptIdentifier testAttemptId, Uri hostUri, bool ccRefhub, CancellationToken cancellation)
 	{
+		var safeAttemptIdForLog = testAttemptId?.ToString()?.Replace("\r", string.Empty).Replace("\n", string.Empty) ?? string.Empty;
 		const int maxAttempts = 3;
 		for (var attempt = 1; attempt <= maxAttempts; attempt++)
 		{
 			try
 			{
-				this.logger.LogInformation(-0x32943200, "Sending test feedback for test attempt ({attemptId}).", testAttemptId);
+				this.logger.LogInformation(-0x32943200, "Sending test feedback for test attempt ({attemptId}).", safeAttemptIdForLog);
 
 				var emailFeedbackContext = await this.refereeContextProvider.GetRefereeEmailFeedbackContextAsync(testAttemptId, cancellation);
 				var userContext = await this.userContextProvider.GetUserContextAsync(emailFeedbackContext.TestAttempt.UserId, cancellation);
@@ -70,7 +71,7 @@ internal class SendTestFeedbackEmail : ISendTestFeedbackEmail
 					-0x329431fc,
 					ex,
 					"Transient failure while sending test feedback for attempt ({attemptId}). Retrying ({attempt}/{maxAttempts}) in {delayMs}ms.",
-					testAttemptId,
+					safeAttemptIdForLog,
 					attempt,
 					maxAttempts,
 					delay.TotalMilliseconds);
