@@ -321,13 +321,21 @@ public class EnsureDatabaseSeededForTesting : DatabaseStartupService
 		for (var i = 1; i <= transferSeedCount; i++)
 		{
 			var originTeam = eligibleTransferTeams[(i + 1) % eligibleTransferTeams.Length];
-			var destinationTeam = eligibleTransferTeams[(i + 2) % eligibleTransferTeams.Length];
-			if (ReferenceEquals(originTeam, destinationTeam))
+			var targetUser = inviteTargets[(i * 7) % inviteTargets.Count];
+			var destinationTeam = Enumerable.Range(0, eligibleTransferTeams.Length)
+				.Select(offset => eligibleTransferTeams[(i + 2 + offset) % eligibleTransferTeams.Length])
+				.FirstOrDefault(team =>
+					!ReferenceEquals(team, originTeam)
+					&& !HasPendingInvite(seedData.TeamInvitations, team, targetUser.Email));
+
+			if (destinationTeam == null)
 			{
-				destinationTeam = eligibleTransferTeams[(i + 3) % eligibleTransferTeams.Length];
+				this.logger.LogWarning(
+					"Skipping additional transfer seed data because no unused destination is available for invite {InviteIndex}.",
+					i);
+				continue;
 			}
 
-			var targetUser = inviteTargets[(i * 7) % inviteTargets.Count];
 			var createdAt = now.AddHours(-(this.additionalSeedTeamInvites + i));
 			var originNgb = originTeam.NationalGoverningBody;
 			var destinationNgb = destinationTeam.NationalGoverningBody;
@@ -369,6 +377,16 @@ public class EnsureDatabaseSeededForTesting : DatabaseStartupService
 
 			this.AddTransferApprovalsForInvite(seedData.TransferApprovals, transferInvite, originNgb, destinationNgb, createdAt, random, users, i);
 		}
+	}
+
+	private static bool HasPendingInvite(IEnumerable<TeamInvitation> invitations, Team team, string email)
+	{
+		return invitations.Any(invitation =>
+			ReferenceEquals(invitation.Team, team)
+			&& invitation.Email == email
+			&& invitation.RevokedAt == null
+			&& invitation.AcceptedAt == null
+			&& invitation.DeclinedAt == null);
 	}
 
 	private static TeamPlayerActivity BuildInviteCreatedActivity(Team destinationTeam, User targetUser, User initiator, DateTime createdAt)
