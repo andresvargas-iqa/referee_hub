@@ -1,6 +1,5 @@
 ﻿using Amazon.S3.Model;
 using ManagementHub.Models.Abstraction.Commands;
-using ManagementHub.Models.Abstraction.Contexts;
 using ManagementHub.Models.Abstraction.Contexts.Providers;
 using ManagementHub.Models.Domain.General;
 using ManagementHub.Models.Domain.Ngb;
@@ -21,7 +20,6 @@ using ManagementHub.Storage.Extensions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using NgbTransferApproval = ManagementHub.Models.Data.NgbTransferApproval;
 
 namespace ManagementHub.Service.Areas.Ngbs;
 
@@ -43,10 +41,8 @@ public class NgbsController : ControllerBase
 	private readonly IUpdateNgbAdminRoleCommand updateNgbAdminRoleCommand;
 	private readonly IUpdateTeamManagerRoleCommand updateTeamManagerRoleCommand;
 	private readonly IUpdateUserDataCommand updateUserDataCommand;
-	private readonly IReviewNgbTransferCommand reviewNgbTransferCommand;
 	private readonly INotificationService notificationService;
 	private readonly ManagementHubDbContext dbContext;
-	private readonly CollectionFilteringContext filteringContext;
 
 	public NgbsController(
 		IUserContextAccessor contextAccessor,
@@ -58,10 +54,8 @@ public class NgbsController : ControllerBase
 		IUpdateNgbAdminRoleCommand updateNgbAdminRoleCommand,
 		IUpdateTeamManagerRoleCommand updateTeamManagerRoleCommand,
 		IUpdateUserDataCommand updateUserDataCommand,
-		IReviewNgbTransferCommand reviewNgbTransferCommand,
 		INotificationService notificationService,
-		ManagementHubDbContext dbContext,
-		CollectionFilteringContext filteringContext)
+		ManagementHubDbContext dbContext)
 	{
 		this.contextAccessor = contextAccessor;
 		this.ngbContextProvider = ngbContextProvider;
@@ -72,10 +66,8 @@ public class NgbsController : ControllerBase
 		this.updateNgbAdminRoleCommand = updateNgbAdminRoleCommand;
 		this.updateTeamManagerRoleCommand = updateTeamManagerRoleCommand;
 		this.updateUserDataCommand = updateUserDataCommand;
-		this.reviewNgbTransferCommand = reviewNgbTransferCommand;
 		this.notificationService = notificationService;
 		this.dbContext = dbContext;
-		this.filteringContext = filteringContext;
 	}
 
 	/// <summary>
@@ -650,10 +642,7 @@ public class NgbsController : ControllerBase
 			.Select(m => new TeamMemberViewModel
 			{
 				UserId = m.UserId,
-				Name = m.Name,
-				Email = m.Email,
-				PrimaryTeamName = m.PrimaryTeamName,
-				PrimaryTeamId = m.PrimaryTeamId != null ? m.PrimaryTeamId.ToString() : null,
+				Name = m.Name
 			})
 			.AsFiltered();
 	}
@@ -761,288 +750,5 @@ public class NgbsController : ControllerBase
 		}, this.HttpContext.RequestAborted);
 
 		return this.NoContent();
-	}
-
-	// ──────────────────────────────────────────────────────────────────────────
-	// NGB Transfer endpoints
-	// ──────────────────────────────────────────────────────────────────────────
-
-	/// <summary>
-	/// List all transfers where the origin or destination team belongs to this NGB.
-	/// </summary>
-	[HttpGet("{ngb}/transfers")]
-	[Tags("NgbTransfers")]
-	[Authorize(AuthorizationPolicies.NgbAdminPolicy)]
-	public async Task<ActionResult<Filtered<NgbTransferViewModel>>> GetNgbTransfers(
-		[FromRoute] NgbIdentifier ngb,
-		[FromQuery] FilteringParameters filtering)
-	{
-		var authAndNgbResult = await this.TryResolveAuthorizedNgbDbIdAsync(ngb);
-		if (authAndNgbResult.ErrorResult != null)
-		{
-			return authAndNgbResult.ErrorResult switch
-			{
-				ForbidResult forbidResult => forbidResult,
-				NotFoundResult notFoundResult => notFoundResult,
-				_ => this.StatusCode(StatusCodes.Status500InternalServerError),
-			};
-		}
-
-		var rows = await this.GetNgbTransferRowsAsync(authAndNgbResult.NgbDbId, filtering);
-		var playerNamesByEmail = await this.GetPlayerNamesByEmailAsync(rows);
-
-		return this.Ok(rows
-			.Select(row => MapNgbTransfer(row, playerNamesByEmail))
-			.AsFiltered());
-	}
-
-	private async Task<List<NgbTransferRow>> GetNgbTransferRowsAsync(long ngbDbId, FilteringParameters filtering)
-	{
-		var query = this.ApplyNgbTransferFilter(
-			this.dbContext.NgbTransferApprovals.Where(approval => approval.NgbId == ngbDbId),
-			filtering.Filter);
-
-		if (this.filteringContext.FilteringMetadata != null)
-		{
-			this.filteringContext.FilteringMetadata.TotalCount = await query.CountAsync(this.HttpContext.RequestAborted);
-		}
-
-		return await query
-			.OrderBy(a =>
-				a.ApprovedAt != null
-				|| a.RejectedAt != null
-				|| a.TeamInvitation.AcceptedAt != null
-				|| a.TeamInvitation.DeclinedAt != null
-				|| a.TeamInvitation.RevokedAt != null)
-			.ThenByDescending(a => a.CreatedAt)
-			.Page(filtering)
-			.Select(a => new NgbTransferRow
-			{
-				TeamInvitationId = a.TeamInvitationId,
-				ApprovedAt = a.ApprovedAt,
-				RejectedAt = a.RejectedAt,
-				InvitationEmail = a.TeamInvitation.Email,
-				InvitationCreatedAt = a.TeamInvitation.CreatedAt,
-				IsInternalTransfer = a.TeamInvitation.IsInternalTransfer ?? false,
-				InvitationAcceptedAt = a.TeamInvitation.AcceptedAt,
-				InvitationDeclinedAt = a.TeamInvitation.DeclinedAt,
-				InvitationRevokedAt = a.TeamInvitation.RevokedAt,
-				DestinationTeamId = a.TeamInvitation.Team.Id,
-				DestinationTeamName = a.TeamInvitation.Team.Name,
-				OriginTeamId = (long?)a.TeamInvitation.OriginTeamId,
-				OriginTeamName = a.TeamInvitation.OriginTeam != null ? a.TeamInvitation.OriginTeam.Name : null,
-			})
-			.ToListAsync(this.HttpContext.RequestAborted);
-	}
-
-	private IQueryable<NgbTransferApproval> ApplyNgbTransferFilter(IQueryable<NgbTransferApproval> query, string? filterValue)
-	{
-		if (string.IsNullOrWhiteSpace(filterValue))
-		{
-			return query;
-		}
-
-		var filter = $"%{filterValue}%";
-		return this.dbContext.Database.IsNpgsql()
-			? query.Where(a =>
-				EF.Functions.ILike(a.TeamInvitation.Email, filter)
-				|| EF.Functions.ILike(a.TeamInvitation.Team.Name, filter)
-				|| (a.TeamInvitation.OriginTeam != null && EF.Functions.ILike(a.TeamInvitation.OriginTeam.Name, filter)))
-			: query.Where(a =>
-				EF.Functions.Like(a.TeamInvitation.Email, filter)
-				|| EF.Functions.Like(a.TeamInvitation.Team.Name, filter)
-				|| (a.TeamInvitation.OriginTeam != null && EF.Functions.Like(a.TeamInvitation.OriginTeam.Name, filter)));
-	}
-
-	private async Task<Dictionary<string, string?>> GetPlayerNamesByEmailAsync(IEnumerable<NgbTransferRow> rows)
-	{
-		var emails = rows.Select(row => row.InvitationEmail.ToLower()).Distinct().ToList();
-		var players = await this.dbContext.Users
-			.Where(user => emails.Contains(user.Email.ToLower()))
-			.Select(user => new NgbTransferPlayer
-			{
-				Email = user.Email.ToLower(),
-				FirstName = user.FirstName,
-				LastName = user.LastName,
-			})
-			.ToListAsync(this.HttpContext.RequestAborted);
-
-		return players.ToDictionary(
-			player => player.Email,
-			player => ManagementHub.Service.Areas.Teams.TeamInviteHelpers.BuildDisplayName(player.FirstName, player.LastName));
-	}
-
-	private static NgbTransferViewModel MapNgbTransfer(
-		NgbTransferRow row,
-		IReadOnlyDictionary<string, string?> playerNamesByEmail)
-	{
-		playerNamesByEmail.TryGetValue(row.InvitationEmail.ToLower(), out var playerName);
-
-		return new NgbTransferViewModel
-		{
-			InvitationId = new TeamInvitationIdentifier(row.TeamInvitationId).ToString(),
-			PlayerEmail = row.InvitationEmail,
-			PlayerName = playerName,
-			DestinationTeamId = new TeamIdentifier(row.DestinationTeamId).ToString(),
-			DestinationTeamName = row.DestinationTeamName,
-			OriginTeamId = row.OriginTeamId.HasValue ? new TeamIdentifier(row.OriginTeamId.Value).ToString() : null,
-			OriginTeamName = row.OriginTeamName,
-			IsInternalTransfer = row.IsInternalTransfer,
-			ApprovedAt = row.ApprovedAt,
-			RejectedAt = row.RejectedAt,
-			CreatedAt = row.InvitationCreatedAt,
-			Status = GetNgbTransferStatus(row),
-		};
-	}
-
-	private static ManagementHub.Service.Areas.Teams.TransferApprovalStatus GetNgbTransferStatus(NgbTransferRow row)
-	{
-		if (row.RejectedAt != null)
-			return ManagementHub.Service.Areas.Teams.TransferApprovalStatus.RejectedByNgb;
-		if (row.ApprovedAt != null || row.InvitationAcceptedAt != null)
-			return ManagementHub.Service.Areas.Teams.TransferApprovalStatus.Approved;
-		if (row.InvitationDeclinedAt != null || row.InvitationRevokedAt != null)
-			return ManagementHub.Service.Areas.Teams.TransferApprovalStatus.Declined;
-
-		return ManagementHub.Service.Areas.Teams.TransferApprovalStatus.PendingNgbApproval;
-	}
-
-	private sealed class NgbTransferRow
-	{
-		public long TeamInvitationId { get; init; }
-		public DateTime? ApprovedAt { get; init; }
-		public DateTime? RejectedAt { get; init; }
-		public required string InvitationEmail { get; init; }
-		public DateTime InvitationCreatedAt { get; init; }
-		public bool IsInternalTransfer { get; init; }
-		public DateTime? InvitationAcceptedAt { get; init; }
-		public DateTime? InvitationDeclinedAt { get; init; }
-		public DateTime? InvitationRevokedAt { get; init; }
-		public long DestinationTeamId { get; init; }
-		public required string DestinationTeamName { get; init; }
-		public long? OriginTeamId { get; init; }
-		public string? OriginTeamName { get; init; }
-	}
-
-	private sealed class NgbTransferPlayer
-	{
-		public required string Email { get; init; }
-		public string? FirstName { get; init; }
-		public string? LastName { get; init; }
-	}
-
-	/// <summary>
-	/// Approve a player transfer on behalf of the NGB.
-	/// </summary>
-	[HttpPost("{ngb}/transfers/{invitationId}/approve")]
-	[Tags("NgbTransfers")]
-	[Authorize(AuthorizationPolicies.NgbAdminPolicy)]
-	public async Task<IActionResult> ApproveNgbTransfer(
-		[FromRoute] NgbIdentifier ngb,
-		[FromRoute] ManagementHub.Models.Domain.Team.TeamInvitationIdentifier invitationId)
-	{
-		var userContext = await this.contextAccessor.GetCurrentUserContextAsync();
-		if (!this.HasNgbAdminAccess(userContext, ngb))
-		{
-			return this.Forbid();
-		}
-
-		var result = await this.reviewNgbTransferCommand.ReviewAsync(
-			ngb,
-			invitationId,
-			userContext.UserId,
-			IReviewNgbTransferCommand.ReviewDecision.Approve,
-			this.HttpContext.RequestAborted);
-
-		return result switch
-		{
-			IReviewNgbTransferCommand.ReviewResultCode.NotFound => this.NotFound(),
-			IReviewNgbTransferCommand.ReviewResultCode.AlreadyReviewed => this.Conflict("Transfer has already been reviewed by this NGB."),
-			IReviewNgbTransferCommand.ReviewResultCode.Reviewed => this.NoContent(),
-			_ => this.StatusCode(StatusCodes.Status500InternalServerError),
-		};
-	}
-
-	/// <summary>
-	/// Reject a player transfer on behalf of the NGB.
-	/// </summary>
-	[HttpPost("{ngb}/transfers/{invitationId}/reject")]
-	[Tags("NgbTransfers")]
-	[Authorize(AuthorizationPolicies.NgbAdminPolicy)]
-	public async Task<IActionResult> RejectNgbTransfer(
-		[FromRoute] NgbIdentifier ngb,
-		[FromRoute] ManagementHub.Models.Domain.Team.TeamInvitationIdentifier invitationId)
-	{
-		var userContext = await this.contextAccessor.GetCurrentUserContextAsync();
-		if (!this.HasNgbAdminAccess(userContext, ngb))
-		{
-			return this.Forbid();
-		}
-
-		var result = await this.reviewNgbTransferCommand.ReviewAsync(
-			ngb,
-			invitationId,
-			userContext.UserId,
-			IReviewNgbTransferCommand.ReviewDecision.Reject,
-			this.HttpContext.RequestAborted);
-
-		return result switch
-		{
-			IReviewNgbTransferCommand.ReviewResultCode.NotFound => this.NotFound(),
-			IReviewNgbTransferCommand.ReviewResultCode.AlreadyReviewed => this.Conflict("Transfer has already been reviewed by this NGB."),
-			IReviewNgbTransferCommand.ReviewResultCode.Reviewed => this.NoContent(),
-			_ => this.StatusCode(StatusCodes.Status500InternalServerError),
-		};
-	}
-
-	/// <summary>
-	/// Update NGB transfer settings (auto-approve internal transfers).
-	/// </summary>
-	[HttpPut("{ngb}/settings/transfers")]
-	[Tags("NgbTransfers")]
-	[Authorize(AuthorizationPolicies.NgbAdminPolicy)]
-	public async Task<IActionResult> UpdateNgbTransferSettings(
-		[FromRoute] NgbIdentifier ngb,
-		[FromBody] NgbTransferSettingsRequest request)
-	{
-		var authAndNgbResult = await this.TryResolveAuthorizedNgbDbIdAsync(ngb);
-		if (authAndNgbResult.ErrorResult != null)
-		{
-			return authAndNgbResult.ErrorResult;
-		}
-
-		var ngbEntity = await this.dbContext.NationalGoverningBodies
-			.SingleAsync(n => n.Id == authAndNgbResult.NgbDbId, this.HttpContext.RequestAborted);
-
-		ngbEntity.AutoApproveInternalTransfers = request.AutoApproveInternalTransfers;
-		await this.dbContext.SaveChangesAsync(this.HttpContext.RequestAborted);
-
-		return this.NoContent();
-	}
-
-	private async Task<(IActionResult? ErrorResult, long NgbDbId)> TryResolveAuthorizedNgbDbIdAsync(NgbIdentifier ngb)
-	{
-		var userContext = await this.contextAccessor.GetCurrentUserContextAsync();
-		if (!this.HasNgbAdminAccess(userContext, ngb))
-		{
-			return (this.Forbid(), default);
-		}
-
-		var ngbDbId = await this.dbContext.NationalGoverningBodies
-			.Where(n => n.CountryCode == ngb.NgbCode)
-			.Select(n => (long?)n.Id)
-			.FirstOrDefaultAsync(this.HttpContext.RequestAborted);
-
-		if (ngbDbId == null)
-		{
-			return (this.NotFound(), default);
-		}
-
-		return (null, ngbDbId.Value);
-	}
-
-	private bool HasNgbAdminAccess(IUserContext userContext, NgbIdentifier ngb)
-	{
-		return userContext.Roles.OfType<NgbAdminRole>().Any(role => role.Ngb.AppliesTo(ngb));
 	}
 }

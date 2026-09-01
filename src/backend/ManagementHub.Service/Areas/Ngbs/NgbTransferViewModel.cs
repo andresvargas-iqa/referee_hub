@@ -23,11 +23,23 @@ public class NgbTransferViewModel
 	/// <summary>Name of the destination team.</summary>
 	public required string DestinationTeamName { get; init; }
 
+	/// <summary>Logo of the destination team, when available.</summary>
+	public Uri? DestinationTeamLogoUri { get; init; }
+
+	/// <summary>Country code of the destination team's NGB.</summary>
+	public string? DestinationNgbCode { get; init; }
+
 	/// <summary>ID of the origin (leaving) team, when known.</summary>
 	public string? OriginTeamId { get; init; }
 
 	/// <summary>Name of the origin team, when known.</summary>
 	public string? OriginTeamName { get; init; }
+
+	/// <summary>Logo of the origin team, when available.</summary>
+	public Uri? OriginTeamLogoUri { get; init; }
+
+	/// <summary>Country code of the origin team's NGB, when known.</summary>
+	public string? OriginNgbCode { get; init; }
 
 	/// <summary>True when both teams belong to this NGB (internal transfer).</summary>
 	public bool IsInternalTransfer { get; init; }

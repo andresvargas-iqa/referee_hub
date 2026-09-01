@@ -17,28 +17,43 @@ import {
 
 const STATUS_LABELS: Record<TransferApprovalStatus, string> = {
   notATransfer: "New join",
-  pendingNgbApproval: "Pending NGB approval",
-  pendingTeamApproval: "Pending team approval",
-  rejectedByNgb: "Rejected by NGB",
+  pendingNgbApproval: "Pending approval",
+  pendingTeamApproval: "Pending approval",
+  rejectedByNgb: "Rejected",
   approved: "Accepted",
   declined: "Cancelled",
 };
 
 const STATUS_COLORS: Record<TransferApprovalStatus, string> = {
-  notATransfer: "border-gray-200 bg-gray-50 text-gray-700",
-  pendingNgbApproval: "border-yellow-300 bg-yellow-50 text-yellow-800",
-  pendingTeamApproval: "border-yellow-300 bg-yellow-50 text-yellow-800",
-  rejectedByNgb: "border-red-300 bg-red-50 text-red-700",
-  approved: "border-green-300 bg-green-50 text-green-800",
-  declined: "border-gray-300 bg-gray-100 text-gray-700",
+  notATransfer: "bg-gray-100 text-gray-700",
+  pendingNgbApproval: "bg-yellow-100 text-yellow-800",
+  pendingTeamApproval: "bg-yellow-100 text-yellow-800",
+  rejectedByNgb: "bg-red-100 text-red-700",
+  approved: "bg-green-100 text-green-800",
+  declined: "bg-gray-200 text-gray-700",
 };
 
 const StatusBadge: React.FC<{ status?: TransferApprovalStatus }> = ({ status }) => {
   if (!status) return null;
   return (
-    <span className={`inline-flex items-center rounded border px-2 py-0.5 text-xs font-semibold ${STATUS_COLORS[status]}`}>
+    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${STATUS_COLORS[status]}`}>
       {STATUS_LABELS[status]}
     </span>
+  );
+};
+
+const TeamCell: React.FC<{ name?: string | null; logoUri?: string | null }> = ({ name, logoUri }) => {
+  if (!name) return <span className="italic text-gray-400">None (new join)</span>;
+
+  return (
+    <div className="flex items-center gap-2">
+      {logoUri ? (
+        <img src={logoUri} alt="" className="h-8 w-8 shrink-0 rounded object-cover" />
+      ) : (
+        <div className="h-8 w-8 shrink-0 rounded bg-gray-100" aria-hidden="true" />
+      )}
+      <span>{name}</span>
+    </div>
   );
 };
 
@@ -79,22 +94,21 @@ const TransferActions: React.FC<TransferActionsProps> = ({ transfer, ngbId }) =>
   const [approve] = useApproveNgbTransferMutation();
   const [reject] = useRejectNgbTransferMutation();
   const status = normalizeStatus(transfer.status);
+  const invitationId = transfer.invitationId;
 
-  const canAct =
-    status === "pendingNgbApproval" &&
-    transfer.invitationId;
+  const canAct = status === "pendingNgbApproval" && Boolean(invitationId);
 
   const handleApprove = async () => {
-    if (!canAct) return;
+    if (!canAct || !invitationId) return;
     setOpen(false);
-    await approve({ ngb: ngbId, invitationId: transfer.invitationId! });
+    await approve({ ngb: ngbId, invitationId });
   };
 
   const handleReject = async () => {
-    if (!canAct) return;
+    if (!canAct || !invitationId) return;
     setOpen(false);
     if (confirm(`Reject transfer for ${transfer.playerEmail ?? "this player"}?`)) {
-      await reject({ ngb: ngbId, invitationId: transfer.invitationId! });
+      await reject({ ngb: ngbId, invitationId });
     }
   };
 
@@ -241,13 +255,22 @@ const NgbTransfersTab: React.FC<NgbTransfersTabProps> = ({ ngbId }) => {
                     <p className="font-medium">{t.playerName ?? "—"}</p>
                     <p className="text-xs text-gray-500">{t.playerEmail}</p>
                   </td>
-                  <td className="px-4 py-3 text-gray-700">{t.originTeamName ?? <span className="italic text-gray-400">None (new join)</span>}</td>
-                  <td className="px-4 py-3 text-gray-700">{t.destinationTeamName}</td>
+                  <td className="px-4 py-3 text-gray-700">
+                    <TeamCell name={t.originTeamName} logoUri={t.originTeamLogoUri} />
+                  </td>
+                  <td className="px-4 py-3 text-gray-700">
+                    <TeamCell name={t.destinationTeamName} logoUri={t.destinationTeamLogoUri} />
+                  </td>
                   <td className="px-4 py-3">
                     {t.originTeamName ? (
-                      <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${t.isInternalTransfer ? "bg-indigo-100 text-indigo-700" : "bg-orange-100 text-orange-700"}`}>
-                        {t.isInternalTransfer ? "Internal" : "International"}
-                      </span>
+                      <div>
+                        <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${t.isInternalTransfer ? "bg-indigo-100 text-indigo-700" : "bg-orange-100 text-orange-700"}`}>
+                          {t.isInternalTransfer ? "Internal" : "International"}
+                        </span>
+                        {!t.isInternalTransfer && t.originNgbCode && t.destinationNgbCode && (
+                          <p className="mt-1 text-xs text-gray-500">{t.originNgbCode} → {t.destinationNgbCode}</p>
+                        )}
+                      </div>
                     ) : "—"}
                   </td>
                   <td className="px-4 py-3">

@@ -150,7 +150,7 @@ public class TeamInvitationsApiIntegrationTests : IClassFixture<TestWebApplicati
 		{
 			var dbContext = scope.ServiceProvider.GetRequiredService<ManagementHubDbContext>();
 			var destinationTeam = dbContext.Teams.Single(team => team.Name == "Yankees");
-			var originTeam = dbContext.Teams.Single(team => team.Name == "LA Bisons");
+			var originTeam = dbContext.Teams.Single(team => team.Name == "BA Jacks");
 			var ngb = dbContext.NationalGoverningBodies.Single(item => item.CountryCode == "USA");
 			var initiator = dbContext.Users.Single(user => user.Email == "team_manager@example.com");
 
@@ -166,7 +166,7 @@ public class TeamInvitationsApiIntegrationTests : IClassFixture<TestWebApplicati
 						Email = $"pagination.transfer.{index}@example.test",
 						Initiator = initiator,
 						CreatedAt = createdAt,
-						IsInternalTransfer = true,
+						IsInternalTransfer = false,
 					},
 					Ngb = ngb,
 					IsOriginNgb = false,
@@ -190,6 +190,8 @@ public class TeamInvitationsApiIntegrationTests : IClassFixture<TestWebApplicati
 
 		firstPage!.Metadata!.TotalCount.Should().Be(2);
 		firstPage.Items.Should().ContainSingle();
+		firstPage.Items.Single().OriginNgbCode.Should().Be("ARG");
+		firstPage.Items.Single().DestinationNgbCode.Should().Be("USA");
 		secondPage!.Items.Should().ContainSingle();
 		secondPage.Items.Single().InvitationId.Should().NotBe(firstPage.Items.Single().InvitationId);
 	}
