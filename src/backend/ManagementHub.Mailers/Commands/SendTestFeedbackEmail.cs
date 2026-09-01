@@ -39,7 +39,7 @@ internal class SendTestFeedbackEmail : ISendTestFeedbackEmail
 
 	public async Task SendTestFeedbackEmailAsync(TestAttemptIdentifier testAttemptId, Uri hostUri, bool ccRefhub, CancellationToken cancellation)
 	{
-		var safeAttemptIdForLog = testAttemptId?.ToString()?.Replace("\r", string.Empty).Replace("\n", string.Empty) ?? string.Empty;
+		var safeAttemptIdForLog = testAttemptId.ToString().Replace("\r", string.Empty).Replace("\n", string.Empty);
 		const int maxAttempts = 3;
 		for (var attempt = 1; attempt <= maxAttempts; attempt++)
 		{
