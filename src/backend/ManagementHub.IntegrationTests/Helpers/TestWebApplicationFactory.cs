@@ -19,6 +19,8 @@ namespace ManagementHub.IntegrationTests.Helpers;
 public class TestWebApplicationFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
 	private PostgreSqlContainer? _postgresContainer;
+	private bool _useDockerContainer = true;
+	private readonly string _inMemoryDatabaseName = $"ManagementHubTests_{Guid.NewGuid():N}";
 	private const string DatabaseName = "managementhub_test";
 	private const string Username = "postgres";
 	private const string Password = "postgres";
@@ -40,6 +42,8 @@ public class TestWebApplicationFactory : WebApplicationFactory<Program>, IAsyncL
 
 		builder.ConfigureAppConfiguration((context, config) =>
 		{
+			var useInMemoryDatabase = !this._useDockerContainer;
+
 			// Configure all test settings in code
 			var settings = new Dictionary<string, string?>
 			{
@@ -49,7 +53,8 @@ public class TestWebApplicationFactory : WebApplicationFactory<Program>, IAsyncL
 				["Logging:LogLevel:Microsoft.EntityFrameworkCore"] = "Warning",
 
 				// Service configuration
-				["Services:UseInMemoryDatabase"] = "false",
+				["Services:UseInMemoryDatabase"] = useInMemoryDatabase ? "true" : "false",
+				["Services:InMemoryDatabaseName"] = this._inMemoryDatabaseName,
 				["Services:SeedDatabaseWithTestData"] = "true",
 				["Services:UseInMemoryJobSystem"] = "true",
 				["Services:UseLocalFilesystemBlobStorage"] = "true",
@@ -95,14 +100,24 @@ public class TestWebApplicationFactory : WebApplicationFactory<Program>, IAsyncL
 	/// </summary>
 	public async Task InitializeAsync()
 	{
-		this._postgresContainer = new PostgreSqlBuilder()
-			.WithImage("postgres:16-alpine")
-			.WithDatabase(DatabaseName)
-			.WithUsername(Username)
-			.WithPassword(Password)
-			.Build();
+		try
+		{
+			this._postgresContainer = new PostgreSqlBuilder()
+				.WithImage("postgres:16-alpine")
+				.WithDatabase(DatabaseName)
+				.WithUsername(Username)
+				.WithPassword(Password)
+				.Build();
 
-		await this._postgresContainer.StartAsync();
+			await this._postgresContainer.StartAsync();
+			this._useDockerContainer = true;
+		}
+		catch (ArgumentException ex)
+		{
+			this._useDockerContainer = false;
+			this._postgresContainer = null;
+			Console.WriteLine($"Docker unavailable for integration tests. Falling back to in-memory database. Details: {ex.Message}");
+		}
 	}
 
 	/// <summary>

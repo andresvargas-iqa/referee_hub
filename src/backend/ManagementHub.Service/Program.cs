@@ -93,7 +93,7 @@ public partial class Program
 	{
 		var settings = context.Configuration.GetSection("Services").Get<ServicesSettings>() ?? new ServicesSettings();
 
-		services.AddManagementHubStorage(settings.UseInMemoryDatabase, settings.SeedDatabaseWithTestData);
+		services.AddManagementHubStorage(settings.UseInMemoryDatabase, settings.SeedDatabaseWithTestData, settings.InMemoryDatabaseName);
 		services.AddManagementHubBlobStorage(settings.UseLocalFilesystemBlobStorage);
 		services.AddManagementHubIdentity();
 
@@ -295,6 +295,7 @@ public partial class Program
 			AllowStatusCode404Response = true,
 			ExceptionHandler = exceptionHandlerPipeline.Build(),
 		});
+		app.UseMiddleware<AuthenticationRequiredExceptionMiddleware>();
 
 		app.UseMiddleware<TraceCookieMiddleware>();
 		app.UseForwardedHeaders();
