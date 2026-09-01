@@ -2153,14 +2153,22 @@ export type NgbTransferViewModel = {
   status?: TransferApprovalStatus;
 };
 
+export type NgbTransferViewModelFiltered = {
+  metadata?: FilteringMetadata;
+  items?: NgbTransferViewModel[] | null;
+};
+
 export type NgbTransferSettingsRequest = {
   autoApproveInternalTransfers: boolean;
 };
 
 const ngbTransferApi = injectedRtkApi.injectEndpoints({
   endpoints: (build) => ({
-    getNgbTransfers: build.query<NgbTransferViewModel[], { ngb: string }>({
-      query: ({ ngb }) => ({ url: `/api/v2/Ngbs/${ngb}/transfers` }),
+    getNgbTransfers: build.query<NgbTransferViewModelFiltered, { ngb: string; filter?: string; page?: number; pageSize?: number }>({
+      query: ({ ngb, filter, page, pageSize }) => ({
+        url: `/api/v2/Ngbs/${ngb}/transfers`,
+        params: { Filter: filter, Page: page, PageSize: pageSize },
+      }),
       providesTags: (_r, _e, { ngb }) => [{ type: 'NgbTransfer' as never, id: ngb }],
     }),
     approveNgbTransfer: build.mutation<void, { ngb: string; invitationId: string }>({

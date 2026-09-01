@@ -45,6 +45,7 @@ public class NgbsController : ControllerBase
 	private readonly IReviewNgbTransferCommand reviewNgbTransferCommand;
 	private readonly INotificationService notificationService;
 	private readonly ManagementHubDbContext dbContext;
+	private readonly CollectionFilteringContext filteringContext;
 
 	public NgbsController(
 		IUserContextAccessor contextAccessor,
@@ -58,7 +59,8 @@ public class NgbsController : ControllerBase
 		IUpdateUserDataCommand updateUserDataCommand,
 		IReviewNgbTransferCommand reviewNgbTransferCommand,
 		INotificationService notificationService,
-		ManagementHubDbContext dbContext)
+		ManagementHubDbContext dbContext,
+		CollectionFilteringContext filteringContext)
 	{
 		this.contextAccessor = contextAccessor;
 		this.ngbContextProvider = ngbContextProvider;
@@ -72,6 +74,7 @@ public class NgbsController : ControllerBase
 		this.reviewNgbTransferCommand = reviewNgbTransferCommand;
 		this.notificationService = notificationService;
 		this.dbContext = dbContext;
+		this.filteringContext = filteringContext;
 	}
 
 	/// <summary>
@@ -769,8 +772,9 @@ public class NgbsController : ControllerBase
 	[HttpGet("{ngb}/transfers")]
 	[Tags("NgbTransfers")]
 	[Authorize(AuthorizationPolicies.NgbAdminPolicy)]
-	public async Task<ActionResult<IEnumerable<NgbTransferViewModel>>> GetNgbTransfers(
-		[FromRoute] NgbIdentifier ngb)
+	public async Task<ActionResult<Filtered<NgbTransferViewModel>>> GetNgbTransfers(
+		[FromRoute] NgbIdentifier ngb,
+		[FromQuery] FilteringParameters filtering)
 	{
 		var authAndNgbResult = await this.TryResolveAuthorizedNgbDbIdAsync(ngb);
 		if (authAndNgbResult.ErrorResult != null)
@@ -783,10 +787,37 @@ public class NgbsController : ControllerBase
 			};
 		}
 
-		var rows = await this.dbContext.NgbTransferApprovals
-			.Where(a => a.NgbId == authAndNgbResult.NgbDbId)
-			.OrderBy(a => a.ApprovedAt != null || a.RejectedAt != null)
+		var query = this.dbContext.NgbTransferApprovals
+			.Where(a => a.NgbId == authAndNgbResult.NgbDbId);
+
+		var filter = string.IsNullOrWhiteSpace(filtering.Filter) ? null : $"%{filtering.Filter}%";
+		if (filter != null)
+		{
+			query = this.dbContext.Database.IsNpgsql()
+				? query.Where(a =>
+					EF.Functions.ILike(a.TeamInvitation.Email, filter)
+					|| EF.Functions.ILike(a.TeamInvitation.Team.Name, filter)
+					|| (a.TeamInvitation.OriginTeam != null && EF.Functions.ILike(a.TeamInvitation.OriginTeam.Name, filter)))
+				: query.Where(a =>
+					EF.Functions.Like(a.TeamInvitation.Email, filter)
+					|| EF.Functions.Like(a.TeamInvitation.Team.Name, filter)
+					|| (a.TeamInvitation.OriginTeam != null && EF.Functions.Like(a.TeamInvitation.OriginTeam.Name, filter)));
+		}
+
+		if (this.filteringContext.FilteringMetadata != null)
+		{
+			this.filteringContext.FilteringMetadata.TotalCount = await query.CountAsync(this.HttpContext.RequestAborted);
+		}
+
+		var rows = await query
+			.OrderBy(a =>
+				a.ApprovedAt != null
+				|| a.RejectedAt != null
+				|| a.TeamInvitation.AcceptedAt != null
+				|| a.TeamInvitation.DeclinedAt != null
+				|| a.TeamInvitation.RevokedAt != null)
 			.ThenByDescending(a => a.CreatedAt)
+			.Page(filtering)
 			.Select(a => new
 			{
 				a.TeamInvitationId,
@@ -853,7 +884,7 @@ public class NgbsController : ControllerBase
 				CreatedAt = r.InvitationCreatedAt,
 				Status = status,
 			};
-		}));
+		}).AsFiltered());
 	}
 
 	/// <summary>

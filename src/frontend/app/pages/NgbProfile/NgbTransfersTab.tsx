@@ -1,4 +1,8 @@
+import { faCheck, faXmark } from "@fortawesome/free-solid-svg-icons";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import classNames from "classnames";
 import React, { useMemo, useState } from "react";
+import FilterToolbar from "../../components/FilterToolbar";
 import Toggle from "../../components/Toggle";
 import {
   NgbTransferViewModel,
@@ -21,18 +25,18 @@ const STATUS_LABELS: Record<TransferApprovalStatus, string> = {
 };
 
 const STATUS_COLORS: Record<TransferApprovalStatus, string> = {
-  notATransfer: "bg-gray-100 text-gray-600",
-  pendingNgbApproval: "bg-yellow-100 text-yellow-800",
-  pendingTeamApproval: "bg-blue-100 text-blue-800",
-  rejectedByNgb: "bg-red-100 text-red-700",
-  approved: "bg-green-100 text-green-800",
-  declined: "bg-gray-200 text-gray-600",
+  notATransfer: "border-gray-200 bg-gray-50 text-gray-700",
+  pendingNgbApproval: "border-yellow-300 bg-yellow-50 text-yellow-800",
+  pendingTeamApproval: "border-yellow-300 bg-yellow-50 text-yellow-800",
+  rejectedByNgb: "border-red-300 bg-red-50 text-red-700",
+  approved: "border-green-300 bg-green-50 text-green-800",
+  declined: "border-gray-300 bg-gray-100 text-gray-700",
 };
 
 const StatusBadge: React.FC<{ status?: TransferApprovalStatus }> = ({ status }) => {
   if (!status) return null;
   return (
-    <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-semibold ${STATUS_COLORS[status]}`}>
+    <span className={`inline-flex items-center rounded border px-2 py-0.5 text-xs font-semibold ${STATUS_COLORS[status]}`}>
       {STATUS_LABELS[status]}
     </span>
   );
@@ -95,7 +99,7 @@ const TransferActions: React.FC<TransferActionsProps> = ({ transfer, ngbId }) =>
   };
 
   return (
-    <div className="relative inline-block text-left">
+    <div className={classNames("relative inline-block text-left", { "z-20": open })}>
       <button
         className="rounded p-1 hover:bg-gray-200"
         aria-label="Actions"
@@ -104,20 +108,22 @@ const TransferActions: React.FC<TransferActionsProps> = ({ transfer, ngbId }) =>
         <span className="text-xl leading-none">⋯</span>
       </button>
       {open && (
-        <div className="absolute right-0 z-10 mt-1 w-44 rounded-md border border-gray-200 bg-white shadow-lg">
+        <div className="absolute right-0 z-30 mt-1 w-40 rounded border border-gray-200 bg-white p-1 shadow-lg">
           <button
-            className="block w-full px-4 py-2 text-left text-sm hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
             onClick={handleApprove}
             disabled={!canAct}
           >
-            ✓ Approve transfer
+            <FontAwesomeIcon icon={faCheck} className="w-4 shrink-0 text-green-700" />
+            <span>Approve transfer</span>
           </button>
           <button
-            className="block w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
             onClick={handleReject}
             disabled={!canAct}
           >
-            ✗ Reject transfer
+            <FontAwesomeIcon icon={faXmark} className="w-4 shrink-0" />
+            <span>Reject transfer</span>
           </button>
           {!canAct && (
             <p className="border-t px-4 py-2 text-xs text-gray-500">No actions available for this status</p>
@@ -135,14 +141,16 @@ interface NgbTransfersTabProps {
 }
 
 const NgbTransfersTab: React.FC<NgbTransfersTabProps> = ({ ngbId }) => {
-  const { data: transfers, isLoading, error } = useGetNgbTransfersQuery({ ngb: ngbId });
+  const [page, setPage] = useState(1);
+  const [filter, setFilter] = useState<string>();
+  const { data: transfers, isLoading, error } = useGetNgbTransfersQuery({ ngb: ngbId, filter, page, pageSize: 25 });
   const [updateSettings, { isLoading: isSaving }] = useUpdateNgbTransferSettingsMutation();
 
   const orderedTransfers = useMemo(() => {
-    if (!transfers) return [];
+    if (!transfers?.items) return [];
 
     const isPending = (status?: TransferApprovalStatus) => status === "pendingNgbApproval";
-    return [...transfers].sort((a, b) => {
+    return [...transfers.items].sort((a, b) => {
       const aPending = isPending(normalizeStatus(a.status));
       const bPending = isPending(normalizeStatus(b.status));
       if (aPending !== bPending) return aPending ? -1 : 1;
@@ -156,6 +164,11 @@ const NgbTransfersTab: React.FC<NgbTransfersTabProps> = ({ ngbId }) => {
   // Derive current auto-approve state from first record (all share same NGB setting).
   // We don't have a direct GET for NGB settings yet, so we derive it optimistically.
   const [autoApprove, setAutoApprove] = useState(false);
+
+  const handleSearch = (value: string) => {
+    setFilter(value || undefined);
+    setPage(1);
+  };
 
   const handleAutoApproveToggle = async (checked: boolean) => {
     setAutoApprove(checked);
@@ -196,6 +209,13 @@ const NgbTransfersTab: React.FC<NgbTransfersTabProps> = ({ ngbId }) => {
       </div>
 
       {/* Transfer table */}
+      <FilterToolbar
+        currentPage={page}
+        onClearSearch={() => handleSearch("")}
+        total={transfers?.metadata?.totalCount ?? 0}
+        onSearchInput={handleSearch}
+        onPageSelect={setPage}
+      />
       {orderedTransfers.length === 0 ? (
         <div className="rounded-md border border-gray-200 bg-gray-50 p-4 text-gray-500">
           No transfers to show yet.

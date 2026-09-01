@@ -268,17 +268,5 @@ public class CreateTeamInviteRequestCommand : ICreateTeamInviteRequestCommand
 			});
 		}
 
-		// For international transfers add a destination NGB record too.
-		if (!isInternalTransfer && destinationNgbId.HasValue)
-		{
-			this.dbContext.NgbTransferApprovals.Add(new NgbTransferApproval
-			{
-				TeamInvitation = invitation,
-				NgbId = destinationNgbId.Value,
-				IsOriginNgb = false,
-				CreatedAt = createdAt,
-				ApprovedAt = null, // International destination always requires manual approval.
-			});
-		}
 	}
 }

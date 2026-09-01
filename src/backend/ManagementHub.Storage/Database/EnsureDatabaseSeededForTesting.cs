@@ -351,7 +351,7 @@ public class EnsureDatabaseSeededForTesting : DatabaseStartupService
 				Initiator = users.TeamManager,
 				CreatedAt = createdAt,
 				OriginTeam = originTeam,
-				IsInternalTransfer = originNgb.Id == destinationNgb.Id,
+				IsInternalTransfer = ReferenceEquals(originNgb, destinationNgb),
 			};
 
 			if (i % 9 == 0)
@@ -412,7 +412,7 @@ public class EnsureDatabaseSeededForTesting : DatabaseStartupService
 		SeedUsers users,
 		int index)
 	{
-		if (originNgb.Id == destinationNgb.Id)
+		if (ReferenceEquals(originNgb, destinationNgb))
 		{
 			transferApprovals.Add(new NgbTransferApproval
 			{
