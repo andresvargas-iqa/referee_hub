@@ -267,6 +267,5 @@ public class CreateTeamInviteRequestCommand : ICreateTeamInviteRequestCommand
 				ApprovedAt = autoApprove ? createdAt : null,
 			});
 		}
-
 	}
 }
