@@ -1,9 +1,11 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using ManagementHub.Models.Abstraction.Commands;
 using ManagementHub.Models.Data;
+using ManagementHub.Models.Domain.Ngb;
 using ManagementHub.Models.Domain.Team;
 using ManagementHub.Models.Domain.User;
 using ManagementHub.Models.Enums;
@@ -112,10 +114,11 @@ public class CreateTeamInviteRequestCommand : ICreateTeamInviteRequestCommand
 		var requiresNgbTransferApproval =
 			requestedAssociationType == RefereeTeamAssociationType.Player
 			&& teamSettings.GroupAffiliation != TeamGroupAffiliation.National;
+		IReadOnlyCollection<NgbIdentifier> pendingNgbApprovals = [];
 
 		if (requiresNgbTransferApproval && originTeamId.HasValue)
 		{
-			await this.CreateNgbTransferApprovalsAsync(
+			pendingNgbApprovals = await this.CreateNgbTransferApprovalsAsync(
 				invitation,
 				originNgbId,
 				teamSettings.NationalGoverningBodyId,
@@ -184,7 +187,9 @@ public class CreateTeamInviteRequestCommand : ICreateTeamInviteRequestCommand
 
 		return new ICreateTeamInviteRequestCommand.CreateResult(
 			ICreateTeamInviteRequestCommand.CreateResultCode.RequestCreated,
-			teamSettings.Name);
+			teamSettings.Name,
+			new TeamInvitationIdentifier(invitation.Id),
+			pendingNgbApprovals);
 	}
 
 	/// <summary>
@@ -217,7 +222,7 @@ public class CreateTeamInviteRequestCommand : ICreateTeamInviteRequestCommand
 	/// Creates NgbTransferApproval records for the NGBs involved in the transfer.
 	/// Auto-approves internal transfers when the NGB has that setting enabled.
 	/// </summary>
-	private async Task CreateNgbTransferApprovalsAsync(
+	private async Task<IReadOnlyCollection<NgbIdentifier>> CreateNgbTransferApprovalsAsync(
 		ManagementHub.Models.Data.TeamInvitation invitation,
 		long? originNgbId,
 		long? destinationNgbId,
@@ -234,8 +239,9 @@ public class CreateTeamInviteRequestCommand : ICreateTeamInviteRequestCommand
 
 		var ngbSettings = await this.dbContext.NationalGoverningBodies
 			.Where(ngb => ngbIds.Contains(ngb.Id))
-			.Select(ngb => new { ngb.Id, ngb.AutoApproveInternalTransfers })
+			.Select(ngb => new { ngb.Id, ngb.CountryCode, ngb.AutoApproveInternalTransfers })
 			.ToDictionaryAsync(ngb => ngb.Id, cancellationToken);
+		var pendingNgbApprovals = new List<NgbIdentifier>();
 
 		// Create an approval record for each NGB involved.
 		foreach (var (ngbId, isOrigin) in new[] { (originNgbId, true), (destinationNgbId, false) })
@@ -255,8 +261,8 @@ public class CreateTeamInviteRequestCommand : ICreateTeamInviteRequestCommand
 			}
 
 			var autoApprove = isInternalTransfer
-				&& ngbSettings.TryGetValue(ngbId.Value, out var s)
-				&& s.AutoApproveInternalTransfers;
+				&& ngbSettings.TryGetValue(ngbId.Value, out var settings)
+				&& settings.AutoApproveInternalTransfers;
 
 			this.dbContext.NgbTransferApprovals.Add(new NgbTransferApproval
 			{
@@ -266,6 +272,13 @@ public class CreateTeamInviteRequestCommand : ICreateTeamInviteRequestCommand
 				CreatedAt = createdAt,
 				ApprovedAt = autoApprove ? createdAt : null,
 			});
+
+			if (!autoApprove && ngbSettings.TryGetValue(ngbId.Value, out settings))
+			{
+				pendingNgbApprovals.Add(new NgbIdentifier(settings.CountryCode));
+			}
 		}
+
+		return pendingNgbApprovals;
 	}
 }

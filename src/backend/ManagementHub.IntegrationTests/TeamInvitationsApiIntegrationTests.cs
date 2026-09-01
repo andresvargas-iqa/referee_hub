@@ -4,6 +4,7 @@ using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Json;
+using System.Text.Json;
 using System.Threading.Tasks;
 using FluentAssertions;
 using ManagementHub.IntegrationTests.Helpers;
@@ -37,6 +38,17 @@ public class TeamInvitationsApiIntegrationTests : IClassFixture<TestWebApplicati
 			new { isEnabled });
 
 		toggleResponse.StatusCode.Should().Be(HttpStatusCode.NoContent);
+	}
+
+	private async Task SetNgbAutoApproveInternalTransfersAsync(bool isEnabled)
+	{
+		await AuthenticationHelper.AuthenticateAsAsync(this.client, "ngb_admin@example.com", "password");
+
+		var response = await this.client.PutAsJsonAsync(
+			"/api/v2/Ngbs/USA/settings/transfers",
+			new { autoApproveInternalTransfers = isEnabled });
+
+		response.StatusCode.Should().Be(HttpStatusCode.NoContent);
 	}
 
 	private async Task RevokePendingTeamInvitesAsync(string teamId, string email)
@@ -540,6 +552,11 @@ public class TeamInvitationsApiIntegrationTests : IClassFixture<TestWebApplicati
 		var pendingRequest = myInvites!.Should().ContainSingle(i => i.TeamId == targetTeamId).Subject;
 
 		await AuthenticationHelper.AuthenticateAsAsync(this.client, "ngb_admin@example.com", "password");
+		var notificationsResponse = await this.client.GetAsync("/api/v2/notifications");
+		var notificationsJson = await notificationsResponse.Content.ReadFromJsonAsync<JsonElement>();
+		notificationsJson.GetProperty("notifications").EnumerateArray().Should().Contain(notification =>
+			notification.GetProperty("type").GetString() == "NgbApprovalNeeded"
+			&& notification.GetProperty("secondaryEntityId").GetString() == pendingRequest.InvitationId);
 
 		var ngbApproveResponse = await this.client.PostAsJsonAsync(
 			$"/api/v2/Ngbs/USA/transfers/{pendingRequest.InvitationId}/approve",
@@ -562,6 +579,67 @@ public class TeamInvitationsApiIntegrationTests : IClassFixture<TestWebApplicati
 		history.Should().NotBeNull();
 		history!.Should().Contain(a => a.ActivityType == "inviteAccepted" && a.TeamId == targetTeamId);
 		history.Should().Contain(a => a.ActivityType == "playerRemoved");
+	}
+
+	[Fact]
+	public async Task UpdateReferee_WithAutoApprovedInternalTransfer_ShouldNotNotifyNgbAdmins()
+	{
+		await this.RevokePendingTeamInvitesAsync("TM_1", "referee@example.com");
+		await this.RevokePendingTeamInvitesAsync("TM_2", "referee@example.com");
+		await this.SetTeamAutoApprovePlayerRequestsAsync("TM_1", true);
+		await this.SetTeamAutoApprovePlayerRequestsAsync("TM_2", false);
+		await this.SetNgbAutoApproveInternalTransfersAsync(true);
+
+		try
+		{
+			await AuthenticationHelper.AuthenticateAsAsync(this.client, "referee@example.com", "password");
+			var clearResponse = await this.client.PutAsJsonAsync("/api/v2/Referees/me", new
+			{
+				primaryNgb = "USA",
+				secondaryNgb = (string?)null,
+				playingTeam = (object?)null,
+				coachingTeam = (object?)null,
+				nationalTeam = (object?)null,
+			});
+			clearResponse.StatusCode.Should().Be(HttpStatusCode.NoContent);
+
+			var joinResponse = await this.client.PutAsJsonAsync("/api/v2/Referees/me", new
+			{
+				primaryNgb = "USA",
+				secondaryNgb = (string?)null,
+				playingTeam = new { id = "TM_1" },
+				coachingTeam = (object?)null,
+				nationalTeam = (object?)null,
+			});
+			joinResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+			await this.SetTeamAutoApprovePlayerRequestsAsync("TM_1", false);
+			await AuthenticationHelper.AuthenticateAsAsync(this.client, "referee@example.com", "password");
+			var transferResponse = await this.client.PutAsJsonAsync("/api/v2/Referees/me", new
+			{
+				primaryNgb = "USA",
+				secondaryNgb = (string?)null,
+				playingTeam = new { id = "TM_2" },
+				coachingTeam = (object?)null,
+				nationalTeam = (object?)null,
+			});
+			transferResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+			var invitesResponse = await this.client.GetAsync("/api/v2/users/me/teamInvites");
+			var invites = await invitesResponse.Content.ReadFromJsonAsync<List<CurrentUserTeamInviteViewModelDto>>();
+			var transfer = invites!.Should().ContainSingle(invite => invite.TeamId == "TM_2").Subject;
+
+			await AuthenticationHelper.AuthenticateAsAsync(this.client, "ngb_admin@example.com", "password");
+			var notificationsResponse = await this.client.GetAsync("/api/v2/notifications");
+			var notificationsJson = await notificationsResponse.Content.ReadFromJsonAsync<JsonElement>();
+			notificationsJson.GetProperty("notifications").EnumerateArray().Should().NotContain(notification =>
+				notification.GetProperty("type").GetString() == "NgbApprovalNeeded"
+				&& notification.GetProperty("secondaryEntityId").GetString() == transfer.InvitationId);
+		}
+		finally
+		{
+			await this.SetNgbAutoApproveInternalTransfersAsync(false);
+		}
 	}
 
 	[Fact]

@@ -262,18 +262,18 @@ public class RefereesController : ControllerBase
 				},
 
 			ICreateTeamInviteRequestCommand.CreateResultCode.RequestCreated =>
-				await this.NotifyManagersAndBuildResultAsync(teamId, commandResult.TeamName, currentUserId),
+				await this.NotifyApproversAndBuildResultAsync(teamId, commandResult, currentUserId),
 
 			_ => new TeamInviteRequestResult { ErrorResult = this.StatusCode(500) },
 		};
 	}
 
-	private async Task<TeamInviteRequestResult> NotifyManagersAndBuildResultAsync(
+	private async Task<TeamInviteRequestResult> NotifyApproversAndBuildResultAsync(
 		TeamIdentifier teamId,
-		string? teamName,
+		ICreateTeamInviteRequestCommand.CreateResult commandResult,
 		UserIdentifier currentUserId)
 	{
-		var resolvedTeamName = teamName ?? teamId.ToString();
+		var resolvedTeamName = commandResult.TeamName ?? teamId.ToString();
 		var managers = await this.teamContextProvider.GetTeamManagersAsync(teamId, NgbConstraint.Any);
 		foreach (var manager in managers.Where(m => m.UserId != currentUserId))
 		{
@@ -281,6 +281,14 @@ public class RefereesController : ControllerBase
 				manager.UserId,
 				teamId,
 				resolvedTeamName,
+				this.HttpContext.RequestAborted);
+		}
+
+		if (commandResult.InvitationId.HasValue && commandResult.PendingNgbApprovals is { Count: > 0 })
+		{
+			await this.notificationService.CreateNgbTransferApprovalNotificationsAsync(
+				commandResult.InvitationId.Value,
+				commandResult.PendingNgbApprovals,
 				this.HttpContext.RequestAborted);
 		}
 
