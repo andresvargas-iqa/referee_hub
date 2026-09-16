@@ -38,12 +38,12 @@ internal class SendTestFeedbackEmail : ISendTestFeedbackEmail
 
 	public async Task SendTestFeedbackEmailAsync(TestAttemptIdentifier testAttemptId, Uri hostUri, bool ccRefhub, CancellationToken cancellation)
 	{
-		this.logger.LogInformation(-0x32943200, "Sending test feedback for test attempt ({attemptId}).", testAttemptId);
+		this.logger.LogInformation(-0x32943200, "Sending test feedback for a test attempt.");
 
 		var emailFeedbackContext = await this.refereeContextProvider.GetRefereeEmailFeedbackContextAsync(testAttemptId, cancellation);
 		var userContext = await this.userContextProvider.GetUserContextAsync(emailFeedbackContext.TestAttempt.UserId, cancellation);
 
-		this.logger.LogInformation(-0x329431ff, "Sending test feedback to user ({userId}).", userContext.UserId);
+		this.logger.LogInformation(-0x329431ff, "Sending test feedback to a user.");
 
 		await this.emailFactory.Create()
 			.SetFrom(this.emailSenderSettings.SenderEmail, this.emailSenderSettings.SenderDisplayName)
