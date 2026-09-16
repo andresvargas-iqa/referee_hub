@@ -187,7 +187,10 @@ const NgbTransfersTab: React.FC<NgbTransfersTabProps> = ({ ngbId }) => {
   const handleAutoApproveToggle = async (checked: boolean) => {
     setAutoApprove(checked);
     try {
-      await updateSettings({ ngb: ngbId, body: { autoApproveInternalTransfers: checked } }).unwrap();
+      await updateSettings({
+        ngb: ngbId,
+        ngbTransferSettingsRequest: { autoApproveInternalTransfers: checked },
+      }).unwrap();
     } catch {
       setAutoApprove(!checked); // revert on error
     }
