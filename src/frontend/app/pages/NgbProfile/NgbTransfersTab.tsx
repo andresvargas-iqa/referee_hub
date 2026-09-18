@@ -189,7 +189,7 @@ const NgbTransfersTab: React.FC<NgbTransfersTabProps> = ({ ngbId }) => {
     try {
       await updateSettings({
         ngb: ngbId,
-        ngbTransferSettingsRequest: { autoApproveInternalTransfers: checked },
+        body: { autoApproveInternalTransfers: checked },
       }).unwrap();
     } catch {
       setAutoApprove(!checked); // revert on error
