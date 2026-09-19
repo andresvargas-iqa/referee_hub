@@ -4,6 +4,7 @@ using ManagementHub.Storage;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
+using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
@@ -417,6 +418,12 @@ namespace ManagementHub.Storage.Migrations
                         .HasColumnType("character varying")
                         .HasColumnName("acronym");
 
+                    b.Property<bool>("AutoApproveInternalTransfers")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(false)
+                        .HasColumnName("auto_approve_internal_transfers");
+
                     b.Property<string>("Country")
                         .HasColumnType("character varying")
                         .HasColumnName("country");
@@ -626,6 +633,54 @@ namespace ManagementHub.Storage.Migrations
                     b.ToTable("national_governing_body_stats", (string)null);
                 });
 
+            modelBuilder.Entity("ManagementHub.Models.Data.NgbTransferApproval", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn)
+                        .HasColumnName("id");
+
+                    b.Property<DateTime?>("ApprovedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("approved_at");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<bool>("IsOriginNgb")
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("is_origin_ngb");
+
+                    b.Property<long>("NgbId")
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("ngb_id");
+
+                    b.Property<DateTime?>("RejectedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("rejected_at");
+
+                    b.Property<long?>("ReviewedByUserId")
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("reviewed_by_user_id");
+
+                    b.Property<long>("TeamInvitationId")
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("team_invitation_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ReviewedByUserId");
+
+                    b.HasIndex(new[] { "TeamInvitationId", "NgbId" }, "index_ngb_transfer_approvals_on_invitation_and_ngb")
+                        .IsUnique();
+
+                    b.HasIndex(new[] { "NgbId" }, "index_ngb_transfer_approvals_on_ngb_id");
+
+                    b.ToTable("ngb_transfer_approvals", (string)null);
+                });
+
             modelBuilder.Entity("ManagementHub.Models.Data.Notification", b =>
                 {
                     b.Property<long>("Id")
@@ -807,14 +862,13 @@ namespace ManagementHub.Storage.Migrations
 
             modelBuilder.Entity("ManagementHub.Models.Data.PublicTournamentSnapshot", b =>
                 {
+                    b.Property<string>("Key")
+                        .HasColumnType("character varying")
+                        .HasColumnName("key");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
-
-                    b.Property<string>("Key")
-                        .IsRequired()
-                        .HasColumnType("character varying")
-                        .HasColumnName("key");
 
                     b.Property<string>("SnapshotJson")
                         .IsRequired()
@@ -1244,6 +1298,14 @@ namespace ManagementHub.Storage.Migrations
                         .HasColumnType("INTEGER")
                         .HasColumnName("initiator_user_id");
 
+                    b.Property<bool?>("IsInternalTransfer")
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("is_internal_transfer");
+
+                    b.Property<long?>("OriginTeamId")
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("origin_team_id");
+
                     b.Property<long?>("RespondedByUserId")
                         .HasColumnType("INTEGER")
                         .HasColumnName("responded_by_user_id");
@@ -1259,6 +1321,8 @@ namespace ManagementHub.Storage.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("InitiatorUserId");
+
+                    b.HasIndex("OriginTeamId");
 
                     b.HasIndex("RespondedByUserId");
 
@@ -1638,6 +1702,10 @@ namespace ManagementHub.Storage.Migrations
                         .HasColumnType("INTEGER")
                         .HasColumnName("is_registration_open");
 
+                    b.Property<bool>("IsVolunteerRegistrationOpen")
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("is_volunteer_registration_open");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("character varying")
@@ -1695,6 +1763,10 @@ namespace ManagementHub.Storage.Migrations
                     b.Property<long>("InitiatorUserId")
                         .HasColumnType("INTEGER")
                         .HasColumnName("initiator_user_id");
+
+                    b.Property<string>("Observations")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("observations");
 
                     b.Property<int>("ParticipantApproval")
                         .HasColumnType("INTEGER")
@@ -2209,6 +2281,35 @@ namespace ManagementHub.Storage.Migrations
                     b.Navigation("NationalGoverningBody");
                 });
 
+            modelBuilder.Entity("ManagementHub.Models.Data.NgbTransferApproval", b =>
+                {
+                    b.HasOne("ManagementHub.Models.Data.NationalGoverningBody", "Ngb")
+                        .WithMany("NgbTransferApprovals")
+                        .HasForeignKey("NgbId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_ngb_transfer_approvals_ngb");
+
+                    b.HasOne("ManagementHub.Models.Data.User", "ReviewedByUser")
+                        .WithMany()
+                        .HasForeignKey("ReviewedByUserId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_ngb_transfer_approvals_reviewer");
+
+                    b.HasOne("ManagementHub.Models.Data.TeamInvitation", "TeamInvitation")
+                        .WithMany("NgbTransferApprovals")
+                        .HasForeignKey("TeamInvitationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_ngb_transfer_approvals_invitation");
+
+                    b.Navigation("Ngb");
+
+                    b.Navigation("ReviewedByUser");
+
+                    b.Navigation("TeamInvitation");
+                });
+
             modelBuilder.Entity("ManagementHub.Models.Data.Notification", b =>
                 {
                     b.HasOne("ManagementHub.Models.Data.User", "User")
@@ -2386,6 +2487,12 @@ namespace ManagementHub.Storage.Migrations
                         .IsRequired()
                         .HasConstraintName("fk_team_invitations_initiator");
 
+                    b.HasOne("ManagementHub.Models.Data.Team", "OriginTeam")
+                        .WithMany()
+                        .HasForeignKey("OriginTeamId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_team_invitations_origin_team");
+
                     b.HasOne("ManagementHub.Models.Data.User", "RespondedByUser")
                         .WithMany()
                         .HasForeignKey("RespondedByUserId")
@@ -2400,6 +2507,8 @@ namespace ManagementHub.Storage.Migrations
                         .HasConstraintName("fk_team_invitations_team");
 
                     b.Navigation("Initiator");
+
+                    b.Navigation("OriginTeam");
 
                     b.Navigation("RespondedByUser");
 
@@ -2685,6 +2794,8 @@ namespace ManagementHub.Storage.Migrations
 
                     b.Navigation("NationalGoverningBodyStats");
 
+                    b.Navigation("NgbTransferApprovals");
+
                     b.Navigation("RefereeLocations");
 
                     b.Navigation("Teams");
@@ -2715,6 +2826,11 @@ namespace ManagementHub.Storage.Migrations
                     b.Navigation("TeamStatusChangesets");
 
                     b.Navigation("TournamentTeamParticipants");
+                });
+
+            modelBuilder.Entity("ManagementHub.Models.Data.TeamInvitation", b =>
+                {
+                    b.Navigation("NgbTransferApprovals");
                 });
 
             modelBuilder.Entity("ManagementHub.Models.Data.Test", b =>

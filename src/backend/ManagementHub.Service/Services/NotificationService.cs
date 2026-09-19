@@ -91,6 +91,58 @@ public class NotificationService : INotificationService
 			"Team",
 			cancellationToken: cancellationToken);
 
+	public async Task CreateNgbTransferApprovalNotificationsAsync(
+		TeamInvitationIdentifier invitationId,
+		IReadOnlyCollection<NgbIdentifier> ngbs,
+		CancellationToken cancellationToken = default)
+	{
+		if (ngbs.Count == 0)
+		{
+			return;
+		}
+
+		var ngbCodes = ngbs.Select(ngb => ngb.NgbCode).ToHashSet();
+		var transfer = await this.dbContext.TeamInvitations
+			.Where(invitation => invitation.Id == invitationId.Id)
+			.Select(invitation => new
+			{
+				OriginTeamName = invitation.OriginTeam != null ? invitation.OriginTeam.Name : null,
+				DestinationTeamName = invitation.Team.Name,
+			})
+			.SingleAsync(cancellationToken);
+		var admins = await this.dbContext.NationalGoverningBodyAdmins
+			.Where(admin => ngbCodes.Contains(admin.NationalGoverningBody.CountryCode))
+			.Select(admin => new
+			{
+				NgbCode = admin.NationalGoverningBody.CountryCode,
+				admin.User.Id,
+				admin.User.UniqueId,
+			})
+			.ToListAsync(cancellationToken);
+
+		var transferDescription = transfer.OriginTeamName != null
+			? $"A player transfer from {transfer.OriginTeamName} to {transfer.DestinationTeamName} requires your approval."
+			: $"A player transfer to {transfer.DestinationTeamName} requires your approval.";
+
+		foreach (var admin in admins)
+		{
+			var userId = admin.UniqueId != null
+				? UserIdentifier.Parse(admin.UniqueId)
+				: UserIdentifier.FromLegacyUserId(admin.Id);
+
+			await this.CreateNotificationCoreAsync(
+				userId,
+				NotificationType.NgbApprovalNeeded,
+				"Transfer approval needed",
+				transferDescription,
+				new NgbIdentifier(admin.NgbCode).ToString(),
+				"Ngb",
+				invitationId.ToString(),
+				"TeamInvitation",
+				cancellationToken);
+		}
+	}
+
 	public Task<NotificationEntity> CreateTeamInviteResponseNotificationForPlayerAsync(
 		UserIdentifier userId,
 		TeamIdentifier teamId,
@@ -167,6 +219,20 @@ public class NotificationService : INotificationService
 			"Team",
 			cancellationToken);
 
+	public Task<NotificationEntity> CreateVolunteerRegistrationRequestNotificationAsync(
+		UserIdentifier userId,
+		TournamentIdentifier tournamentId,
+		string tournamentName,
+		CancellationToken cancellationToken = default) =>
+		this.CreateNotificationCoreAsync(
+			userId,
+			NotificationType.TeamTournamentJoinRequest,
+			"New volunteer registration",
+			$"A referee submitted a volunteer registration for {tournamentName}.",
+			tournamentId.ToString(),
+			"Tournament",
+			cancellationToken: cancellationToken);
+
 	public Task<NotificationEntity> CreateRequestResponseNotificationAsync(
 		UserIdentifier userId,
 		TournamentIdentifier tournamentId,
@@ -184,6 +250,21 @@ public class NotificationService : INotificationService
 			teamId.ToString(),
 			"Team",
 			cancellationToken);
+
+	public Task<NotificationEntity> CreateVolunteerRequestResponseNotificationAsync(
+		UserIdentifier userId,
+		TournamentIdentifier tournamentId,
+		string tournamentName,
+		bool approved,
+		CancellationToken cancellationToken = default) =>
+		this.CreateNotificationCoreAsync(
+			userId,
+			approved ? NotificationType.RequestAccepted : NotificationType.RequestRejected,
+			approved ? "Volunteer registration approved" : "Volunteer registration rejected",
+			$"Your volunteer registration for {tournamentName} was {(approved ? "approved" : "rejected")}.",
+			tournamentId.ToString(),
+			"Tournament",
+			cancellationToken: cancellationToken);
 
 	public Task<NotificationEntity> CreateInviteResponseNotificationAsync(
 		UserIdentifier userId,
