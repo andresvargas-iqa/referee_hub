@@ -14,6 +14,7 @@ export const convertToDisplayFormat = (t: TournamentViewModel): TournamentData =
   bannerImageUrl: t.bannerImageUrl || undefined,
   organizer: t.organizer || undefined,
   isPrivate: Boolean(t.isCurrentUserInvolved),
+  showVolunteerRegistrationBadge: Boolean(t.isVolunteerRegistrationOpen),
 });
 
 export const applyTypeFilter = (tournaments: TournamentViewModel[], typeFilter: string): TournamentViewModel[] => {
@@ -50,6 +51,21 @@ export const applyRecencyFilter = (
     return endDate >= cutoffDate;
   });
 };
+
+export const convertToDisplayFormat = (t: TournamentViewModel): TournamentData => ({
+  id: t.id,
+  title: t.name || "",
+  description: t.description || "",
+  startDate: t.startDate || "",
+  endDate: t.endDate || "",
+  type: t.type,
+  country: t.country || "",
+  location: [t.place, t.city].filter(Boolean).join(", "),
+  bannerImageUrl: t.bannerImageUrl || undefined,
+  organizer: t.organizer || undefined,
+  isPrivate: Boolean(t.isCurrentUserInvolved),
+  showVolunteerRegistrationBadge: Boolean(t.isVolunteerRegistrationOpen),
+});
 
 export const calculatePublicTournamentCount = (
   allTournaments: TournamentViewModel[],
