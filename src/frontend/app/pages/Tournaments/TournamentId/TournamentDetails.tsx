@@ -74,7 +74,8 @@ const ManagerSidebar = ({
         Edit Tournament Details
       </button>
       <button onClick={onOpenRegistrations} className="btn btn-secondary btn-full-width card-mb">
-        View Team Registrations ({invites?.length || 0})
+        View Team Registrations (
+          {invites?.filter((i) => i.participantType === "team").length || 0})
       </button>
       <button
         onClick={onOpenVolunteerRegistrations}
