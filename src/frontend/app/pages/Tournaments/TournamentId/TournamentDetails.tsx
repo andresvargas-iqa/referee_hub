@@ -42,6 +42,7 @@ type ManagerSidebarProps = {
   onOpenInviteTeams: () => void;
   onOpenAddManager: () => void;
   onDelete: () => void;
+  onOpenVolunteerRegistrations: () => void;
 };
 
 const ManagerSidebar = ({
@@ -53,6 +54,7 @@ const ManagerSidebar = ({
   onOpenInviteTeams,
   onOpenAddManager,
   onDelete,
+  onOpenVolunteerRegistrations,
 }: ManagerSidebarProps) => (
   <>
     <div className="card card-highlighted card-mb card-sticky">
@@ -73,6 +75,13 @@ const ManagerSidebar = ({
       </button>
       <button onClick={onOpenRegistrations} className="btn btn-secondary btn-full-width card-mb">
         View Team Registrations ({invites?.length || 0})
+      </button>
+      <button
+        onClick={onOpenVolunteerRegistrations}
+        className="btn btn-secondary btn-full-width card-mb"
+      >
+        View Volunteer Registrations (
+        {invites?.filter((i) => i.participantType === "referee").length || 0})
       </button>
       <button onClick={onOpenInviteTeams} className="btn btn-secondary btn-full-width card-mb">
         Invite Teams
@@ -238,6 +247,8 @@ type TournamentDetailsContentProps = {
   onOpenRegister: () => void;
   onOpenContactOrganizer: () => void;
   onRosterSaved: () => void;
+  onOpenVolunteerRegister: () => void;
+  onOpenVolunteerRegistrations: () => void;
 };
 
 const TournamentDetailsContent = ({
@@ -264,6 +275,8 @@ const TournamentDetailsContent = ({
   onOpenRegister,
   onOpenContactOrganizer,
   onRosterSaved,
+  onOpenVolunteerRegister,
+  onOpenVolunteerRegistrations,
 }: TournamentDetailsContentProps) => (
   <>
     {alertState.isVisible && (
@@ -309,6 +322,7 @@ const TournamentDetailsContent = ({
                 totalPlayerCount={totalPlayerCount}
                 onEdit={onEdit}
                 onOpenRegistrations={onOpenRegistrations}
+                onOpenVolunteerRegistrations={onOpenVolunteerRegistrations}
                 onOpenInviteTeams={onOpenInviteTeams}
                 onOpenAddManager={onOpenAddManager}
                 onDelete={onDelete}
@@ -322,7 +336,9 @@ const TournamentDetailsContent = ({
                 onRespondToInvite={onRespondToInvite}
                 onScrollToRosters={onScrollToRosters}
                 onOpenRegister={onOpenRegister}
+                onOpenVolunteerRegister={onOpenVolunteerRegister}
                 onOpenContactOrganizer={onOpenContactOrganizer}
+                isVolunteerRegistrationOpen={tournament.isVolunteerRegistrationOpen}
               />
             )}
           </div>
@@ -349,7 +365,9 @@ const TournamentDetails = () => {
   const registerModalRef = useRef<RegisterTournamentModalRef>(null);
   const contactOrganizerModalRef = useRef<ContactOrganizerModalRef>(null);
   const editModalRef = useRef<AddTournamentModalRef>(null);
-  const registrationsModalRef = useRef<VolunteerRegistrationsModalRef>(null);
+  const teamRegistrationsModalRef = useRef<TeamRegistrationsModalRef>(null);
+  const volunteerRegistrationsModalRef = useRef<VolunteerRegistrationsModalRef>(null);
+  const volunteerRegistrationModalRef = useRef<VolunteerRegistrationModalRef>(null);
   const inviteTeamsModalRef = useRef<InviteTeamsModalRef>(null);
   const rosterSectionRef = useRef<HTMLDivElement>(null);
   const [respondingTo, setRespondingTo] = useState<string | null>(null);
@@ -603,6 +621,18 @@ const TournamentDetails = () => {
     });
   };
 
+  const handleOpenVolunteerRegister = () => {
+    if (!currentUser?.userId) {
+      showAlert("You must be signed in to register as a volunteer.", "error");
+      return;
+    }
+  
+    volunteerRegistrationModalRef.current?.open(
+      tournament.id || "",
+      currentUser.userId
+    );
+  };
+
   const handleOpenContactOrganizer = () => {
     contactOrganizerModalRef.current?.open({
       name: tournament.organizer || "",
@@ -634,6 +664,12 @@ const TournamentDetails = () => {
             tournament.name || "Unknown Tournament"
           )
         }
+        onOpenVolunteerRegistrations={() =>
+          volunteerRegistrationsModalRef.current?.open(
+            tournament.id || "",
+            tournament.name || "Unknown Tournament"
+          )
+        }
         onOpenInviteTeams={() => inviteTeamsModalRef.current?.open(tournament)}
         onOpenAddManager={() => setIsAddManagerModalOpen(true)}
         onDelete={handleDelete}
@@ -641,6 +677,7 @@ const TournamentDetails = () => {
         onScrollToRosters={() => rosterSectionRef.current?.scrollIntoView({ behavior: "smooth" })}
         onOpenRegister={handleOpenRegister}
         onOpenContactOrganizer={handleOpenContactOrganizer}
+        onOpenVolunteerRegister={handleOpenVolunteerRegister}
         onRosterSaved={() => {
           refetchInvites();
           refetchParticipants();
@@ -653,7 +690,13 @@ const TournamentDetails = () => {
 
       {/* Manager modals */}
       <AddTournamentModal ref={editModalRef} />
-      <VolunteerRegistrationsModal ref={registrationsModalRef} />
+      <TeamRegistrationsModal ref={teamRegistrationsModalRef} />
+      <VolunteerRegistrationsModal ref={volunteerRegistrationsModalRef} />
+      <VolunteerRegistrationModal
+        ref={volunteerRegistrationModalRef}
+        teams={participants || []}
+        onSaved={() => refetchInvites()}
+      />
       <InviteTeamsModal ref={inviteTeamsModalRef} />
       {isAddManagerModalOpen && tournamentId && (
         <AddTournamentManagerModal
