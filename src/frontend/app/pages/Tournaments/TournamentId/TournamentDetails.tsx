@@ -2,7 +2,11 @@ import React, { useRef, useMemo, useState } from "react";
 import RegisterTournamentModal, { RegisterTournamentModalRef } from "./RegisterTournamentModal";
 import ContactOrganizerModal, { ContactOrganizerModalRef } from "./ContactOrganizerModal";
 import AddTournamentModal, { AddTournamentModalRef } from "../components/AddTournamentModal";
+import TeamRegistrationsModal, { TeamRegistrationsModalRef } from "./TeamRegistrationsModal";
 import VolunteerRegistrationsModal, { VolunteerRegistrationsModalRef } from "./VolunteerRegistrationsModal";
+import VolunteerRegistrationModal, {
+  VolunteerRegistrationModalRef,
+} from "./VolunteerRegistrationModal";
 import InviteTeamsModal, { InviteTeamsModalRef } from "./InviteTeamsModal";
 import AddTournamentManagerModal from "./AddTournamentManagerModal";
 import ActionButtonPair from "../../../components/ActionButtonPair";
@@ -113,7 +117,9 @@ type UserSidebarProps = {
   onRespondToInvite: (participantId: string, approved: boolean) => void;
   onScrollToRosters: () => void;
   onOpenRegister: () => void;
+  onOpenVolunteerRegister: () => void;
   onOpenContactOrganizer: () => void;
+  isVolunteerRegistrationOpen?: boolean;
 };
 
 const UserSidebar = ({
@@ -124,7 +130,9 @@ const UserSidebar = ({
   onRespondToInvite,
   onScrollToRosters,
   onOpenRegister,
+  onOpenVolunteerRegister,
   onOpenContactOrganizer,
+  isVolunteerRegistrationOpen,
 }: UserSidebarProps) => (
   <>
     {pendingInvitesForUser.length > 0 && (
@@ -186,6 +194,14 @@ const UserSidebar = ({
           <button onClick={onOpenRegister} className="btn btn-outline btn-full-width">
             Register Another Team
           </button>
+          {isVolunteerRegistrationOpen && (
+            <button
+              onClick={onOpenVolunteerRegister}
+              className="btn btn-outline btn-full-width mt-3"
+            >
+              Register as Volunteer
+            </button>
+          )}
         </>
       ) : (
         <>
@@ -196,6 +212,14 @@ const UserSidebar = ({
           <button onClick={onOpenRegister} className="btn btn-primary btn-full-width">
             Register for Tournament
           </button>
+          {isVolunteerRegistrationOpen && (
+            <button
+              onClick={onOpenVolunteerRegister}
+              className="btn btn-outline btn-full-width mt-3"
+            >
+              Register as Volunteer
+            </button>
+          )}
         </>
       )}
     </div>
