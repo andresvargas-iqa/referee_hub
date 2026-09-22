@@ -123,7 +123,8 @@ type UserSidebarProps = {
   onRespondToInvite: (participantId: string, approved: boolean) => void;
   onScrollToRosters: () => void;
   onOpenRegister: () => void;
-  onOpenContactOrganizer: () => void;
+  onOpenContactOrganizer: () => void;  
+  onOpenVolunteerRegister: () => void;
 };
 
 const UserSidebar = ({
