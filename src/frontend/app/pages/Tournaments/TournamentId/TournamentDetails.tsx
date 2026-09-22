@@ -48,6 +48,8 @@ type ManagerSidebarProps = {
   onDelete: () => void;
 };
 
+const volunteerRegistrationModalRef = useRef<VolunteerRegistrationModalRef>(null);
+
 const ManagerSidebar = ({
   tournament,
   invites,
@@ -253,7 +255,8 @@ type TournamentDetailsContentProps = {
   rosterSectionRef: React.RefObject<HTMLDivElement>;
   tournamentId: string;
   onEdit: () => void;
-  onOpenRegistrations: () => void;  
+  onOpenRegistrations: () => void;
+  onOpenVolunteerRegister: () => void;
   onOpenVolunteerRegistrations: () => void;
   onOpenInviteTeams: () => void;
   onOpenAddManager: () => void;
@@ -287,7 +290,8 @@ const TournamentDetailsContent = ({
   onDelete,
   onRespondToInvite,
   onScrollToRosters,
-  onOpenRegister,
+  onOpenRegister,  
+  onOpenVolunteerRegister,
   onOpenContactOrganizer,
   onRosterSaved,
 }: TournamentDetailsContentProps) => (
@@ -631,6 +635,18 @@ const TournamentDetails = () => {
     });
   };
 
+  const handleOpenVolunteerRegister = () => {
+    if (!currentUser?.userId) {
+      showAlert("You must be signed in to register as a volunteer.", "error");
+      return;
+    }
+  
+    volunteerRegistrationModalRef.current?.open(
+      tournament.id || "",
+      currentUser.userId
+    );
+  };
+  
   const handleOpenContactOrganizer = () => {
     contactOrganizerModalRef.current?.open({
       name: tournament.organizer || "",
@@ -682,7 +698,11 @@ const TournamentDetails = () => {
 
       {/* Manager modals */}
       <AddTournamentModal ref={editModalRef} />
-      <VolunteerRegistrationsModal ref={registrationsModalRef} />
+      <VolunteerRegistrationModal
+        ref={volunteerRegistrationModalRef}
+        teams={participants || []}
+        onSaved={() => refetchInvites()}
+      />
       <InviteTeamsModal ref={inviteTeamsModalRef} />
       {isAddManagerModalOpen && tournamentId && (
         <AddTournamentManagerModal
