@@ -346,7 +346,8 @@ const TournamentDetailsContent = ({
                 onRespondToInvite={onRespondToInvite}
                 onScrollToRosters={onScrollToRosters}
                 onOpenRegister={onOpenRegister}
-                onOpenContactOrganizer={onOpenContactOrganizer}
+                onOpenContactOrganizer={onOpenContactOrganizer}                
+                onOpenVolunteerRegister={onOpenVolunteerRegister}
               />
             )}
           </div>
