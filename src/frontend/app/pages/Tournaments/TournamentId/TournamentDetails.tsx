@@ -612,6 +612,7 @@ const TournamentDetails = () => {
       organizer: tournament.organizer || "",
       isPrivate: tournament.isPrivate || false,
       isRegistrationOpen: tournament.isRegistrationOpen ?? true,
+      isVolunteerRegistrationOpen: tournament.isVolunteerRegistrationOpen ?? true,
       bannerImageUrl: tournament.bannerImageUrl || "",
     });
   };
