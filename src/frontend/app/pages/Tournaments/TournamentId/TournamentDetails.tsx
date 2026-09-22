@@ -256,14 +256,14 @@ type TournamentDetailsContentProps = {
   tournamentId: string;
   onEdit: () => void;
   onOpenRegistrations: () => void;
-  onOpenVolunteerRegister: () => void;
   onOpenVolunteerRegistrations: () => void;
   onOpenInviteTeams: () => void;
   onOpenAddManager: () => void;
   onDelete: () => void;
   onRespondToInvite: (participantId: string, approved: boolean) => void;
   onScrollToRosters: () => void;
-  onOpenRegister: () => void;
+  onOpenRegister: () => void;  
+  onOpenVolunteerRegister: () => void;
   onOpenContactOrganizer: () => void;
   onRosterSaved: () => void;
 };
@@ -678,6 +678,7 @@ const TournamentDetails = () => {
             tournament.name || "Unknown Tournament"
           )
         }
+        onOpenVolunteerRegistrations={handleOpenVolunteerRegistrations}
         onOpenInviteTeams={() => inviteTeamsModalRef.current?.open(tournament)}
         onOpenAddManager={() => setIsAddManagerModalOpen(true)}
         onDelete={handleDelete}
