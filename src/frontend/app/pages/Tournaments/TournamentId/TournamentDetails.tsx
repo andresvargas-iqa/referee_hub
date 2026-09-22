@@ -253,7 +253,8 @@ type TournamentDetailsContentProps = {
   rosterSectionRef: React.RefObject<HTMLDivElement>;
   tournamentId: string;
   onEdit: () => void;
-  onOpenRegistrations: () => void;
+  onOpenRegistrations: () => void;  
+  onOpenVolunteerRegistrations: () => void;
   onOpenInviteTeams: () => void;
   onOpenAddManager: () => void;
   onDelete: () => void;
@@ -280,6 +281,7 @@ const TournamentDetailsContent = ({
   tournamentId,
   onEdit,
   onOpenRegistrations,
+  onOpenVolunteerRegistrations,
   onOpenInviteTeams,
   onOpenAddManager,
   onDelete,
@@ -666,6 +668,7 @@ const TournamentDetails = () => {
         onRespondToInvite={handleRespondToInvite}
         onScrollToRosters={() => rosterSectionRef.current?.scrollIntoView({ behavior: "smooth" })}
         onOpenRegister={handleOpenRegister}
+        onOpenVolunteerRegister={handleOpenVolunteerRegister}
         onOpenContactOrganizer={handleOpenContactOrganizer}
         onRosterSaved={() => {
           refetchInvites();
