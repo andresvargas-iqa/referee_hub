@@ -489,7 +489,7 @@ const TournamentDetailsContent = ({
 
 const TournamentDetails = () => {
   const { tournamentId } =
-    useNavigationParams<"tournamentId>();
+    useNavigationParams<"tournamentId">();
 
   const registerModalRef =
     useRef<RegisterTournamentModalRef>(null);
