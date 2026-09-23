@@ -427,6 +427,9 @@ const TournamentDetails = () => {
     { skip: !tournamentId }
   );
 
+  const volunteerRegistrationsModalRef =
+  useRef<VolunteerRegistrationsModalRef>(null);
+
   const [respondToInvite] = useRespondToInviteMutation();
   const [deleteTournament] = useDeleteTournamentMutation();
   const navigate = useNavigate();
@@ -646,6 +649,13 @@ const TournamentDetails = () => {
       currentUser.userId
     );
   };
+
+  const handleOpenVolunteerRegistrations = () => {
+    volunteerRegistrationsModalRef.current?.open(
+      tournament.id || "",
+      tournament.name || "Unknown Tournament"
+    );
+  };
   
   const handleOpenContactOrganizer = () => {
     contactOrganizerModalRef.current?.open({
@@ -704,6 +714,11 @@ const TournamentDetails = () => {
         teams={participants || []}
         onSaved={() => refetchInvites()}
       />
+
+      <VolunteerRegistrationsModal
+        ref={volunteerRegistrationsModalRef}
+      />
+      
       <InviteTeamsModal ref={inviteTeamsModalRef} />
       {isAddManagerModalOpen && tournamentId && (
         <AddTournamentManagerModal
