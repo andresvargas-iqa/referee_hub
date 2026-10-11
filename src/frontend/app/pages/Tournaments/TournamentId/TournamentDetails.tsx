@@ -1,7 +1,7 @@
 import React, { useRef, useState } from "react";
 import RegisterTournamentModal, { RegisterTournamentModalRef } from "./RegisterTournamentModal";
 import ContactOrganizerModal, { ContactOrganizerModalRef } from "./ContactOrganizerModal";
-import AddTournamentModal, { AddTournamentModalRef } from "../components/AddTournamentModal";
+import AddTournamentModal from "../components/AddTournamentModal";
 import RegistrationsModal, { RegistrationsModalRef } from "./RegistrationsModal";
 import InviteTeamsModal, { InviteTeamsModalRef } from "./InviteTeamsModal";
 import AddTournamentManagerModal from "./AddTournamentManagerModal";
@@ -41,6 +41,7 @@ const TournamentDetails = () => {
 
   // Load all tournament data with a single hook
   const {
+    currentUser,
     tournament,
     invites,
     participants,
@@ -60,6 +61,9 @@ const TournamentDetails = () => {
   // Extract pending and approved invites
   const pendingInvitesForUser = usePendingInvites(invites, managedTeamIds);
   const approvedTeamsForUser = useApprovedTeams(invites, managedTeamIds, managedTeamsData);
+  const myIndividualInvite = invites?.find(
+    (invite) => invite.participantType === "player" && invite.participantId === currentUser?.userId,
+  ) ?? null;
 
   // Extract roster stats
   const { totalPlayerCount } = useRosterStats(participants);
@@ -148,6 +152,10 @@ const TournamentDetails = () => {
                 isTournamentManager={isTournamentManager}
                 isAnonymous={isAnonymous}
                 isRegistrationClosed={isRegistrationClosed}
+                tournamentType={tournament.type}
+                allowsTeamRegistration={tournament.allowsTeamRegistration ?? true}
+                allowsIndividualRegistration={tournament.allowsIndividualRegistration ?? false}
+                myIndividualInvite={myIndividualInvite}
                 pendingInvitesForUser={pendingInvitesForUser}
                 approvedTeamsForUser={approvedTeamsForUser}
                 respondingTo={respondingTo}
@@ -175,11 +183,13 @@ const TournamentDetails = () => {
                     country: tournament.country || "",
                     city: tournament.city || "",
                     type: tournament.type || "",
+                    allowsIndividualRegistration: tournament.allowsIndividualRegistration,
+                    allowsTeamRegistration: tournament.allowsTeamRegistration,
                   })
                 }
                 onManageRosters={() => rosterSectionRef.current?.scrollIntoView({ behavior: "smooth" })}
                 totalPlayerCount={totalPlayerCount}
-                invitesCount={invites?.filter((i) => i.status === "approved").length || 0}
+                invitesCount={invites?.filter((invite) => invite.status === "approved").length || 0}
                 isPrivate={tournament.isPrivate || false}
               />
             </div>

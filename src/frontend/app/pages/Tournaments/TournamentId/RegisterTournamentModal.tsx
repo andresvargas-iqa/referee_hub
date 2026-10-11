@@ -12,7 +12,6 @@ import {
   NgbTeamViewModel,
   TournamentType,
   TournamentInviteViewModel,
-  TeamGroupAffiliation,
 } from "../../../store/serviceApi";
 import CustomAlert from "../../../components/CustomAlert";
 import { useAlert } from "../../../hooks/useAlert";

@@ -1085,4 +1085,64 @@ public class TournamentApiIntegrationTests : IClassFixture<TestWebApplicationFac
 		tournament!.AllowsTeamRegistration.Should().BeTrue("seeded Fantasy tournament allows team registration");
 		tournament!.AllowsIndividualRegistration.Should().BeTrue("seeded Fantasy tournament allows individual registration");
 	}
+
+	[Fact]
+	public async Task FantasyIndividualRegistration_CanBeSubmittedReviewedAndRemoved()
+	{
+		await AuthenticationHelper.AuthenticateAsAsync(this._client, "referee@example.com", "password");
+		var createResponse = await this._client.PostAsJsonAsync("/api/v2/tournaments", new TournamentModel
+		{
+			Name = "Fantasy Individual Registration Test",
+			Description = "Individual registration lifecycle",
+			StartDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(30)),
+			EndDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(32)),
+			Type = TournamentType.Fantasy,
+			Country = "USA",
+			City = "Portland",
+			Organizer = "Test Organizer",
+			IsPrivate = false,
+			AllowsTeamRegistration = true,
+			AllowsIndividualRegistration = true,
+		});
+		createResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+		var tournamentId = (await createResponse.Content.ReadFromJsonAsync<TournamentIdResponseDto>())!.Id;
+
+		await AuthenticationHelper.AuthenticateAsAsync(this._client, "team_manager@example.com", "password");
+		var currentUserResponse = await this._client.GetAsync("/api/v2/users/me");
+		currentUserResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+		var currentUser = await currentUserResponse.Content.ReadFromJsonAsync<JsonElement>();
+		var playerId = currentUser.GetProperty("userId").GetString();
+		playerId.Should().NotBeNullOrWhiteSpace();
+
+		var registrationResponse = await this._client.PostAsJsonAsync(
+			$"/api/v2/tournaments/{tournamentId}/invites",
+			new CreateInviteModel { ParticipantType = ParticipantType.Player, ParticipantId = playerId! });
+		registrationResponse.StatusCode.Should().Be(HttpStatusCode.Created);
+
+		var ownInvitesResponse = await this._client.GetAsync($"/api/v2/tournaments/{tournamentId}/invites");
+		ownInvitesResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+		var ownInvites = await ownInvitesResponse.Content.ReadFromJsonAsync<JsonElement>();
+		ownInvites.GetArrayLength().Should().Be(1);
+		ownInvites[0].GetProperty("participantType").GetString().Should().Be("player");
+		ownInvites[0].GetProperty("status").GetString().Should().Be("pending");
+
+		var teamRegistrationResponse = await this._client.PostAsJsonAsync(
+			$"/api/v2/tournaments/{tournamentId}/invites",
+			new CreateInviteModel
+			{
+				ParticipantType = ParticipantType.Team,
+				ParticipantId = await this.GetYankeesTeamIdAsync(),
+			});
+		teamRegistrationResponse.StatusCode.Should().Be(HttpStatusCode.BadRequest,
+			"a player with an individual registration cannot also request a team slot");
+
+		await AuthenticationHelper.AuthenticateAsAsync(this._client, "referee@example.com", "password");
+		var approvalResponse = await this._client.PostAsJsonAsync(
+			$"/api/v2/tournaments/{tournamentId}/invites/{playerId}",
+			new InviteResponseModel { Approved = true });
+		approvalResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+		var deleteResponse = await this._client.DeleteAsync($"/api/v2/tournaments/{tournamentId}/invites/{playerId}");
+		deleteResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+	}
 }

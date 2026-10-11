@@ -35,6 +35,45 @@ export interface AddTournamentModalRef {
   openEdit: (tournament: Tournament) => void;
 }
 
+interface FantasyRegistrationOptionsProps {
+  allowsTeamRegistration: boolean;
+  allowsIndividualRegistration: boolean;
+  onChange: (field: "allowsTeamRegistration" | "allowsIndividualRegistration", value: boolean) => void;
+}
+
+const FantasyRegistrationOptions: React.FC<FantasyRegistrationOptionsProps> = ({
+  allowsTeamRegistration,
+  allowsIndividualRegistration,
+  onChange,
+}) => (
+  <div className="p-3 rounded border border-amber-200 bg-amber-50">
+    <p className="text-xs font-semibold text-amber-800 mb-2">
+      Fantasy registration types (select at least one)
+    </p>
+    <label className="flex items-center mb-2 text-sm text-gray-700">
+      <input
+        type="checkbox"
+        checked={allowsTeamRegistration}
+        onChange={(event) => onChange("allowsTeamRegistration", event.target.checked)}
+        className="h-4 w-4 mr-2"
+      />
+      Allow team registration
+    </label>
+    <label className="flex items-center text-sm text-gray-700">
+      <input
+        type="checkbox"
+        checked={allowsIndividualRegistration}
+        onChange={(event) => onChange("allowsIndividualRegistration", event.target.checked)}
+        className="h-4 w-4 mr-2"
+      />
+      Allow individual player registration
+    </label>
+    {!allowsTeamRegistration && !allowsIndividualRegistration && (
+      <p className="mt-2 text-xs text-red-600">Choose at least one registration type.</p>
+    )}
+  </div>
+);
+
 const AddTournamentModal = forwardRef<AddTournamentModalRef>((_props, ref) => {
   const { alertState, showAlert, hideAlert } = useAlert();
   const [isOpen, setIsOpen] = useState(false);
@@ -108,6 +147,8 @@ const AddTournamentModal = forwardRef<AddTournamentModalRef>((_props, ref) => {
             organizer: formData.organizer,
             isPrivate: formData.isPrivate,
             isRegistrationOpen: formData.isRegistrationOpen ?? true,
+            allowsIndividualRegistration: formData.allowsIndividualRegistration ?? false,
+            allowsTeamRegistration: formData.allowsTeamRegistration ?? true,
           },
         }).unwrap();
       } else {
@@ -125,6 +166,8 @@ const AddTournamentModal = forwardRef<AddTournamentModalRef>((_props, ref) => {
             organizer: formData.organizer,
             isPrivate: formData.isPrivate,
             isRegistrationOpen: formData.isRegistrationOpen ?? true,
+            allowsIndividualRegistration: formData.allowsIndividualRegistration ?? false,
+            allowsTeamRegistration: formData.allowsTeamRegistration ?? true,
           },
         }).unwrap();
 

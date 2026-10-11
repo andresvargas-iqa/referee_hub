@@ -58,6 +58,8 @@ public interface ITournamentContextProvider
 
 	Task UpdateInviteApprovalAsync(TournamentIdentifier tournamentId, TeamIdentifier teamId, bool isTournamentManager, bool approved, CancellationToken cancellationToken = default);
 
+	Task UpdatePlayerInviteApprovalAsync(TournamentIdentifier tournamentId, UserIdentifier playerId, bool approved, CancellationToken cancellationToken = default);
+
 	Task RemoveTeamInviteAsync(TournamentIdentifier tournamentId, TeamIdentifier teamId, CancellationToken cancellationToken = default);
 
 	/// <summary>Deletes a player invite (allows re-registration).</summary>

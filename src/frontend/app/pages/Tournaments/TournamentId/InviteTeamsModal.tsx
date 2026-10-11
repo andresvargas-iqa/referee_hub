@@ -15,13 +15,11 @@ import {
 import CustomAlert from "../../../components/CustomAlert";
 import { useAlert } from "../../../hooks/useAlert";
 import {
-  isTeamEligible,
   eligibilityLabel,
   getApiErrorMessage,
   getEligibleAffiliations,
   getUnavailableTeamIds,
   filterAndSearchTeams,
-  getTeamStatusStyle,
 } from "../../../utils/tournamentUtils";
 
 export interface InviteTeamsModalRef {
@@ -294,14 +292,19 @@ const InviteTeamsModal = forwardRef<InviteTeamsModalRef>((_props, ref) => {
 
   // Filter teams - exclude unavailable/ineligible teams and apply search
   const availableTeams = useMemo(
-    () =>
-      filterAndSearchTeams(
+    () => {
+      if (tournament?.type === "Fantasy" && tournament.allowsTeamRegistration === false) {
+        return [];
+      }
+
+      return filterAndSearchTeams(
         teamsData?.items,
         unavailableTeamIds,
         searchFilter,
         tournament?.type
-      ),
-    [teamsData?.items, unavailableTeamIds, searchFilter, tournament?.type]
+      );
+    },
+    [teamsData?.items, unavailableTeamIds, searchFilter, tournament?.type, tournament?.allowsTeamRegistration]
   );
 
   useImperativeHandle(ref, () => ({
@@ -344,10 +347,6 @@ const InviteTeamsModal = forwardRef<InviteTeamsModalRef>((_props, ref) => {
       setIsSubmitting(false);
     }
   }
-
-  const getStatusStyle = (status?: string) => {
-    return getTeamStatusStyle(status);
-  };
 
   return (
     <>

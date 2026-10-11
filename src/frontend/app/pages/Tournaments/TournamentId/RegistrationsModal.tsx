@@ -90,11 +90,12 @@ const RegistrationsModal = forwardRef<RegistrationsModalRef>((_props, ref) => {
   async function handleRemoveEntry(
     participantId: string,
     participantName: string,
-    status: InviteStatus | undefined
+    status: InviteStatus | undefined,
+    participantType: TournamentInviteViewModel["participantType"]
   ) {
     setIsSubmitting(true);
     try {
-      if (status === "approved") {
+      if (status === "approved" && participantType !== "player") {
         await removeParticipant({
           tournamentId,
           teamId: participantId,
@@ -173,7 +174,7 @@ const RegistrationsModal = forwardRef<RegistrationsModalRef>((_props, ref) => {
           <div className="p-6 border-b border-gray-200">
             <div className="flex items-center justify-between">
               <DialogTitle as="h3" className="text-xl font-semibold text-gray-900">
-                {selectedInvite ? "Registration Details" : "Team Registrations"}
+                {selectedInvite ? "Registration Details" : "Tournament Registrations"}
               </DialogTitle>
               <button
                 onClick={close}
@@ -198,9 +199,11 @@ const RegistrationsModal = forwardRef<RegistrationsModalRef>((_props, ref) => {
             {selectedInvite && selectedInviteData ? (
               // Detail view
               <div>
-                {/* Team Name */}
+                {/* Participant */}
                 <div className="bg-gray-50 rounded-lg p-4 mb-4">
-                  <p className="text-sm text-gray-600 mb-1">Team Name</p>
+                  <p className="text-sm text-gray-600 mb-1">
+                    {selectedInviteData.participantType === "player" ? "Player" : "Team Name"}
+                  </p>
                   <p className="text-lg font-semibold text-gray-900">
                     {selectedInviteData.participantName}
                   </p>
@@ -287,7 +290,8 @@ const RegistrationsModal = forwardRef<RegistrationsModalRef>((_props, ref) => {
                           selectedInviteData.status
                         )
                           ? "approved"
-                          : "pending"
+                          : "pending",
+                        selectedInviteData.participantType
                       )
                     }
                     className="px-4 py-2 rounded-md bg-red-600 text-white text-sm font-medium hover:bg-red-700 disabled:opacity-50"
@@ -295,15 +299,17 @@ const RegistrationsModal = forwardRef<RegistrationsModalRef>((_props, ref) => {
                   >
                     {isSubmitting
                       ? "Removing..."
-                      : getRemoveLabel(
+                        : selectedInviteData.participantType === "player"
+                          ? "Remove Registration"
+                          : getRemoveLabel(
                           shouldRemoveParticipant(
                             selectedInviteData.participantId,
                             selectedInviteData.status
                           )
                             ? "approved"
-                            : "pending",
-                          true
-                        )}
+                              : "pending",
+                            true
+                          )}
                   </button>
                 </div>
               </div>
@@ -326,7 +332,9 @@ const RegistrationsModal = forwardRef<RegistrationsModalRef>((_props, ref) => {
                             />
                           )}
                           <div className="flex-1 cursor-pointer" onClick={() => setSelectedInvite(invite.participantId)}>
-                            <h4 className="font-semibold text-gray-900">{invite.participantName}</h4>
+                            <h4 className="font-semibold text-gray-900">
+                              {invite.participantType === "player" ? `Individual: ${invite.participantName}` : invite.participantName}
+                            </h4>
                             <p className="text-sm text-gray-600">
                               Requested{" "}
                               {new Date(invite.createdAt).toLocaleDateString("en-US", {
@@ -343,7 +351,7 @@ const RegistrationsModal = forwardRef<RegistrationsModalRef>((_props, ref) => {
                         </div>
                         <div className="mt-3 pt-3 border-t border-gray-200">
                           <div className="flex items-center gap-4">
-                            {shouldRemoveParticipant(invite.participantId, invite.status) && (
+                            {invite.participantType !== "player" && shouldRemoveParticipant(invite.participantId, invite.status) && (
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -367,7 +375,8 @@ const RegistrationsModal = forwardRef<RegistrationsModalRef>((_props, ref) => {
                                   invite.participantName || "this team",
                                   shouldRemoveParticipant(invite.participantId, invite.status)
                                     ? "approved"
-                                    : "pending"
+                                    : "pending",
+                                  invite.participantType
                                 );
                               }}
                               className="text-sm text-red-600 hover:text-red-800 font-medium disabled:opacity-50"
@@ -375,7 +384,9 @@ const RegistrationsModal = forwardRef<RegistrationsModalRef>((_props, ref) => {
                             >
                               {isSubmitting
                                 ? "Removing..."
-                                : getRemoveLabel(
+                                : invite.participantType === "player"
+                                  ? "Remove Registration"
+                                  : getRemoveLabel(
                                     shouldRemoveParticipant(invite.participantId, invite.status)
                                       ? "approved"
                                       : "pending",
@@ -388,7 +399,7 @@ const RegistrationsModal = forwardRef<RegistrationsModalRef>((_props, ref) => {
                     ))}
                   </div>
                 ) : (
-                  <p className="text-gray-600 text-center py-8">No team registrations yet.</p>
+                  <p className="text-gray-600 text-center py-8">No registrations yet.</p>
                 )}
               </>
             )}
