@@ -79,8 +79,16 @@ jest.mock("../components/AddTournamentModal", () =>
   mockForwardRefComponent("add-tournament-modal", "MockAddTournamentModal")
 );
 
-jest.mock("./RegistrationsModal", () =>
-  mockForwardRefComponent("registrations-modal", "MockRegistrationsModal")
+jest.mock("./TeamRegistrationsModal", () =>
+  mockForwardRefComponent("team-registrations-modal", "MockTeamRegistrationsModal")
+);
+
+jest.mock("./VolunteerRegistrationsModal", () =>
+  mockForwardRefComponent("volunteer-registrations-modal", "MockVolunteerRegistrationsModal")
+);
+
+jest.mock("./VolunteerRegistrationModal", () =>
+  mockForwardRefComponent("volunteer-registration-modal", "MockVolunteerRegistrationModal")
 );
 
 jest.mock("./InviteTeamsModal", () =>

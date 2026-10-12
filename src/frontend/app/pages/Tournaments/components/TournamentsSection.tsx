@@ -21,6 +21,7 @@ export type TournamentData = {
   bannerImageUrl?: string;
   organizer?: string;
   hasPublishedRanking?: boolean;
+  showVolunteerRegistrationBadge?: boolean;
   managers?: Manager[];
   isPrivate: boolean;
 };
@@ -107,6 +108,7 @@ const TournamentSection: React.FC<TournamentSectionProps> = ({
           bannerImageUrl={tournament.bannerImageUrl}
           organizer={tournament.organizer}
           hasPublishedRanking={tournament.hasPublishedRanking}
+          showVolunteerRegistrationBadge={tournament.showVolunteerRegistrationBadge}
           onClick={() => {
             navigate(`/tournaments/${tournamentId}`);
           }}
@@ -142,6 +144,7 @@ const TournamentSection: React.FC<TournamentSectionProps> = ({
                     bannerImageUrl={tournament.bannerImageUrl}
                     organizer={tournament.organizer}
                     hasPublishedRanking={tournament.hasPublishedRanking}
+                    showVolunteerRegistrationBadge={tournament.showVolunteerRegistrationBadge}
                     onClick={() => {
                       navigate(`/tournaments/${tournamentId}`);
                     }}

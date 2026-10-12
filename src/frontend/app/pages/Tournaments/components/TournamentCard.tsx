@@ -13,6 +13,7 @@ interface TournamentCardProps {
   bannerImageUrl?: string;
   organizer?: string;
   hasPublishedRanking?: boolean;
+  showVolunteerRegistrationBadge?: boolean;
   onClick?: () => void;
 }
 
@@ -31,6 +32,7 @@ const TournamentCard: React.FC<TournamentCardProps> = ({
   bannerImageUrl,
   organizer,
   hasPublishedRanking,
+  showVolunteerRegistrationBadge,
   onClick,
 }) => {
   const locationText = [location, country].filter(Boolean).join(", ");
@@ -53,6 +55,9 @@ const TournamentCard: React.FC<TournamentCardProps> = ({
             <span className="card-date">{dateText}</span>
           </div>
         </div>
+        {showVolunteerRegistrationBadge && (
+          <div className="card-registration-badge">Searching for volunteers</div>
+        )}
         <h2 className="card-title">{title}</h2>
         <p className="card-description">{description}</p>
         <div className="card-footer">
