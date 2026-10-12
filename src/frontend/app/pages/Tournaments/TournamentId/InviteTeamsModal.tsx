@@ -18,9 +18,9 @@ import {
   eligibilityLabel,
   getApiErrorMessage,
   getEligibleAffiliations,
+  getTeamStatusStyle,
   getUnavailableTeamIds,
   filterAndSearchTeams,
-  getTeamStatusStyle,
 } from "../../../utils/tournamentUtils";
 
 export interface InviteTeamsModalRef {

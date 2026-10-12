@@ -44,9 +44,9 @@ public readonly record struct TournamentParticipantIdentifier
 			return true;
 		}
 
-		if (participantType == ParticipantType.Player && UserIdentifier.TryParse(value, out var playerId))
+		if (participantType == ParticipantType.Player && UserIdentifier.TryParse(value, out userId))
 		{
-			participantIdentifier = ForPlayer(playerId);
+			participantIdentifier = ForPlayer(userId);
 			return true;
 		}
 

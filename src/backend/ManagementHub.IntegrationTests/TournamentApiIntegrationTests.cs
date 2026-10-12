@@ -1185,7 +1185,7 @@ public class TournamentApiIntegrationTests : IClassFixture<TestWebApplicationFac
 
 		var registrationResponse = await this._client.PostAsJsonAsync(
 			$"/api/v2/tournaments/{tournamentId}/invites",
-			new CreateInviteModel { ParticipantType = ParticipantType.Player, ParticipantId = playerId! });
+			new CreateInviteModel { ParticipantType = ParticipantType.Player, ParticipantId = TournamentParticipantIdentifier.ForPlayer(UserIdentifier.Parse(playerId!)) });
 		registrationResponse.StatusCode.Should().Be(HttpStatusCode.Created);
 
 		var ownInvitesResponse = await this._client.GetAsync($"/api/v2/tournaments/{tournamentId}/invites");
@@ -1200,7 +1200,7 @@ public class TournamentApiIntegrationTests : IClassFixture<TestWebApplicationFac
 			new CreateInviteModel
 			{
 				ParticipantType = ParticipantType.Team,
-				ParticipantId = await this.GetYankeesTeamIdAsync(),
+				ParticipantId = TournamentParticipantIdentifier.ForTeam(TeamIdentifier.Parse(await this.GetYankeesTeamIdAsync())),
 			});
 		teamRegistrationResponse.StatusCode.Should().Be(HttpStatusCode.BadRequest,
 			"a player with an individual registration cannot also request a team slot");

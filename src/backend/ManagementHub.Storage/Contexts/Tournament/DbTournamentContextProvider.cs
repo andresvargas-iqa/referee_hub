@@ -677,12 +677,12 @@ public class DbTournamentContextProvider : ITournamentContextProvider
 			.Distinct()
 			.ToList();
 
-			var teamNames = await this.GetTeamNamesLookupAsync(teamParticipantIds, cancellationToken);
-			var playerNames = await this.GetPlayerNamesLookupAsync(playerParticipantIds, cancellationToken);
-			var refereeNames = await this.GetRefereeNamesLookupAsync(refereeParticipantIds, cancellationToken);
+		var teamNames = await this.GetTeamNamesLookupAsync(teamParticipantIds, cancellationToken);
+		var playerNames = await this.GetPlayerNamesLookupAsync(playerParticipantIds, cancellationToken);
+		var refereeNames = await this.GetRefereeNamesLookupAsync(refereeParticipantIds, cancellationToken);
 
 		return dbInvites
-				.Select(i => MapInviteInfo(i, teamNames, playerNames, refereeNames))
+			.Select(i => MapInviteInfo(i, teamNames, playerNames, refereeNames))
 			.ToList();
 	}
 
@@ -1412,7 +1412,7 @@ public class DbTournamentContextProvider : ITournamentContextProvider
 			TournamentId = TournamentIdentifier.Parse(invite.Tournament.UniqueId),
 			ParticipantType = ParticipantType.Player,
 			ParticipantId = TournamentParticipantIdentifier.ForPlayer(playerId),
-			ParticipantName = await this.GetUserNameAsync(invite.ParticipantId, invite.ParticipantId, cancellationToken),
+			ParticipantName = await this.GetUserNameAsync(invite.ParticipantId, "Unknown player", cancellationToken),
 			InitiatorUserId = invite.Initiator.UniqueId != null
 				? UserIdentifier.Parse(invite.Initiator.UniqueId)
 				: UserIdentifier.FromLegacyUserId(invite.Initiator.Id),

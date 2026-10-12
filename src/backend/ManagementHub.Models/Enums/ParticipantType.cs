@@ -9,7 +9,7 @@ public enum ParticipantType
 	[EnumMember(Value = "team")]
 	Team = 0,
 	[EnumMember(Value = "player")]
-	Player = 1,
+	Player = 2,
 	[EnumMember(Value = "referee")]
-	Referee = 2
+	Referee = 1
 }

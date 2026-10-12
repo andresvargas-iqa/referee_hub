@@ -57,9 +57,6 @@ public interface ITournamentContextProvider
 
 	/// <summary>Returns the pending player invite for a specific user in a tournament, or null if none exists.</summary>
 	Task<InviteInfo?> GetPlayerInviteAsync(TournamentIdentifier tournamentId, UserIdentifier playerId, CancellationToken cancellationToken = default);
-
-	Task UpdateInviteApprovalAsync(TournamentIdentifier tournamentId, TeamIdentifier teamId, bool isTournamentManager, bool approved, CancellationToken cancellationToken = default);
-
 	Task<InviteInfo?> GetInviteByParticipantIdAsync(TournamentIdentifier tournamentId, TournamentParticipantIdentifier participantId, CancellationToken cancellationToken = default);
 
 	Task UpdateInviteObservationsAsync(TournamentIdentifier tournamentId, TournamentParticipantIdentifier participantId, string? observations, CancellationToken cancellationToken = default);

@@ -8,16 +8,15 @@ import ContactOrganizerModal, {
 import AddTournamentModal, {
   AddTournamentModalRef,
 } from "../components/AddTournamentModal";
-import TeamRegistrationsModal, {
-  TeamRegistrationsModalRef,
-} from "./TeamRegistrationsModal";
+import RegistrationsModal, {
+  RegistrationsModalRef,
+} from "./RegistrationsModal";
 import VolunteerRegistrationsModal, {
   VolunteerRegistrationsModalRef,
 } from "./VolunteerRegistrationsModal";
 import VolunteerRegistrationModal, {
   VolunteerRegistrationModalRef,
 } from "./VolunteerRegistrationModal";
-import RegistrationsModal, { RegistrationsModalRef } from "./RegistrationsModal";
 import InviteTeamsModal, {
   InviteTeamsModalRef,
 } from "./InviteTeamsModal";
@@ -63,7 +62,6 @@ type ManagerSidebarProps = {
   onOpenAddManager: () => void;
   onDelete: () => void;
   onOpenVolunteerReview: () => void;
-  onOpenPlayerRegistrations: () => void;
 };
 
 const ManagerSidebar = ({
@@ -76,7 +74,6 @@ const ManagerSidebar = ({
   onOpenAddManager,
   onDelete,
   onOpenVolunteerReview,
-  onOpenPlayerRegistrations,
 }: ManagerSidebarProps) => (
   <>
     <div className="card card-highlighted card-mb card-sticky">
@@ -125,13 +122,6 @@ const ManagerSidebar = ({
         {invites?.filter((invite) => invite.participantType === "referee")
           .length || 0}
         )
-      </button>
-
-      <button
-        onClick={onOpenPlayerRegistrations}
-        className="btn btn-secondary btn-full-width card-mb"
-      >
-        Review Individual Registrations ({invites?.filter((invite) => invite.participantType === "player").length || 0})
       </button>
 
       <button
@@ -188,7 +178,8 @@ const ManagerSidebar = ({
 type UserSidebarProps = {
   isRegistrationClosed: boolean;
   isVolunteerRegistrationOpen: boolean;
-  isFantasyIndividualRegistrationOpen: boolean;
+  allowsTeamRegistration: boolean;
+  allowsIndividualRegistration: boolean;
   myIndividualInvite: TournamentInviteViewModel | null;
   pendingInvitesForUser: TournamentInviteViewModel[];
   approvedTeamsForUser: TeamSummary[];
@@ -206,7 +197,8 @@ type UserSidebarProps = {
 const UserSidebar = ({
   isRegistrationClosed,
   isVolunteerRegistrationOpen,
-  isFantasyIndividualRegistrationOpen,
+  allowsTeamRegistration,
+  allowsIndividualRegistration,
   myIndividualInvite,
   pendingInvitesForUser,
   approvedTeamsForUser,
@@ -293,12 +285,25 @@ const UserSidebar = ({
             Manage Your Rosters
           </button>
 
-          <button
-            onClick={onOpenRegister}
-            className="btn btn-outline btn-full-width"
-          >
-            Register Another Team
-          </button>
+          {(allowsTeamRegistration || allowsIndividualRegistration) && (
+            <button
+              onClick={onOpenRegister}
+              className="btn btn-outline btn-full-width"
+            >
+              Register Another Team
+            </button>
+          )}
+        </>
+      ) : myIndividualInvite ? (
+        <>
+          <h3 className="card-title">Individual Registration</h3>
+          <p className="card-description">
+            {myIndividualInvite.status === "approved"
+              ? "Your individual registration is approved."
+              : myIndividualInvite.status === "rejected"
+                ? "Your individual registration was declined."
+                : "Your individual registration is awaiting organizer approval."}
+          </p>
         </>
       ) : (
         <>
@@ -318,28 +323,6 @@ const UserSidebar = ({
         </>
       )}
     </div>
-
-    {isFantasyIndividualRegistrationOpen && (
-      <div className="card card-mb">
-        <h3 className="card-title">Individual Registration</h3>
-        {myIndividualInvite ? (
-          <p className="card-description">
-            {myIndividualInvite.status === "approved"
-              ? "Your individual registration is approved."
-              : myIndividualInvite.status === "rejected"
-                ? "Your individual registration was declined."
-                : "Your registration is awaiting organizer approval."}
-          </p>
-        ) : (
-          <>
-            <p className="card-description">Register as an individual player for this Fantasy tournament.</p>
-            <button onClick={onOpenRegister} className="btn btn-secondary btn-full-width">
-              Register Individually
-            </button>
-          </>
-        )}
-      </div>
-    )}
 
     {isVolunteerRegistrationOpen && (
       <div className="card card-mb">
@@ -386,9 +369,11 @@ type TournamentDetailsContentProps = {
   isManager: boolean;
   formattedDateRange: string;
   invites?: TournamentInviteViewModel[];
-  myIndividualInvite: TournamentInviteViewModel | null;
   totalPlayerCount: number;
   isRegistrationClosed: boolean;
+  allowsTeamRegistration: boolean;
+  allowsIndividualRegistration: boolean;
+  myIndividualInvite: TournamentInviteViewModel | null;
   pendingInvitesForUser: TournamentInviteViewModel[];
   approvedTeamsForUser: TeamSummary[];
   respondingTo: string | null;
@@ -409,7 +394,6 @@ type TournamentDetailsContentProps = {
   onRosterSaved: () => void;
   onOpenVolunteerForm: () => void;
   onOpenVolunteerReview: () => void;
-  onOpenPlayerRegistrations: () => void;
 };
 
 const TournamentDetailsContent = ({
@@ -419,9 +403,11 @@ const TournamentDetailsContent = ({
   isManager,
   formattedDateRange,
   invites,
-  myIndividualInvite,
   totalPlayerCount,
   isRegistrationClosed,
+  allowsTeamRegistration,
+  allowsIndividualRegistration,
+  myIndividualInvite,
   pendingInvitesForUser,
   approvedTeamsForUser,
   respondingTo,
@@ -439,7 +425,6 @@ const TournamentDetailsContent = ({
   onRosterSaved,
   onOpenVolunteerForm,
   onOpenVolunteerReview,
-  onOpenPlayerRegistrations,
 }: TournamentDetailsContentProps) => (
   <>
     {alertState.isVisible && (
@@ -486,7 +471,6 @@ const TournamentDetailsContent = ({
                 onEdit={onEdit}
                 onOpenRegistrations={onOpenRegistrations}
                 onOpenVolunteerReview={onOpenVolunteerReview}
-                onOpenPlayerRegistrations={onOpenPlayerRegistrations}
                 onOpenInviteTeams={onOpenInviteTeams}
                 onOpenAddManager={onOpenAddManager}
                 onDelete={onDelete}
@@ -497,9 +481,8 @@ const TournamentDetailsContent = ({
                 isVolunteerRegistrationOpen={
                   tournament.isVolunteerRegistrationOpen
                 }
-                isFantasyIndividualRegistrationOpen={
-                  tournament.type === "Fantasy" && tournament.allowsIndividualRegistration === true
-                }
+                allowsTeamRegistration={allowsTeamRegistration}
+                allowsIndividualRegistration={allowsIndividualRegistration}
                 myIndividualInvite={myIndividualInvite}
                 pendingInvitesForUser={pendingInvitesForUser}
                 approvedTeamsForUser={approvedTeamsForUser}
@@ -543,9 +526,7 @@ const TournamentDetails = () => {
   const editModalRef =
     useRef<AddTournamentModalRef>(null);
 
-  const teamRegistrationsModalRef =
-    useRef<TeamRegistrationsModalRef>(null);
-  const playerRegistrationsModalRef =
+  const registrationsModalRef =
     useRef<RegistrationsModalRef>(null);
   const volunteerReviewModalRef =
     useRef<VolunteerRegistrationsModalRef>(null);
@@ -636,6 +617,12 @@ const TournamentDetails = () => {
     }
   );
 
+  const myIndividualInvite = invites?.find(
+    (invite) =>
+      invite.participantType === "player" &&
+      invite.participantId === currentUser?.userId
+  ) ?? null;
+
   const [respondToInvite] =
     useRespondToInviteMutation();
   const [deleteTournament] =
@@ -671,10 +658,6 @@ const TournamentDetails = () => {
       );
     });
   }, [invites, managedTeamIds]);
-
-  const myIndividualInvite = invites?.find(
-    (invite) => invite.participantType === "player" && invite.participantId === currentUser?.userId,
-  ) ?? null;
 
   const approvedTeamsForUser = useMemo(() => {
     if (
@@ -896,10 +879,6 @@ const TournamentDetails = () => {
       isPrivate: tournament.isPrivate || false,
       isRegistrationOpen:
         tournament.isRegistrationOpen ?? true,
-      allowsIndividualRegistration:
-        tournament.allowsIndividualRegistration ?? false,
-      allowsTeamRegistration:
-        tournament.allowsTeamRegistration ?? true,
       isVolunteerRegistrationOpen:
         tournament.isVolunteerRegistrationOpen ?? true,
       bannerImageUrl: tournament.bannerImageUrl || "",
@@ -915,8 +894,8 @@ const TournamentDetails = () => {
       country: tournament.country || "",
       city: tournament.city || "",
       type: tournament.type || "",
-      allowsIndividualRegistration: tournament.allowsIndividualRegistration,
-      allowsTeamRegistration: tournament.allowsTeamRegistration,
+      allowsIndividualRegistration: tournament.allowsIndividualRegistration ?? false,
+      allowsTeamRegistration: tournament.allowsTeamRegistration ?? true,
     });
   };
 
@@ -944,13 +923,6 @@ const TournamentDetails = () => {
     );
   };
 
-  const onOpenPlayerRegistrations = () => {
-    playerRegistrationsModalRef.current?.open(
-      tournament.id || "",
-      tournament.name || "Unknown Tournament"
-    );
-  };
-
   const handleOpenContactOrganizer = () => {
     contactOrganizerModalRef.current?.open({
       name: tournament.organizer || "",
@@ -968,9 +940,11 @@ const TournamentDetails = () => {
         isManager={isManager}
         formattedDateRange={formattedDateRange}
         invites={invites}
-        myIndividualInvite={myIndividualInvite}
         totalPlayerCount={totalPlayerCount}
         isRegistrationClosed={isRegistrationClosed}
+        allowsTeamRegistration={tournament.allowsTeamRegistration ?? true}
+        allowsIndividualRegistration={tournament.allowsIndividualRegistration ?? false}
+        myIndividualInvite={myIndividualInvite}
         pendingInvitesForUser={pendingInvitesForUser}
         approvedTeamsForUser={approvedTeamsForUser}
         respondingTo={respondingTo}
@@ -978,13 +952,12 @@ const TournamentDetails = () => {
         tournamentId={tournamentId || ""}
         onEdit={handleEdit}
         onOpenRegistrations={() =>
-          teamRegistrationsModalRef.current?.open(
+          registrationsModalRef.current?.open(
             tournament.id || "",
             tournament.name || "Unknown Tournament"
           )
         }
         onOpenVolunteerReview={onOpenVolunteerReview}
-        onOpenPlayerRegistrations={onOpenPlayerRegistrations}
         onOpenInviteTeams={() =>
           inviteTeamsModalRef.current?.open(tournament)
         }
@@ -1014,11 +987,7 @@ const TournamentDetails = () => {
 
       <AddTournamentModal ref={editModalRef} />
 
-      <TeamRegistrationsModal
-        ref={teamRegistrationsModalRef}
-      />
-
-      <RegistrationsModal ref={playerRegistrationsModalRef} />
+      <RegistrationsModal ref={registrationsModalRef} />
 
       <VolunteerRegistrationsModal
         ref={volunteerReviewModalRef}

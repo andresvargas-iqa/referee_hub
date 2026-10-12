@@ -1724,7 +1724,7 @@ export type TeamMemberViewModelFiltered = {
   metadata?: FilteringMetadata;
   items?: TeamMemberViewModel[] | null;
 };
-export type ParticipantType = "team" | "player" | "referee";
+export type ParticipantType = "team" | "referee" | "player";
 export type InviteStatus = "pending" | "approved" | "rejected";
 export type ApprovalStatus = "pending" | "approved" | "rejected";
 export type ApprovalStatusViewModel = {
