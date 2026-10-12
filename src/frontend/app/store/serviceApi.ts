@@ -310,6 +310,13 @@ const injectedRtkApi = api
         }),
         invalidatesTags: ["Team"],
       }),
+      getTeamTournamentRankings: build.query<
+        GetTeamTournamentRankingsApiResponse,
+        GetTeamTournamentRankingsApiArg
+      >({
+        query: (queryArg) => ({ url: `/api/v2/Teams/${queryArg.teamId}/tournament-rankings` }),
+        providesTags: ["Team"],
+      }),
       getNgbTeams: build.query<GetNgbTeamsApiResponse, GetNgbTeamsApiArg>({
         query: (queryArg) => ({
           url: `/api/v2/Ngbs/${queryArg.ngb}/teams`,
@@ -671,6 +678,24 @@ const injectedRtkApi = api
         }),
         providesTags: ["Tournament"],
       }),
+      getTournamentRankings: build.query<
+        GetTournamentRankingsApiResponse,
+        GetTournamentRankingsApiArg
+      >({
+        query: (queryArg) => ({ url: `/api/v2/Tournaments/${queryArg.tournamentId}/rankings` }),
+        providesTags: ["Tournament"],
+      }),
+      saveTournamentRankings: build.mutation<
+        SaveTournamentRankingsApiResponse,
+        SaveTournamentRankingsApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/api/v2/Tournaments/${queryArg.tournamentId}/rankings`,
+          method: "POST",
+          body: queryArg.saveRankingsRequest,
+        }),
+        invalidatesTags: ["Tournament"],
+      }),
       getCurrentUser: build.query<GetCurrentUserApiResponse, GetCurrentUserApiArg>({
         query: () => ({ url: `/api/v2/Users/me` }),
         providesTags: ["User"],
@@ -972,6 +997,11 @@ export type UpdateTeamApiArg = {
   /** Updated team data */
   ngbTeamViewModel: NgbTeamViewModel;
 };
+export type GetTeamTournamentRankingsApiResponse =
+  /** status 200 Success */ TeamRankingPositionViewModel[];
+export type GetTeamTournamentRankingsApiArg = {
+  teamId: string;
+};
 export type GetNgbTeamsApiResponse = /** status 200 Success */ NgbTeamViewModelFiltered;
 export type GetNgbTeamsApiArg = {
   ngb: string;
@@ -1198,6 +1228,16 @@ export type GetTeamRosterApiResponse = /** status 200 Success */ RosterEntryView
 export type GetTeamRosterApiArg = {
   tournamentId: string;
   teamId: string;
+};
+export type GetTournamentRankingsApiResponse =
+  /** status 200 Success */ TournamentTeamRankingViewModel[];
+export type GetTournamentRankingsApiArg = {
+  tournamentId: string;
+};
+export type SaveTournamentRankingsApiResponse = /** status 200 Success */ void;
+export type SaveTournamentRankingsApiArg = {
+  tournamentId: string;
+  saveRankingsRequest: SaveRankingsRequest;
 };
 export type GetCurrentUserApiResponse = /** status 200 Success */ CurrentUserViewModel;
 export type GetCurrentUserApiArg = void;
@@ -1711,6 +1751,11 @@ export type TeamDetailViewModel = {
   /** Indicates whether the current user is a manager of this team. */
   isCurrentUserManager?: boolean;
 };
+export type TeamRankingPositionViewModel = {
+  tournamentId?: string;
+  tournamentName?: string | null;
+  rankingPosition?: number;
+};
 export type TeamManagerCreationStatus =
   | "InvalidEmail"
   | "UserDoesNotExist"
@@ -1907,6 +1952,7 @@ export type TournamentViewModel = {
   id?: string;
   bannerImageUrl?: string | null;
   isCurrentUserInvolved?: boolean;
+  hasPublishedRanking?: boolean;
 };
 export type TournamentViewModelFiltered = {
   metadata?: FilteringMetadata;
@@ -1990,6 +2036,18 @@ export type RosterEntryViewModel = {
   maxCertification?: string | null;
   maxCertificationDate?: string | null;
 };
+export type TournamentTeamRankingViewModel = {
+  teamId?: string;
+  teamName?: string | null;
+  rankingPosition?: number;
+};
+export type RankingEntry = {
+  teamId?: string;
+  rankingPosition?: number;
+};
+export type SaveRankingsRequest = {
+  rankings?: RankingEntry[] | null;
+};
 export type CurrentUserViewModel = {
   userId?: string;
   firstName?: string | null;
@@ -2071,6 +2129,7 @@ export const {
   useUploadTeamLogoMutation,
   useGetTeamDetailsQuery,
   useUpdateTeamMutation,
+  useGetTeamTournamentRankingsQuery,
   useGetNgbTeamsQuery,
   useCreateNgbTeamMutation,
   useUpdateNgbTeamMutation,
@@ -2114,6 +2173,8 @@ export const {
   useRemoveParticipantMutation,
   useUpdateParticipantRosterMutation,
   useGetTeamRosterQuery,
+  useGetTournamentRankingsQuery,
+  useSaveTournamentRankingsMutation,
   useGetCurrentUserQuery,
   useGetCurrentUserFeatureGatesQuery,
   usePutRootUserAttributeMutation,
