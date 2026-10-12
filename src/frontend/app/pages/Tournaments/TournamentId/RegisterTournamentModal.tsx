@@ -8,6 +8,7 @@ import {
   useGetNgbTeamsQuery,
   useCreateInviteMutation,
   useGetTournamentInvitesQuery,
+  useGetCurrentUserQuery,
   ManagedTeamViewModel,
   NgbTeamViewModel,
   TournamentType,
@@ -198,7 +199,7 @@ function useManagedTeamsForRegistration() {
       if (typeof r.ngb === "string" && r.ngb) ngbs.push(r.ngb);
       else if (Array.isArray(r.ngb)) ngbs.push(...r.ngb);
     });
-    return [...new Set(ngbs)];
+    return [...new Set(ngbs.filter((ngb) => ngb && ngb !== "ANY"))];
   }, [currentUser]);
 
   const isNgbAdmin = userNgbs.length > 0;

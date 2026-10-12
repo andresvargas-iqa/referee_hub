@@ -21,5 +21,6 @@ public interface ITournamentContext
 	bool IsRegistrationOpen { get; }
 	bool AllowsIndividualRegistration { get; }
 	bool AllowsTeamRegistration { get; }
+	bool IsVolunteerRegistrationOpen { get; }
 	bool IsCurrentUserInvolved { get; }
 }

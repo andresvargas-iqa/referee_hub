@@ -214,7 +214,11 @@ const injectedRtkApi = api
           method: "PUT",
           body: queryArg.refereeUpdateViewModel,
         }),
-        invalidatesTags: ["Referee", "User"],
+        invalidatesTags: (result, error, arg) => [
+          "Referee",
+          "User",
+          { type: "TeamManagement" },
+        ],
       }),
       getCurrentReferee: build.query<GetCurrentRefereeApiResponse, GetCurrentRefereeApiArg>({
         query: () => ({ url: `/api/v2/Referees/me` }),
@@ -386,7 +390,18 @@ const injectedRtkApi = api
       }),
       getTeamManagement: build.query<GetTeamManagementApiResponse, GetTeamManagementApiArg>({
         query: (queryArg) => ({ url: `/api/v2/Teams/${queryArg.teamId}/management` }),
-        providesTags: ["TeamManagement"],
+        providesTags: (result, error, arg) => [{ type: "TeamManagement", id: arg.teamId }],
+      }),
+      setTeamAutoApprovePlayerRequests: build.mutation<
+        SetTeamAutoApprovePlayerRequestsApiResponse,
+        SetTeamAutoApprovePlayerRequestsApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/api/v2/Teams/${queryArg.teamId}/autoApprovePlayerRequests`,
+          method: "PUT",
+          body: queryArg.setTeamAutoApprovePlayerRequestsRequest,
+        }),
+        invalidatesTags: (result, error, arg) => [{ type: "TeamManagement", id: arg.teamId }],
       }),
       addTeamManagerToTeam: build.mutation<
         AddTeamManagerToTeamApiResponse,
@@ -397,14 +412,44 @@ const injectedRtkApi = api
           method: "POST",
           body: queryArg.addTeamManagerRequest,
         }),
-        invalidatesTags: ["TeamManagement"],
+        invalidatesTags: ["TeamManagement", "Team"],
+      }),
+      createTeamInvite: build.mutation<CreateTeamInviteApiResponse, CreateTeamInviteApiArg>({
+        query: (queryArg) => ({
+          url: `/api/v2/Teams/${queryArg.teamId}/invites`,
+          method: "POST",
+          body: queryArg.invitePlayerRequest,
+        }),
+        invalidatesTags: (result, error, arg) => [{ type: "TeamManagement", id: arg.teamId }],
+      }),
+      revokeTeamInvite: build.mutation<RevokeTeamInviteApiResponse, RevokeTeamInviteApiArg>({
+        query: (queryArg) => ({
+          url: `/api/v2/Teams/${queryArg.teamId}/invites/${queryArg.invitationId}`,
+          method: "DELETE",
+        }),
+        invalidatesTags: (result, error, arg) => [{ type: "TeamManagement", id: arg.teamId }],
+      }),
+      respondToPendingTeamInvite: build.mutation<
+        RespondToPendingTeamInviteApiResponse,
+        RespondToPendingTeamInviteApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/api/v2/Teams/${queryArg.teamId}/invites/${queryArg.invitationId}/response`,
+          method: "POST",
+          body: queryArg.inviteResponseModel,
+        }),
+        invalidatesTags: (result, error, arg) => [
+          { type: "TeamManagement", id: arg.teamId },
+          "User",
+          "Team",
+        ],
       }),
       removePlayer: build.mutation<RemovePlayerApiResponse, RemovePlayerApiArg>({
         query: (queryArg) => ({
           url: `/api/v2/Teams/${queryArg.teamId}/players/${queryArg.playerId}`,
           method: "DELETE",
         }),
-        invalidatesTags: ["TeamManagement"],
+        invalidatesTags: (result, error, arg) => [{ type: "TeamManagement", id: arg.teamId }, "Team"],
       }),
       getTestDetails: build.query<GetTestDetailsApiResponse, GetTestDetailsApiArg>({
         query: (queryArg) => ({ url: `/api/v2/referees/me/tests/${queryArg.testId}/details` }),
@@ -452,6 +497,17 @@ const injectedRtkApi = api
       getTestQuestions: build.query<GetTestQuestionsApiResponse, GetTestQuestionsApiArg>({
         query: (queryArg) => ({ url: `/api/admin/Tests/${queryArg.testId}/questions` }),
         providesTags: ["Tests"],
+      }),
+      setQuestionDisabled: build.mutation<
+        SetQuestionDisabledApiResponse,
+        SetQuestionDisabledApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/api/admin/Tests/${queryArg.testId}/questions/${queryArg.sequenceId}/disabled`,
+          method: "POST",
+          body: queryArg.body,
+        }),
+        invalidatesTags: ["Tests"],
       }),
       getPublicTournaments: build.query<
         GetPublicTournamentsApiResponse,
@@ -656,6 +712,33 @@ const injectedRtkApi = api
       getManagedTeams: build.query<GetManagedTeamsApiResponse, GetManagedTeamsApiArg>({
         query: () => ({ url: `/api/v2/Users/me/managedTeams` }),
         providesTags: ["User"],
+      }),
+      getMyTeamInvites: build.query<GetMyTeamInvitesApiResponse, GetMyTeamInvitesApiArg>({
+        query: () => ({ url: `/api/v2/Users/me/teamInvites` }),
+        providesTags: ["User", "TeamManagement"],
+      }),
+      getMyTeamHistory: build.query<GetMyTeamHistoryApiResponse, GetMyTeamHistoryApiArg>({
+        query: () => ({ url: `/api/v2/Users/me/teamHistory` }),
+        providesTags: ["User", "TeamManagement"],
+      }),
+      getUserTeamHistory: build.query<GetUserTeamHistoryApiResponse, GetUserTeamHistoryApiArg>({
+        query: (queryArg) => ({ url: `/api/v2/Users/${queryArg.userId}/teamHistory` }),
+        providesTags: ["User", "TeamManagement"],
+      }),
+      respondToTeamInvite: build.mutation<RespondToTeamInviteApiResponse, RespondToTeamInviteApiArg>({
+        query: (queryArg) => ({
+          url: `/api/v2/Users/me/teamInvites/${queryArg.invitationId}`,
+          method: "POST",
+          body: queryArg.inviteResponseModel,
+        }),
+        invalidatesTags: ["User", "TeamManagement", "Team"],
+      }),
+      cancelMyTeamInvite: build.mutation<CancelMyTeamInviteApiResponse, CancelMyTeamInviteApiArg>({
+        query: (queryArg) => ({
+          url: `/api/v2/Users/me/teamInvites/${queryArg.invitationId}`,
+          method: "DELETE",
+        }),
+        invalidatesTags: ["User", "TeamManagement", "Team"],
       }),
       getMyUpcomingTournaments: build.query<
         GetMyUpcomingTournamentsApiResponse,
@@ -957,6 +1040,25 @@ export type AddTeamManagerToTeamApiArg = {
   /** Request containing user email */
   addTeamManagerRequest: AddTeamManagerRequest;
 };
+export type CreateTeamInviteApiResponse = /** status 201 Success */ TeamInvitationViewModel;
+export type CreateTeamInviteApiArg = {
+  /** Team identifier */
+  teamId: string;
+  invitePlayerRequest: InvitePlayerRequest;
+};
+export type RevokeTeamInviteApiResponse = unknown;
+export type RevokeTeamInviteApiArg = {
+  /** Team identifier */
+  teamId: string;
+  invitationId: string;
+};
+export type RespondToPendingTeamInviteApiResponse = unknown;
+export type RespondToPendingTeamInviteApiArg = {
+  /** Team identifier */
+  teamId: string;
+  invitationId: string;
+  inviteResponseModel: InviteResponseModel;
+};
 export type RemovePlayerApiResponse = unknown;
 export type RemovePlayerApiArg = {
   /** Team identifier */
@@ -992,6 +1094,12 @@ export type ImportTestQuestionsApiArg = {
 export type GetTestQuestionsApiResponse = /** status 200 Success */ TestQuestionRecord[];
 export type GetTestQuestionsApiArg = {
   testId: string;
+};
+export type SetQuestionDisabledApiResponse = void;
+export type SetQuestionDisabledApiArg = {
+  testId: string;
+  sequenceId: number;
+  body: boolean;
 };
 export type GetPublicTournamentsApiResponse = unknown;
 export type GetPublicTournamentsApiArg = void;
@@ -1114,6 +1222,23 @@ export type DeleteMyGenderApiResponse = unknown;
 export type DeleteMyGenderApiArg = void;
 export type GetManagedTeamsApiResponse = /** status 200 Success */ ManagedTeamViewModel[];
 export type GetManagedTeamsApiArg = void;
+export type GetMyTeamInvitesApiResponse = /** status 200 Success */ CurrentUserTeamInviteViewModel[];
+export type GetMyTeamInvitesApiArg = void;
+export type GetMyTeamHistoryApiResponse = /** status 200 Success */ TeamPlayerActivityViewModel[];
+export type GetMyTeamHistoryApiArg = void;
+export type GetUserTeamHistoryApiResponse = /** status 200 Success */ TeamPlayerActivityViewModel[];
+export type GetUserTeamHistoryApiArg = {
+  userId: string;
+};
+export type RespondToTeamInviteApiResponse = /** status 200 Success */ void;
+export type RespondToTeamInviteApiArg = {
+  invitationId: string;
+  inviteResponseModel: InviteResponseModel;
+};
+export type CancelMyTeamInviteApiResponse = void;
+export type CancelMyTeamInviteApiArg = {
+  invitationId: string;
+};
 export type GetMyUpcomingTournamentsApiResponse =
   /** status 200 Success */ TournamentReferenceViewModel[];
 export type GetMyUpcomingTournamentsApiArg = void;
@@ -1211,6 +1336,7 @@ export type INgbStatsContextRead = {
   headRefereesCount?: number;
   assistantRefereesCount?: number;
   flagRefereesCount?: number;
+  flagRunnerRefereesCount?: number;
   scorekeeperRefereesCount?: number;
   uncertifiedRefereesCount?: number;
   competitiveTeamsCount?: number;
@@ -1598,7 +1724,7 @@ export type TeamMemberViewModelFiltered = {
   metadata?: FilteringMetadata;
   items?: TeamMemberViewModel[] | null;
 };
-export type ParticipantType = "team";
+export type ParticipantType = "team" | "player" | "referee";
 export type InviteStatus = "pending" | "approved" | "rejected";
 export type ApprovalStatus = "pending" | "approved" | "rejected";
 export type ApprovalStatusViewModel = {
@@ -1609,6 +1735,7 @@ export type TournamentInviteViewModel = {
   participantType?: ParticipantType;
   participantId?: string | null;
   participantName?: string | null;
+  observations?: string | null;
   logoUri?: string | null;
   status?: InviteStatus;
   initiatorUserId?: string;
@@ -1625,6 +1752,41 @@ export type TeamInvitationViewModel = {
   createdAt?: string;
   /** Name of the person who sent the invitation (if available). */
   invitedByName?: string | null;
+  /** True when this pending item is a player join request awaiting manager decision. */
+  requiresManagerDecision?: boolean;
+  /** Current transfer approval status. Null for first-time joins (no transfer required). */
+  transferStatus?: TransferApprovalStatus | null;
+  /** Name of the team the player is transferring from. Null for first-time joins. */
+  originTeamName?: string | null;
+  /** Whether this is an internal (same NGB) or international transfer. */
+  isInternalTransfer?: boolean | null;
+};
+export type TeamPlayerActivityType =
+  | "inviteCreated"
+  | "inviteRevoked"
+  | "inviteAccepted"
+  | "inviteDeclined"
+  | "playerRemoved";
+export type TeamPlayerActivityViewModel = {
+  teamId?: string;
+  activityType?: TeamPlayerActivityType;
+  email?: string | null;
+  teamName?: string | null;
+  teamLogoUri?: string | null;
+  userId?: string | null;
+  userName?: string | null;
+  initiatorName?: string | null;
+  createdAt?: string;
+};
+export type CurrentUserTeamInviteViewModel = {
+  invitationId?: string | null;
+  teamId?: string;
+  teamName?: string | null;
+  teamLogoUri?: string | null;
+  email?: string | null;
+  createdAt?: string;
+  invitedByName?: string | null;
+  canRespond?: boolean;
 };
 export type TeamManagementViewModel = {
   /** Team identifier. */
@@ -1639,6 +1801,8 @@ export type TeamManagementViewModel = {
   country?: string | null;
   status?: TeamStatus;
   groupAffiliation?: TeamGroupAffiliation;
+  /** Date when the team joined. */
+  joinedAt?: string | null;
   /** URL to the team's logo image (fetched from attachment storage). */
   logoUri?: string | null;
   /** Team description. */
@@ -1653,9 +1817,27 @@ export type TeamManagementViewModel = {
   members?: TeamMemberViewModel[] | null;
   /** Pending invitations for this team. */
   pendingInvites?: TeamInvitationViewModel[] | null;
+  /** Recent player invite and membership activity for this team. */
+  playerHistory?: TeamPlayerActivityViewModel[] | null;
+  /** Whether player join requests are auto-approved. */
+  autoApprovePlayerRequests?: boolean;
+  /** Whether the currently authenticated user is a manager of this team. */
+  isCurrentUserManager?: boolean;
+};
+export type SetTeamAutoApprovePlayerRequestsApiResponse = unknown;
+export type SetTeamAutoApprovePlayerRequestsApiArg = {
+  teamId: string;
+  setTeamAutoApprovePlayerRequestsRequest: SetTeamAutoApprovePlayerRequestsRequest;
+};
+export type SetTeamAutoApprovePlayerRequestsRequest = {
+  isEnabled: boolean;
 };
 export type AddTeamManagerRequest = {
   /** Email address of the user to add as manager. */
+  email: string;
+};
+export type InvitePlayerRequest = {
+  /** Email address of the player to invite. */
   email: string;
 };
 export type RefereeTestDetailsViewModel = {
@@ -1705,6 +1887,7 @@ export type TestQuestionRecord = {
   answer4?: string | null;
   correct?: number;
   correctAnswer?: string | null;
+  disabled?: boolean;
 };
 export type TournamentType = "Club" | "National" | "Youth" | "Fantasy";
 export type TournamentViewModel = {
@@ -1722,6 +1905,7 @@ export type TournamentViewModel = {
   isRegistrationOpen?: boolean;
   allowsIndividualRegistration?: boolean;
   allowsTeamRegistration?: boolean;
+  isVolunteerRegistrationOpen?: boolean;
   id?: string;
   bannerImageUrl?: string | null;
   isCurrentUserInvolved?: boolean;
@@ -1748,6 +1932,7 @@ export type TournamentModel = {
   isRegistrationOpen?: boolean;
   allowsIndividualRegistration?: boolean;
   allowsTeamRegistration?: boolean;
+  isVolunteerRegistrationOpen?: boolean;
 };
 export type TournamentManagerViewModel = {
   id?: string;
@@ -1763,6 +1948,7 @@ export type ContactTournamentRequest = {
 export type CreateInviteModel = {
   participantType?: ParticipantType;
   participantId?: string | null;
+  observations?: string | null;
 };
 export type InviteResponseModel = {
   approved?: boolean;
@@ -1873,11 +2059,6 @@ export const {
   useDeleteNgbAdminMutation,
   useAdminUpdateNgbMutation,
   useAdminCreateNgbMutation,
-  useGetNotificationsQuery,
-  useGetUnreadCountQuery,
-  useMarkAsReadMutation,
-  useMarkAllAsReadMutation,
-  useDeleteNotificationMutation,
   useGetAvailableTestsQuery,
   useGetTestAttemptsQuery,
   useStartTestMutation,
@@ -1905,6 +2086,9 @@ export const {
   useGetTeamTournamentInvitesQuery,
   useGetTeamManagementQuery,
   useAddTeamManagerToTeamMutation,
+  useCreateTeamInviteMutation,
+  useRevokeTeamInviteMutation,
+  useRespondToPendingTeamInviteMutation,
   useRemovePlayerMutation,
   useGetTestDetailsQuery,
   useCreateNewTestMutation,
@@ -1913,6 +2097,7 @@ export const {
   useGetAllTestsQuery,
   useImportTestQuestionsMutation,
   useGetTestQuestionsQuery,
+  useSetQuestionDisabledMutation,
   useGetPublicTournamentsQuery,
   useGetPublicTournamentByIdQuery,
   useGetTournamentsQuery,
@@ -1940,6 +2125,11 @@ export const {
   useGetMyGenderQuery,
   useDeleteMyGenderMutation,
   useGetManagedTeamsQuery,
+  useGetMyTeamInvitesQuery,
+  useGetMyTeamHistoryQuery,
+  useGetUserTeamHistoryQuery,
+  useRespondToTeamInviteMutation,
+  useCancelMyTeamInviteMutation,
   useGetMyUpcomingTournamentsQuery,
   useGetCurrentUserAvatarQuery,
   useUpdateCurrentUserAvatarMutation,
@@ -1947,9 +2137,108 @@ export const {
   useGetCurrentUserDataQuery,
   useUpdateCurrentUserDataMutation,
   useGetUserDataQuery,
+  useGetNotificationsQuery,
+  useGetUnreadCountQuery,
+  useMarkAsReadMutation,
+  useMarkAllAsReadMutation,
+  useDeleteNotificationMutation,
+  useSetTeamAutoApprovePlayerRequestsMutation,
 } = injectedRtkApi;
 
+// ── NGB Transfer types & endpoints (manually maintained) ─────────────────────
 
+export type TransferApprovalStatus =
+  | "notATransfer"
+  | "pendingNgbApproval"
+  | "pendingTeamApproval"
+  | "rejectedByNgb"
+  | "approved"
+  | "declined";
+
+export type NgbTransferViewModel = {
+  /** Transfer invitation identifier. */
+  invitationId?: string | null;
+  /** Player email address. */
+  playerEmail?: string | null;
+  /** Player display name. */
+  playerName?: string | null;
+  /** Destination team identifier. */
+  destinationTeamId?: string | null;
+  /** Destination team name. */
+  destinationTeamName?: string | null;
+  /** Destination team logo. */
+  destinationTeamLogoUri?: string | null;
+  /** Destination team NGB country code. */
+  destinationNgbCode?: string | null;
+  /** Origin team identifier. Null for first-time joins. */
+  originTeamId?: string | null;
+  /** Origin team name. Null for first-time joins. */
+  originTeamName?: string | null;
+  /** Origin team logo. */
+  originTeamLogoUri?: string | null;
+  /** Origin team NGB country code. */
+  originNgbCode?: string | null;
+  /** True when both teams are in the same NGB. */
+  isInternalTransfer?: boolean;
+  /** When this NGB approved the transfer. */
+  approvedAt?: string | null;
+  /** When this NGB rejected the transfer. */
+  rejectedAt?: string | null;
+  /** When the invitation was created. */
+  createdAt?: string;
+  /** Current transfer approval status from this NGB's perspective. */
+  status?: TransferApprovalStatus;
+};
+
+export type NgbTransferViewModelFiltered = {
+  metadata?: FilteringMetadata;
+  items?: NgbTransferViewModel[] | null;
+};
+
+export type NgbTransferSettingsRequest = {
+  autoApproveInternalTransfers: boolean;
+};
+
+const ngbTransferApi = injectedRtkApi.injectEndpoints({
+  endpoints: (build) => ({
+    getNgbTransfers: build.query<NgbTransferViewModelFiltered, { ngb: string; filter?: string; page?: number; pageSize?: number }>({
+      query: ({ ngb, filter, page, pageSize }) => ({
+        url: `/api/v2/Ngbs/${ngb}/transfers`,
+        params: { Filter: filter, Page: page, PageSize: pageSize },
+      }),
+      providesTags: (_r, _e, { ngb }) => [{ type: 'NgbTransfer' as never, id: ngb }],
+    }),
+    approveNgbTransfer: build.mutation<void, { ngb: string; invitationId: string }>({
+      query: ({ ngb, invitationId }) => ({
+        url: `/api/v2/Ngbs/${ngb}/transfers/${invitationId}/approve`,
+        method: 'POST',
+      }),
+      invalidatesTags: (_r, _e, { ngb }) => [{ type: 'NgbTransfer' as never, id: ngb }],
+    }),
+    rejectNgbTransfer: build.mutation<void, { ngb: string; invitationId: string }>({
+      query: ({ ngb, invitationId }) => ({
+        url: `/api/v2/Ngbs/${ngb}/transfers/${invitationId}/reject`,
+        method: 'POST',
+      }),
+      invalidatesTags: (_r, _e, { ngb }) => [{ type: 'NgbTransfer' as never, id: ngb }],
+    }),
+    updateNgbTransferSettings: build.mutation<void, { ngb: string; body: NgbTransferSettingsRequest }>({
+      query: ({ ngb, body }) => ({
+        url: `/api/v2/Ngbs/${ngb}/settings/transfers`,
+        method: 'PUT',
+        body,
+      }),
+    }),
+  }),
+  overrideExisting: false,
+});
+
+export const {
+  useGetNgbTransfersQuery,
+  useApproveNgbTransferMutation,
+  useRejectNgbTransferMutation,
+  useUpdateNgbTransferSettingsMutation,
+} = ngbTransferApi;
 export const useGetEligibleNgbsQuery = (
   _arg: { groupAffiliations: TeamGroupAffiliation[] },
   options?: Parameters<typeof injectedRtkApi.endpoints.getNgbs.useQuery>[1]
@@ -1961,6 +2250,6 @@ export const useGetEligibleNgbsQuery = (
     data:
       result.data?.items
         ?.map((ngb: { ngbId?: string }) => ngb.ngbId)
-        .filter((id): id is string => typeof id === "string") ?? [],
+        .filter((id: string | undefined): id is string => typeof id === "string") ?? [],
   };
 };

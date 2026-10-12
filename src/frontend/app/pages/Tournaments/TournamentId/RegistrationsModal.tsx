@@ -41,6 +41,7 @@ const RegistrationsModal = forwardRef<RegistrationsModalRef>((_props, ref) => {
   const [respondToInvite] = useRespondToInviteMutation();
   const [removeParticipant] = useRemoveParticipantMutation();
   const [deleteInvite] = useDeleteInviteMutation();
+  const playerInvites = invites?.filter((invite) => invite.participantType === "player") ?? [];
 
   useImperativeHandle(ref, () => ({
     open: (tournId: string, tournName: string) => {
@@ -118,7 +119,7 @@ const RegistrationsModal = forwardRef<RegistrationsModalRef>((_props, ref) => {
     }
   }
 
-  const selectedInviteData = invites?.find((i) => i.participantId === selectedInvite);
+  const selectedInviteData = playerInvites.find((i) => i.participantId === selectedInvite);
 
   function getPendingLabel(invite: TournamentInviteViewModel): string {
     if (invite.tournamentManagerApproval?.status === "pending") return "Awaiting your review";
@@ -316,9 +317,9 @@ const RegistrationsModal = forwardRef<RegistrationsModalRef>((_props, ref) => {
             ) : (
               // List view
               <>
-                {invites && invites.length > 0 ? (
+                {playerInvites.length > 0 ? (
                   <div>
-                    {invites.map((invite) => (
+                    {playerInvites.map((invite) => (
                       <div
                         key={invite.participantId}
                         className="border border-gray-200 rounded-lg p-4 mb-3 hover:shadow-md"

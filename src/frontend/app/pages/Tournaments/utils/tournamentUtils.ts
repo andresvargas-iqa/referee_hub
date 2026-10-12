@@ -14,6 +14,7 @@ export const convertToDisplayFormat = (t: TournamentViewModel): TournamentData =
   bannerImageUrl: t.bannerImageUrl || undefined,
   organizer: t.organizer || undefined,
   isPrivate: Boolean(t.isCurrentUserInvolved),
+  showVolunteerRegistrationBadge: Boolean(t.isVolunteerRegistrationOpen),
 });
 
 export const applyTypeFilter = (tournaments: TournamentViewModel[], typeFilter: string): TournamentViewModel[] => {
@@ -21,6 +22,34 @@ export const applyTypeFilter = (tournaments: TournamentViewModel[], typeFilter: 
     return tournaments;
   }
   return tournaments.filter((t) => t.type === typeFilter);
+};
+
+const HIDE_OLD_TOURNAMENTS_AFTER_DAYS = 30;
+
+export const applyRecencyFilter = (
+  tournaments: TournamentViewModel[],
+  showOlderTournaments: boolean
+): TournamentViewModel[] => {
+  if (showOlderTournaments) {
+    return tournaments;
+  }
+
+  const cutoffDate = new Date();
+  cutoffDate.setHours(0, 0, 0, 0);
+  cutoffDate.setDate(cutoffDate.getDate() - HIDE_OLD_TOURNAMENTS_AFTER_DAYS);
+
+  return tournaments.filter((tournament) => {
+    if (!tournament.endDate) {
+      return true;
+    }
+
+    const endDate = new Date(tournament.endDate);
+    if (Number.isNaN(endDate.getTime())) {
+      return true;
+    }
+
+    return endDate >= cutoffDate;
+  });
 };
 
 export const calculatePublicTournamentCount = (
