@@ -521,6 +521,15 @@ public class TournamentsController : ControllerBase
 			return await this.HandleRefereeInviteCreationAsync(tournamentId, model, userContext, tournament);
 		}
 
+		return await this.HandleTeamInviteCreationAsync(tournamentId, model, userContext, tournament);
+	}
+
+	private async Task<ActionResult<TournamentInviteViewModel>> HandleTeamInviteCreationAsync(
+		TournamentIdentifier tournamentId,
+		CreateInviteModel model,
+		IUserContext userContext,
+		ITournamentContext tournament)
+	{
 		if (tournament.Type == TournamentType.Fantasy && !tournament.AllowsTeamRegistration)
 		{
 			return this.BadRequest(new { error = "This Fantasy tournament does not allow team registration" });
