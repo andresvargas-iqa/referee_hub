@@ -46,7 +46,9 @@ public interface ITournamentContextProvider
 
 	Task<IEnumerable<InviteInfo>> GetTeamInvitesAsync(TeamIdentifier teamId, CancellationToken cancellationToken = default);
 
-	Task<InviteInfo> CreateTeamInviteAsync(TournamentIdentifier tournamentId, TeamIdentifier teamId, UserIdentifier initiatorUserId, CancellationToken cancellationToken = default);
+	Task<InviteInfo> CreateTeamInviteAsync(TournamentIdentifier tournamentId, TeamIdentifier teamId, UserIdentifier initiatorUserId, string? observations = null, CancellationToken cancellationToken = default);
+
+	Task<InviteInfo> CreateRefereeInviteAsync(TournamentIdentifier tournamentId, UserIdentifier refereeUserId, UserIdentifier initiatorUserId, string? observations = null, CancellationToken cancellationToken = default);
 
 	Task<InviteInfo?> GetTeamInviteAsync(TournamentIdentifier tournamentId, TeamIdentifier teamId, CancellationToken cancellationToken = default);
 
@@ -55,8 +57,11 @@ public interface ITournamentContextProvider
 
 	/// <summary>Returns the pending player invite for a specific user in a tournament, or null if none exists.</summary>
 	Task<InviteInfo?> GetPlayerInviteAsync(TournamentIdentifier tournamentId, UserIdentifier playerId, CancellationToken cancellationToken = default);
+	Task<InviteInfo?> GetInviteByParticipantIdAsync(TournamentIdentifier tournamentId, TournamentParticipantIdentifier participantId, CancellationToken cancellationToken = default);
 
-	Task UpdateInviteApprovalAsync(TournamentIdentifier tournamentId, TeamIdentifier teamId, bool isTournamentManager, bool approved, CancellationToken cancellationToken = default);
+	Task UpdateInviteObservationsAsync(TournamentIdentifier tournamentId, TournamentParticipantIdentifier participantId, string? observations, CancellationToken cancellationToken = default);
+
+	Task UpdateInviteApprovalAsync(TournamentIdentifier tournamentId, TournamentParticipantIdentifier participantId, bool isTournamentManager, bool approved, CancellationToken cancellationToken = default);
 
 	Task UpdatePlayerInviteApprovalAsync(TournamentIdentifier tournamentId, UserIdentifier playerId, bool approved, CancellationToken cancellationToken = default);
 

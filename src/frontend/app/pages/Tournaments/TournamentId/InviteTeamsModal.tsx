@@ -18,6 +18,7 @@ import {
   eligibilityLabel,
   getApiErrorMessage,
   getEligibleAffiliations,
+  getTeamStatusStyle,
   getUnavailableTeamIds,
   filterAndSearchTeams,
 } from "../../../utils/tournamentUtils";

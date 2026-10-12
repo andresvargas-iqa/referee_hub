@@ -19,4 +19,5 @@ public class TournamentModel
 	public bool IsRegistrationOpen { get; set; }
 	public bool AllowsIndividualRegistration { get; set; }
 	public bool AllowsTeamRegistration { get; set; } = true;
+	public bool IsVolunteerRegistrationOpen { get; set; }
 }
