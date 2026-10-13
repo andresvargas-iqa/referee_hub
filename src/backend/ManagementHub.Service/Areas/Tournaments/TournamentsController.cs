@@ -875,12 +875,19 @@ public class TournamentsController : ControllerBase
 
 	private async Task HandleAutoApproval(InviteInfo invite, TournamentIdentifier tournamentId, TeamIdentifier teamId)
 	{
-		if (invite.TournamentManagerApproval == ApprovalStatus.Approved &&
-			invite.ParticipantApproval == ApprovalStatus.Approved)
-		{
-			await this.tournamentContextProvider.AddTeamParticipantAsync(
-				tournamentId, teamId, this.HttpContext.RequestAborted);
-		}
+	    if (invite.ParticipantType != ParticipantType.Team)
+	    {
+	        return;
+	    }
+	
+	    if (invite.TournamentManagerApproval == ApprovalStatus.Approved &&
+	        invite.ParticipantApproval == ApprovalStatus.Approved)
+	    {
+	        await this.tournamentContextProvider.AddTeamParticipantAsync(
+	            tournamentId,
+	            teamId,
+	            this.HttpContext.RequestAborted);
+	    }
 	}
 
 	private async Task NotifyTournamentManagersOfTeamJoinRequestAsync(
@@ -947,22 +954,22 @@ public class TournamentsController : ControllerBase
 	}
 
 	private async Task AddTeamParticipantIfInviteApproved(
-		InviteInfo? invite,
-		TournamentIdentifier tournamentId,
-		TeamIdentifier? teamId)
+	    InviteInfo? invite,
+	    TournamentIdentifier tournamentId,
+	    TeamIdentifier? teamId)
 	{
-		if (invite == null ||
-			invite.GetStatus() != InviteStatus.Approved ||
-			invite.ParticipantType != ParticipantType.Team ||
-			teamId == null)
-		{
-			return;
-		}
-
-		await this.tournamentContextProvider.AddTeamParticipantAsync(
-			tournamentId,
-			teamId.Value,
-			this.HttpContext.RequestAborted);
+	    if (invite == null ||
+	        invite.ParticipantType != ParticipantType.Team ||
+	        invite.GetStatus() != InviteStatus.Approved ||
+	        teamId == null)
+	    {
+	        return;
+	    }
+	
+	    await this.tournamentContextProvider.AddTeamParticipantAsync(
+	        tournamentId,
+	        teamId.Value,
+	        this.HttpContext.RequestAborted);
 	}
 
 	private static TournamentInviteViewModel MapInviteToViewModel(InviteInfo invite)
