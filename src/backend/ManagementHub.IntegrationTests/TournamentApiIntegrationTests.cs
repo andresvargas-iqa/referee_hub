@@ -155,6 +155,36 @@ public class TournamentApiIntegrationTests : IClassFixture<TestWebApplicationFac
 	}
 
 	[Fact]
+	public async Task Tournament_VolunteerInvite_ShouldNotCreateTeamParticipant()
+	{
+	    await AuthenticationHelper.AuthenticateAsAsync(this._client, "iqa_admin@example.com", "password");
+	    var tournamentId = await this.CreateTestTournamentAsync("Volunteer No Team Participant", TournamentType.Club, "USA", "Denver");
+	
+	    await AuthenticationHelper.AuthenticateAsAsync(this._client, "referee@example.com", "password");
+	    var refereeUserId = await this.GetCurrentUserIdAsync();
+	
+	    var createInviteModel = new
+	    {
+	        ParticipantType = ParticipantType.Referee,
+	        ParticipantId = refereeUserId,
+	        Observations = "{\"positions\":[\"Head Referee\"]}"
+	    };
+	
+	    var response = await this._client.PostAsJsonAsync(
+	        $"/api/v2/tournaments/{tournamentId}/invites",
+	        createInviteModel);
+	
+	    response.StatusCode.Should().Be(HttpStatusCode.Created);
+	
+	    var participantsResponse = await this._client.GetAsync($"/api/v2/tournaments/{tournamentId}/participants");
+	    participantsResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+	
+	    var participantsJson = await participantsResponse.Content.ReadFromJsonAsync<JsonElement>();
+	    participantsJson.ValueKind.Should().Be(JsonValueKind.Array);
+	    participantsJson.EnumerateArray().Should().BeEmpty();
+	}
+
+	[Fact]
 	public async Task GetTournaments_WithTournamentTypeFilter_ShouldReturnOnlyMatchingType()
 	{
 		await AuthenticationHelper.AuthenticateAsAsync(this._client, "referee@example.com", "password");
