@@ -2,22 +2,12 @@ import React from "react";
 import ActionButtonPair from "../../../../components/ActionButtonPair";
 import { TournamentInviteViewModel } from "../../../../store/serviceApi";
 
-interface ApprovedTeam {
-  teamId: string;
-  teamName: string;
-  ngb: string;
-}
-
 interface SidebarProps {
   isTournamentManager: boolean;
   isAnonymous: boolean;
   isRegistrationClosed: boolean;
-  tournamentType?: string;
-  allowsTeamRegistration: boolean;
-  allowsIndividualRegistration: boolean;
-  myIndividualInvite: TournamentInviteViewModel | null;
   pendingInvitesForUser: TournamentInviteViewModel[];
-  approvedTeamsForUser: ApprovedTeam[];
+  approvedTeamsForUser: any[];
   respondingTo: string | null;
   onRespondToInvite: (participantId: string, approved: boolean) => void;
   onEdit: () => void;
@@ -37,10 +27,6 @@ export const TournamentDetailsSidebar: React.FC<SidebarProps> = ({
   isTournamentManager,
   isAnonymous,
   isRegistrationClosed,
-  tournamentType,
-  allowsTeamRegistration,
-  allowsIndividualRegistration,
-  myIndividualInvite,
   pendingInvitesForUser,
   approvedTeamsForUser,
   respondingTo,
@@ -78,13 +64,11 @@ export const TournamentDetailsSidebar: React.FC<SidebarProps> = ({
             Edit Tournament Details
           </button>
           <button onClick={onOpenRegistrations} className="btn btn-secondary btn-full-width card-mb">
-            View Registrations ({invitesCount})
+            View Team Registrations ({invitesCount})
           </button>
-          {tournamentType !== "Fantasy" || allowsTeamRegistration ? (
-            <button onClick={onInviteTeams} className="btn btn-secondary btn-full-width card-mb">
-              Invite Teams
-            </button>
-          ) : null}
+          <button onClick={onInviteTeams} className="btn btn-secondary btn-full-width card-mb">
+            Invite Teams
+          </button>
           <button onClick={onAddManager} className="btn btn-secondary btn-full-width">
             Add Tournament Manager
           </button>
@@ -98,7 +82,7 @@ export const TournamentDetailsSidebar: React.FC<SidebarProps> = ({
           <h3 className="card-title">Tournament Stats</h3>
           <div className="stats-list">
             <div className="stats-item">
-              <span className="stats-label">Registrations</span>
+              <span className="stats-label">Teams Registered</span>
               <span className="stats-value">{invitesCount}</span>
             </div>
             <div className="stats-item">
@@ -151,19 +135,6 @@ export const TournamentDetailsSidebar: React.FC<SidebarProps> = ({
               </div>
             ))}
           </div>
-        </div>
-      )}
-
-      {tournamentType === "Fantasy" && allowsIndividualRegistration && myIndividualInvite && (
-        <div className="card card-highlighted card-mb">
-          <h3 className="card-title">Individual Registration</h3>
-          <p className="card-description">
-            {myIndividualInvite.status === "approved"
-              ? "Your individual registration is approved."
-              : myIndividualInvite.status === "rejected"
-                ? "Your individual registration was declined."
-                : "Your individual registration is awaiting organizer approval."}
-          </p>
         </div>
       )}
 

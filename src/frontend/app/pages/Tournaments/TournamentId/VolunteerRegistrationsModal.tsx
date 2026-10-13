@@ -78,6 +78,7 @@ const VolunteerRegistrationsModal = forwardRef<VolunteerRegistrationsModalRef>((
       await respondToInvite({
         tournamentId,
         participantId,
+        participantType: "referee",
         inviteResponseModel: { approved },
       }).unwrap();
       showAlert(

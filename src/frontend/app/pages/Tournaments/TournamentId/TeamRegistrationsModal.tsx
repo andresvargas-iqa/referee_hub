@@ -129,6 +129,9 @@ const TeamRegistrationsModal = forwardRef<TeamRegistrationsModalRef>((_props, re
               {selectedInvite && selectedInviteData ? (
                 <div>
                   <div className="bg-gray-50 rounded-lg p-4 mb-4">
+                    {selectedInviteData.logoUri && (
+                      <img src={selectedInviteData.logoUri} alt={`${selectedInviteData.participantName} logo`} className="w-12 h-12 object-contain bg-white rounded mb-2" />
+                    )}
                     <p className="text-sm text-gray-600 mb-1">Participant</p>
                     <p className="text-lg font-semibold text-gray-900">
                       {selectedInviteData.participantName}
@@ -215,7 +218,11 @@ const TeamRegistrationsModal = forwardRef<TeamRegistrationsModalRef>((_props, re
                             className="flex items-center justify-between cursor-pointer"
                             onClick={() => setSelectedInvite(invite.participantId)}
                           >
-                            <div>
+                            <div className="flex items-center gap-3 min-w-0">
+                              {invite.logoUri && (
+                                <img src={invite.logoUri} alt={`${invite.participantName} logo`} className="w-10 h-10 object-contain flex-shrink-0 bg-white rounded" />
+                              )}
+                              <div className="min-w-0">
                               <h4 className="font-semibold text-gray-900">
                                 {invite.participantName}
                               </h4>
@@ -230,6 +237,7 @@ const TeamRegistrationsModal = forwardRef<TeamRegistrationsModalRef>((_props, re
                               {invite.status === "pending" && (
                                 <p className="text-xs text-amber-700 mt-0.5">{getPendingLabel(invite)}</p>
                               )}
+                              </div>
                             </div>
                             <StatusBadge status={invite.status || "unknown"} />
                           </div>

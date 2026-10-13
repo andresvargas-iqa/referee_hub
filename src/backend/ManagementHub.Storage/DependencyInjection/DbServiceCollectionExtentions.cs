@@ -65,10 +65,11 @@ public static class DbServiceCollectionExtentions
 	{
 		if (inMemoryStorage)
 		{
+			var connectionString = $"Data Source=ManagementHub-{Guid.NewGuid():N};Mode=Memory;Cache=Shared";
 			// NOTE: this storage is deleted when application shuts down.
 			services.AddDbContext<ManagementHubDbContext>((options) =>
 			{
-				options.UseSqlite("DataSource=:memory:");
+				options.UseSqlite(connectionString);
 				options.EnableSensitiveDataLogging();
 				options.EnableDetailedErrors();
 			});

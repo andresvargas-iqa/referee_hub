@@ -146,7 +146,7 @@ const AvailableTeamsSection: React.FC<AvailableTeamsProps> = ({
                   <img
                     src={team.logoUri}
                     alt={`${team.name} logo`}
-                    className="w-8 h-8 rounded-full object-cover flex-shrink-0 border border-gray-200"
+                    className="w-8 h-8 rounded object-contain flex-shrink-0 border border-gray-200 bg-white"
                   />
                 )}
                 <div>

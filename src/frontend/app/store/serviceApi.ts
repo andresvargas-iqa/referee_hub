@@ -633,6 +633,7 @@ const injectedRtkApi = api
           url: `/api/v2/Tournaments/${queryArg.tournamentId}/invites/${queryArg.participantId}`,
           method: "POST",
           body: queryArg.inviteResponseModel,
+          params: { participantType: queryArg.participantType },
         }),
         invalidatesTags: ["Tournament"],
       }),
@@ -1172,6 +1173,7 @@ export type RespondToInviteApiResponse = /** status 200 Success */ void;
 export type RespondToInviteApiArg = {
   tournamentId: string;
   participantId: string;
+  participantType?: ParticipantType;
   inviteResponseModel: InviteResponseModel;
 };
 export type DeleteInviteApiResponse = /** status 200 Success */ void;

@@ -1183,6 +1183,11 @@ public class TournamentApiIntegrationTests : IClassFixture<TestWebApplicationFac
 		var playerId = currentUser.GetProperty("userId").GetString();
 		playerId.Should().NotBeNullOrWhiteSpace();
 
+		var volunteerResponse = await this._client.PostAsJsonAsync(
+			$"/api/v2/tournaments/{tournamentId}/invites",
+			new CreateInviteModel { ParticipantType = ParticipantType.Referee, ParticipantId = TournamentParticipantIdentifier.ForReferee(UserIdentifier.Parse(playerId!)) });
+		volunteerResponse.StatusCode.Should().Be(HttpStatusCode.Created);
+
 		var registrationResponse = await this._client.PostAsJsonAsync(
 			$"/api/v2/tournaments/{tournamentId}/invites",
 			new CreateInviteModel { ParticipantType = ParticipantType.Player, ParticipantId = TournamentParticipantIdentifier.ForPlayer(UserIdentifier.Parse(playerId!)) });
@@ -1191,9 +1196,17 @@ public class TournamentApiIntegrationTests : IClassFixture<TestWebApplicationFac
 		var ownInvitesResponse = await this._client.GetAsync($"/api/v2/tournaments/{tournamentId}/invites");
 		ownInvitesResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 		var ownInvites = await ownInvitesResponse.Content.ReadFromJsonAsync<JsonElement>();
-		ownInvites.GetArrayLength().Should().Be(1);
-		ownInvites[0].GetProperty("participantType").GetString().Should().Be("player");
-		ownInvites[0].GetProperty("status").GetString().Should().Be("pending");
+		ownInvites.GetArrayLength().Should().Be(2);
+		ownInvites.EnumerateArray().Single(invite => invite.GetProperty("participantType").GetString() == "player")
+			.GetProperty("status").GetString().Should().Be("pending");
+
+		var selfApprovalResponse = await this._client.PostAsJsonAsync(
+			$"/api/v2/tournaments/{tournamentId}/invites/{playerId}?participantType=player",
+			new InviteResponseModel { Approved = true });
+		selfApprovalResponse.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+
+		var selfRemovalResponse = await this._client.DeleteAsync($"/api/v2/tournaments/{tournamentId}/invites/{playerId}");
+		selfRemovalResponse.StatusCode.Should().Be(HttpStatusCode.Forbidden);
 
 		var teamRegistrationResponse = await this._client.PostAsJsonAsync(
 			$"/api/v2/tournaments/{tournamentId}/invites",
@@ -1207,11 +1220,28 @@ public class TournamentApiIntegrationTests : IClassFixture<TestWebApplicationFac
 
 		await AuthenticationHelper.AuthenticateAsAsync(this._client, "referee@example.com", "password");
 		var approvalResponse = await this._client.PostAsJsonAsync(
-			$"/api/v2/tournaments/{tournamentId}/invites/{playerId}",
+			$"/api/v2/tournaments/{tournamentId}/invites/{playerId}?participantType=player",
 			new InviteResponseModel { Approved = true });
 		approvalResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
+		var reviewedInvitesResponse = await this._client.GetAsync($"/api/v2/tournaments/{tournamentId}/invites");
+		var reviewedInvites = await reviewedInvitesResponse.Content.ReadFromJsonAsync<JsonElement>();
+		reviewedInvites.EnumerateArray().Single(invite => invite.GetProperty("participantType").GetString() == "player")
+			.GetProperty("status").GetString().Should().Be("approved");
+		reviewedInvites.EnumerateArray().Single(invite => invite.GetProperty("participantType").GetString() == "referee")
+			.GetProperty("status").GetString().Should().Be("pending");
+
+		var volunteerApprovalResponse = await this._client.PostAsJsonAsync(
+			$"/api/v2/tournaments/{tournamentId}/invites/{playerId}?participantType=referee",
+			new InviteResponseModel { Approved = true });
+		volunteerApprovalResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
 		var deleteResponse = await this._client.DeleteAsync($"/api/v2/tournaments/{tournamentId}/invites/{playerId}");
 		deleteResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+		var remainingInvitesResponse = await this._client.GetAsync($"/api/v2/tournaments/{tournamentId}/invites");
+		var remainingInvites = await remainingInvitesResponse.Content.ReadFromJsonAsync<JsonElement>();
+		remainingInvites.GetArrayLength().Should().Be(1);
+		remainingInvites[0].GetProperty("participantType").GetString().Should().Be("referee");
 	}
 }

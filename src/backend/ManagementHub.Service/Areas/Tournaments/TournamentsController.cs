@@ -463,26 +463,18 @@ public class TournamentsController : ControllerBase
 		var invites = await this.tournamentContextProvider.GetTournamentInvitesAsync(
 			tournamentId, filterByParticipant, this.HttpContext.RequestAborted);
 
-		return invites.Select(i => new TournamentInviteViewModel
+		var result = new List<TournamentInviteViewModel>();
+		foreach (var invite in invites)
 		{
-			ParticipantType = i.ParticipantType,
-			ParticipantId = i.ParticipantId,
-			ParticipantName = i.ParticipantName,
-			Observations = i.Observations,
-			Status = i.GetStatus(),
-			InitiatorUserId = i.InitiatorUserId,
-			CreatedAt = i.CreatedAt,
-			TournamentManagerApproval = new ApprovalStatusViewModel
+			var viewModel = MapInviteToViewModel(invite);
+			if (invite.ParticipantType == ParticipantType.Team && invite.ParticipantId.TeamId.HasValue)
 			{
-				Status = i.TournamentManagerApproval,
-				Date = i.TournamentManagerApprovalDate
-			},
-			ParticipantApproval = new ApprovalStatusViewModel
-			{
-				Status = i.ParticipantApproval,
-				Date = i.ParticipantApprovalDate
+				viewModel.LogoUri = await this.teamContextProvider.GetTeamLogoUriAsync(
+					invite.ParticipantId.TeamId.Value, this.HttpContext.RequestAborted);
 			}
-		});
+			result.Add(viewModel);
+		}
+		return result;
 	}
 
 	/// <summary>
@@ -779,6 +771,13 @@ public class TournamentsController : ControllerBase
 			return this.BadRequest(new { error = "This tournament does not allow individual player registration" });
 		}
 
+		if (!tournament.IsRegistrationOpen ||
+			(tournament.RegistrationEndsDate.HasValue &&
+			 tournament.RegistrationEndsDate.Value < DateOnly.FromDateTime(DateTime.UtcNow)))
+		{
+			return this.BadRequest(new { error = "Individual registration is closed" });
+		}
+
 		// Check that the player does not already have any invite (team or individual) in this tournament
 		var existingInvites = await this.tournamentContextProvider
 			.GetTournamentInvitesAsync(tournamentId, userContext.UserId, this.HttpContext.RequestAborted);
@@ -1003,10 +1002,12 @@ public class TournamentsController : ControllerBase
 	public async Task<IActionResult> RespondToInvite(
 		[FromRoute] TournamentIdentifier tournamentId,
 		[FromRoute] string participantId,
-		[FromBody] InviteResponseModel response)
+		[FromBody] InviteResponseModel response,
+		[FromQuery] ParticipantType? participantType = null)
 	{
 		var userContext = await this.contextAccessor.GetCurrentUserContextAsync();
-		if (UserIdentifier.TryParse(participantId, out var possiblePlayerId))
+		if ((participantType == null || participantType == ParticipantType.Player) &&
+			UserIdentifier.TryParse(participantId, out var possiblePlayerId))
 		{
 			var playerInvite = await this.tournamentContextProvider
 				.GetPlayerInviteAsync(tournamentId, possiblePlayerId, this.HttpContext.RequestAborted);
@@ -1018,6 +1019,7 @@ public class TournamentsController : ControllerBase
 					possiblePlayerId,
 					response,
 					isPlayerInviteTournamentManager,
+					userContext.UserId,
 					this.HttpContext.RequestAborted);
 			}
 		}
@@ -1029,6 +1031,10 @@ public class TournamentsController : ControllerBase
 
 		var parsedTeamId = parsedParticipantId.TeamId;
 		var parsedUserId = parsedParticipantId.UserId;
+		if (participantType.HasValue && participantType.Value != parsedParticipantId.ParticipantType)
+		{
+			return this.BadRequest(new { error = "Participant type does not match participant ID" });
+		}
 
 		// Get pending invite
 		var invite = await this.tournamentContextProvider
@@ -1134,6 +1140,7 @@ public class TournamentsController : ControllerBase
 		UserIdentifier playerId,
 		InviteResponseModel response,
 		bool isTournamentManager,
+		UserIdentifier actingUserId,
 		CancellationToken cancellationToken)
 	{
 		var playerInvite = await this.tournamentContextProvider
@@ -1145,7 +1152,7 @@ public class TournamentsController : ControllerBase
 		}
 
 		var tournament = await this.tournamentContextProvider
-			.GetTournamentContextAsync(tournamentId, playerId, cancellationToken);
+			.GetTournamentContextAsync(tournamentId, actingUserId, cancellationToken);
 		if (tournament.EndDate < DateOnly.FromDateTime(DateTime.UtcNow))
 		{
 			return this.BadRequest(new { error = "Cannot modify archived tournament" });
