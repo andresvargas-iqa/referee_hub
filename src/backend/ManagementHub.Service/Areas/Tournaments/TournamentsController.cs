@@ -993,93 +993,79 @@ public class TournamentsController : ControllerBase
 	/// Respond to a tournament invite.
 	/// </summary>
 	[HttpPost("{tournamentId}/invites/{participantId}")]
-	[Tags("Tournament")]
-	[Authorize]
-	[ProducesResponseType(StatusCodes.Status200OK)]
-	[ProducesResponseType(StatusCodes.Status400BadRequest)]
-	[ProducesResponseType(StatusCodes.Status403Forbidden)]
-	[ProducesResponseType(StatusCodes.Status404NotFound)]
-	public async Task<IActionResult> RespondToInvite(
-		[FromRoute] TournamentIdentifier tournamentId,
-		[FromRoute] string participantId,
-		[FromBody] InviteResponseModel response,
-		[FromQuery] ParticipantType? participantType = null)
-	{
-		var userContext = await this.contextAccessor.GetCurrentUserContextAsync();
-		if ((participantType == null || participantType == ParticipantType.Player) &&
-			UserIdentifier.TryParse(participantId, out var possiblePlayerId))
-		{
-			var playerInvite = await this.tournamentContextProvider
-				.GetPlayerInviteAsync(tournamentId, possiblePlayerId, this.HttpContext.RequestAborted);
-			if (playerInvite != null)
-			{
-				var isPlayerInviteTournamentManager = IsTournamentManager(userContext, tournamentId);
-				return await this.HandlePlayerInviteResponseAsync(
-					tournamentId,
-					possiblePlayerId,
-					response,
-					isPlayerInviteTournamentManager,
-					userContext.UserId,
-					this.HttpContext.RequestAborted);
-			}
-		}
+[Tags("Tournament")]
+[Authorize]
+[ProducesResponseType(StatusCodes.Status200OK)]
+[ProducesResponseType(StatusCodes.Status400BadRequest)]
+[ProducesResponseType(StatusCodes.Status403Forbidden)]
+[ProducesResponseType(StatusCodes.Status404NotFound)]
+public async Task<IActionResult> RespondToInvite(
+    [FromRoute] TournamentIdentifier tournamentId,
+    [FromRoute] string participantId,
+    [FromBody] InviteResponseModel response)
+{
+    var userContext = await this.contextAccessor.GetCurrentUserContextAsync();
 
-		if (!TryParseParticipantId(participantId, out var parsedParticipantId))
-		{
-			return this.BadRequest(new { error = "Invalid participant ID" });
-		}
+    if (!TryParseParticipantId(participantId, out var parsedParticipantId))
+    {
+        return this.BadRequest(new { error = "Invalid participant ID" });
+    }
 
-		var parsedTeamId = parsedParticipantId.TeamId;
-		var parsedUserId = parsedParticipantId.UserId;
-		if (participantType.HasValue && participantType.Value != parsedParticipantId.ParticipantType)
-		{
-			return this.BadRequest(new { error = "Participant type does not match participant ID" });
-		}
+    var parsedTeamId = parsedParticipantId.TeamId;
+    var parsedUserId = parsedParticipantId.UserId;
 
-		// Get pending invite
-		var invite = await this.tournamentContextProvider
-			.GetInviteByParticipantIdAsync(tournamentId, parsedParticipantId, this.HttpContext.RequestAborted);
+    var invite = await this.tournamentContextProvider
+        .GetInviteByParticipantIdAsync(tournamentId, parsedParticipantId, this.HttpContext.RequestAborted);
 
-		if (invite == null || invite.GetStatus() != InviteStatus.Pending)
-		{
-			return this.NotFound(new { error = "No pending invite found" });
-		}
+    if (invite == null || invite.GetStatus() != InviteStatus.Pending)
+    {
+        return this.NotFound(new { error = "No pending invite found" });
+    }
 
-		// Check tournament not archived
-		var tournament = await this.tournamentContextProvider
-			.GetTournamentContextAsync(tournamentId, userContext.UserId, this.HttpContext.RequestAborted);
-		var tournamentValidation = this.ValidateTournamentForInvite(tournament);
-		if (tournamentValidation != null)
-		{
-			return tournamentValidation;
-		}
+    var tournament = await this.tournamentContextProvider
+        .GetTournamentContextAsync(tournamentId, userContext.UserId, this.HttpContext.RequestAborted);
 
-		// Check authorization and determine which approval to update
-		var isTournamentManager = IsTournamentManager(userContext, tournamentId);
-		var isTeamParticipant = IsTeamParticipantManager(userContext, parsedTeamId);
-		var isRefereeParticipant = parsedParticipantId.ParticipantType == ParticipantType.Referee &&
-			IsRefereeParticipant(userContext, parsedUserId);
-		var isParticipant = isTeamParticipant || isRefereeParticipant;
-		if (!CanRespondToInvite(invite, isTournamentManager, isParticipant))
-		{
-			return this.Forbid();
-		}
+    var tournamentValidation = this.ValidateTournamentForInvite(tournament);
+    if (tournamentValidation != null)
+    {
+        return tournamentValidation;
+    }
 
-		// Update approval
-		await this.tournamentContextProvider.UpdateInviteApprovalAsync(
-			tournamentId,
-			parsedParticipantId,
-			isTournamentManager,
-			response.Approved,
-			this.HttpContext.RequestAborted);
+    var isTournamentManager = IsTournamentManager(userContext, tournamentId);
+    var isTeamParticipant = IsTeamParticipantManager(userContext, parsedTeamId);
+    var isRefereeParticipant = IsRefereeParticipant(userContext, parsedUserId);
+    var isParticipant = isTeamParticipant || isRefereeParticipant;
 
-		// Reload to check if fully approved
-		var updatedInvite = await this.tournamentContextProvider
-			.GetInviteByParticipantIdAsync(tournamentId, parsedParticipantId, this.HttpContext.RequestAborted);
-		await this.AddTeamParticipantIfInviteApproved(updatedInvite, tournamentId, parsedTeamId);
+    if (!CanRespondToInvite(invite, isTournamentManager, isParticipant))
+    {
+        return this.Forbid();
+    }
 
-		return this.Ok();
-	}
+    await this.tournamentContextProvider.UpdateInviteApprovalAsync(
+        tournamentId,
+        parsedParticipantId,
+        isTournamentManager,
+        response.Approved,
+        this.HttpContext.RequestAborted);
+
+    var updatedInvite = await this.tournamentContextProvider
+        .GetInviteByParticipantIdAsync(tournamentId, parsedParticipantId, this.HttpContext.RequestAborted);
+
+    if (updatedInvite == null)
+    {
+        return this.NotFound(new { error = "Invite not found after update" });
+    }
+
+    // IMPORTANT: volunteer/referee invites must never create a team participant row.
+    if (updatedInvite.ParticipantType == ParticipantType.Referee)
+    {
+        return this.Ok(MapInviteToViewModel(updatedInvite));
+    }
+
+    await this.AddTeamParticipantIfInviteApproved(updatedInvite, tournamentId, parsedTeamId);
+
+    return this.Ok(MapInviteToViewModel(updatedInvite));
+}
 
 	/// <summary>
 	/// Delete the active (pending) invite for a tournament team participant.
