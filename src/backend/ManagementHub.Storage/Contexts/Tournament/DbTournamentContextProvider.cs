@@ -1513,60 +1513,57 @@ public class DbTournamentContextProvider : ITournamentContextProvider
 	}
 
 	public async Task AddTeamParticipantAsync(
-		TournamentIdentifier tournamentId,
-		TeamIdentifier teamId,
-		CancellationToken cancellationToken = default)
+	    TournamentIdentifier tournamentId,
+	    TeamIdentifier teamId,
+	    CancellationToken cancellationToken = default)
 	{
-		var tournamentIdString = tournamentId.ToString();
-
-		// Get tournament database ID
-		var tournament = await this.QueryActiveTournament(tournamentIdString)
-			.Select(t => new { t.Id })
-			.FirstOrDefaultAsync(cancellationToken);
-
-		if (tournament == null)
-		{
-			throw new NotFoundException(tournamentId.ToString());
-		}
-
-		// Get team and its name
-		var team = await this.dbContext.Teams
-			.Where(t => t.Id == teamId.Id)
-			.Select(t => new { t.Id, t.Name })
-			.FirstOrDefaultAsync(cancellationToken);
-
-		if (team == null)
-		{
-			throw new NotFoundException(teamId.ToString());
-		}
-
-		// Check if already a participant (idempotent)
-		var existingParticipant = await this.dbContext.TournamentTeamParticipants
-			.AnyAsync(p => p.TournamentId == tournament.Id && p.TeamId == team.Id, cancellationToken);
-
-		if (existingParticipant)
-		{
-			this.logger.LogInformation("Team {TeamId} is already a participant of tournament {TournamentId}",
-				teamId, tournamentId);
-			return;
-		}
-
-		var now = DateTime.UtcNow;
-
-		var participant = new TournamentTeamParticipant
-		{
-			TournamentId = tournament.Id,
-			TeamId = team.Id,
-			TeamName = team.Name,
-			CreatedAt = now,
-			UpdatedAt = now,
-		};
-
-		this.dbContext.TournamentTeamParticipants.Add(participant);
-		await this.dbContext.SaveChangesAsync(cancellationToken);
-
-		this.logger.LogInformation("Added team {TeamId} as participant to tournament {TournamentId}",
-			teamId, tournamentId);
+	    var tournamentIdString = tournamentId.ToString();
+	
+	    var tournament = await this.QueryActiveTournament(tournamentIdString)
+	        .Select(t => new { t.Id })
+	        .FirstOrDefaultAsync(cancellationToken);
+	
+	    if (tournament == null)
+	    {
+	        throw new NotFoundException(tournamentId.ToString());
+	    }
+	
+	    var team = await this.dbContext.Teams
+	        .Where(t => t.Id == teamId.Id)
+	        .Select(t => new { t.Id, t.Name })
+	        .FirstOrDefaultAsync(cancellationToken);
+	
+	    if (team == null)
+	    {
+	        throw new NotFoundException(teamId.ToString());
+	    }
+	
+	    var existingParticipant = await this.dbContext.TournamentTeamParticipants
+	        .AnyAsync(p => p.TournamentId == tournament.Id && p.TeamId == team.Id, cancellationToken);
+	
+	    if (existingParticipant)
+	    {
+	        this.logger.LogInformation("Team {TeamId} is already a participant of tournament {TournamentId}",
+	            teamId, tournamentId);
+	        return;
+	    }
+	
+	    var now = DateTime.UtcNow;
+	
+	    var participant = new TournamentTeamParticipant
+	    {
+	        TournamentId = tournament.Id,
+	        TeamId = team.Id,
+	        TeamName = team.Name,
+	        CreatedAt = now,
+	        UpdatedAt = now,
+	    };
+	
+	    this.dbContext.TournamentTeamParticipants.Add(participant);
+	    await this.dbContext.SaveChangesAsync(cancellationToken);
+	
+	    this.logger.LogInformation("Added team {TeamId} as participant to tournament {TournamentId}",
+	        teamId, tournamentId);
 	}
 
 	public async Task RemoveTeamParticipantAsync(
