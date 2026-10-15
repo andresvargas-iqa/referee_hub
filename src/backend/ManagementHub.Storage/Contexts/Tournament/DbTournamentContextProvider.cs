@@ -308,7 +308,7 @@ public class DbTournamentContextProvider : ITournamentContextProvider
 		return result;
 	}
 
-	public async Task<HashSet<TournamentIdentifier>> GetUserInvolvedTournamentIdsAsync(IEnumerable<TournamentIdentifier> tournamentIds, UserIdentifier userId, CancellationToken cancellationToken = d[...]
+	public async Task<HashSet<TournamentIdentifier>> GetUserInvolvedTournamentIdsAsync(IEnumerable<TournamentIdentifier> tournamentIds, UserIdentifier userId, CancellationToken cancellationToken = default)
 	{
 		var tournamentIdsList = tournamentIds.Select(t => t.ToString()).ToList();
 
@@ -566,16 +566,7 @@ public class DbTournamentContextProvider : ITournamentContextProvider
 				// User is involved if they manage this tournament OR manage a participating team
 				// Phase 4 will extend: || user is on a roster
 				t.TournamentManagers.Any(tm => userDatabaseIds.Contains(tm.UserId)) ||
-				t.TournamentTeamParticipants.Any(p => p.Team.TeamManagers.Any(teamMgr => userDatabaseIds.Contains(teamMgr.UserId))) ||
-				t.TournamentTeamParticipants.Any(p => p.RosterEntries.Any(entry => userDatabaseIds.Contains(entry.UserId))) ||
-				t.TournamentInvites.Any(i =>
-					i.ParticipantType == "team" &&
-					this.dbContext.TeamManagers
-						.Where(tm => userDatabaseIds.Contains(tm.UserId))
-						// Note: TeamIdentifier format is "TM_<id>". Using string concatenation instead of the struct constructor
-						// because EF Core cannot translate struct constructors to SQL queries.
-						.Select(tm => "TM_" + tm.TeamId.ToString())
-						.Contains(i.ParticipantId))));
+				t.TournamentTeamParticipants.Any(p => p.Team.TeamManagers.Any(teamMgr => userDatabaseIds.Contains(teamMgr.UserId)))));
 	}
 
 	/// <summary>
@@ -617,6 +608,8 @@ public class DbTournamentContextProvider : ITournamentContextProvider
 					i.ParticipantType == "team" &&
 					this.dbContext.TeamManagers
 						.Where(tm => userDatabaseIds.Contains(tm.UserId))
+						// Note: TeamIdentifier format is "TM_<id>". Using string concatenation instead of the struct constructor
+						// because EF Core cannot translate struct constructors to SQL queries.
 						.Select(tm => "TM_" + tm.TeamId.ToString())
 						.Contains(i.ParticipantId))));
 	}
