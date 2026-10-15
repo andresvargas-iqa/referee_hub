@@ -37,6 +37,8 @@ public record DbTournamentContext(
 	bool IsPrivate,
 	bool IsRegistrationOpen,
 	bool IsVolunteerRegistrationOpen,
+	bool AllowsIndividualRegistration,
+	bool AllowsTeamRegistration,
 	bool IsCurrentUserInvolved) : ITournamentContext;
 
 public class DbTournamentContextProvider : ITournamentContextProvider
@@ -562,6 +564,11 @@ public class DbTournamentContextProvider : ITournamentContextProvider
 				t.IsPrivate,
 				t.IsRegistrationOpen,
 				t.IsVolunteerRegistrationOpen,
+				// AllowsIndividualRegistration: computed here (override when DB field exists)
+				// e.g. replace with t.AllowsIndividualRegistration when the DB column/property is available
+				t.Type == TournamentType.Fantasy,
+				// AllowsTeamRegistration: currently true by default (adjust if DB flag exists)
+				true,
 				// IsCurrentUserInvolved: computed via database join
 				// User is involved if they manage this tournament OR manage a participating team
 				// Phase 4 will extend: || user is on a roster
@@ -594,6 +601,10 @@ public class DbTournamentContextProvider : ITournamentContextProvider
 				t.IsPrivate,
 				t.IsRegistrationOpen,
 				t.IsVolunteerRegistrationOpen,
+				// AllowsIndividualRegistration (computed)
+				t.Type == TournamentType.Fantasy,
+				// AllowsTeamRegistration (computed)
+				true,
 				// IsCurrentUserInvolved: computed via database join
 				// User is involved if they:
 				// - Manage this tournament OR
@@ -959,6 +970,81 @@ public class DbTournamentContextProvider : ITournamentContextProvider
 			cancellationToken);
 		return createdInvite!;
 	}
+
+	// ---- New player-invite helper methods (implementing added interface members) ----
+
+	public async Task<InviteInfo> CreatePlayerInviteAsync(
+		TournamentIdentifier tournamentId,
+		UserIdentifier playerUserId,
+		UserIdentifier initiatorUserId,
+		CancellationToken cancellationToken = default)
+	{
+		// Delegate to existing referee-invite flow (participantType == "referee")
+		return await this.CreateRefereeInviteAsync(tournamentId, playerUserId, initiatorUserId, null, cancellationToken);
+	}
+
+	public async Task<InviteInfo?> GetPlayerInviteAsync(
+		TournamentIdentifier tournamentId,
+		UserIdentifier playerUserId,
+		CancellationToken cancellationToken = default)
+	{
+		return await this.GetInviteByParticipantIdAsync(tournamentId, TournamentParticipantIdentifier.ForReferee(playerUserId), cancellationToken);
+	}
+
+	public async Task UpdatePlayerInviteApprovalAsync(
+		TournamentIdentifier tournamentId,
+		UserIdentifier playerUserId,
+		bool approved,
+		CancellationToken cancellationToken = default)
+	{
+		// For player invites we treat the updater as tournament manager (adjust if domain differs)
+		await this.UpdateInviteApprovalAsync(tournamentId, TournamentParticipantIdentifier.ForReferee(playerUserId), isTournamentManager: true, approved, cancellationToken);
+	}
+
+	public async Task DeletePlayerInviteAsync(
+		TournamentIdentifier tournamentId,
+		UserIdentifier playerUserId,
+		CancellationToken cancellationToken = default)
+	{
+		var tournamentIdString = tournamentId.ToString();
+		var participantId = playerUserId.ToString();
+
+		var tournament = await this.QueryActiveTournament(tournamentIdString)
+			.Select(t => new { t.Id })
+			.FirstOrDefaultAsync(cancellationToken);
+
+		if (tournament == null)
+		{
+			throw new NotFoundException(tournamentId.ToString());
+		}
+
+		var invite = await this.dbContext.TournamentInvites
+			.Where(i => i.TournamentId == tournament.Id
+				&& i.ParticipantType == "referee"
+				&& i.ParticipantId == participantId
+				&& (i.TournamentManagerApproval == ApprovalStatus.Pending
+					|| i.ParticipantApproval == ApprovalStatus.Pending))
+			.OrderByDescending(i => i.CreatedAt)
+			.FirstOrDefaultAsync(cancellationToken);
+
+		var sanitizedTournamentId = tournamentId.ToString().Replace("\r", string.Empty).Replace("\n", string.Empty);
+		var sanitizedParticipantId = playerUserId.ToString().Replace("\r", string.Empty).Replace("\n", string.Empty);
+
+		if (invite == null)
+		{
+			this.logger.LogInformation("No active invite found for tournament {TournamentId} player {PlayerId}",
+				sanitizedTournamentId, sanitizedParticipantId);
+			return;
+		}
+
+		this.dbContext.TournamentInvites.Remove(invite);
+		await this.dbContext.SaveChangesAsync(cancellationToken);
+
+		this.logger.LogInformation("Removed active invite for tournament {TournamentId} player {PlayerId}",
+			sanitizedTournamentId, sanitizedParticipantId);
+	}
+
+	// ---- end new player-invite methods ----
 
 	public async Task<InviteInfo?> GetTeamInviteAsync(
 		TournamentIdentifier tournamentId,
