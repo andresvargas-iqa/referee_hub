@@ -1706,6 +1706,16 @@ namespace ManagementHub.Storage.Migrations
                         .HasColumnType("INTEGER")
                         .HasColumnName("is_registration_open");
 
+                    b.Property<bool>("AllowsIndividualRegistration")
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("allows_individual_registration")
+                        .HasDefaultValue(false);
+
+                    b.Property<bool>("AllowsTeamRegistration")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("allows_team_registration")
+                        .HasDefaultValue(true);
                     b.Property<bool>("IsVolunteerRegistrationOpen")
                         .HasColumnType("INTEGER")
                         .HasColumnName("is_volunteer_registration_open");
