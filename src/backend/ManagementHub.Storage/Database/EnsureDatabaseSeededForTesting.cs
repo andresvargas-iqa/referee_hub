@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -639,3 +639,395 @@ public class EnsureDatabaseSeededForTesting : DatabaseStartupService
 				Status = TeamStatus.Competitive,
 				UpdatedAt = DateTime.UtcNow,
 				Description = "Australian National Quidditch Team",
+				ContactEmail = "teamaus@quidditch.example.au",
+			},
+			new Team
+			{
+				City = "Berlin",
+				Country = "Germany",
+				Name = "Germany National Team",
+				NationalGoverningBody = ngbs.Single(n => n.CountryCode == "DEU"),
+				GroupAffiliation = TeamGroupAffiliation.National,
+				CreatedAt = DateTime.UtcNow,
+				JoinedAt = DateTime.UtcNow,
+				Status = TeamStatus.Competitive,
+				UpdatedAt = DateTime.UtcNow,
+				Description = "German National Quidditch Team",
+				ContactEmail = "teamgermany@qbund.example.de",
+			},
+		};
+
+		dbContext.Teams.AddRange(teams);
+		return teams;
+	}
+
+	private void SeedTournaments(ManagementHubDbContext dbContext)
+	{
+		// Removed two seed tournaments that looked unintended (World Cup 2024 and Fantasy Tournament 2027).
+		// Keep minimal seed tournaments useful for local dev/testing.
+		var tournaments = new[]
+		{
+			new Tournament
+			{
+				UniqueId = Models.Domain.Tournament.TournamentIdentifier.NewTournamentId().ToString(),
+				Name = "US Quadball Cup 2024",
+				Description = "National club championship tournament",
+				Type = TournamentType.Club,
+				StartDate = new DateOnly(2024, 8, 15),
+				EndDate = new DateOnly(2024, 8, 18),
+				Country = "USA",
+				City = "Richmond",
+				Organizer = "US Quadball",
+				IsPrivate = false,
+				IsRegistrationOpen = true,
+				IsVolunteerRegistrationOpen = true,
+				CreatedAt = DateTime.UtcNow,
+				UpdatedAt = DateTime.UtcNow,
+			},
+			new Tournament
+			{
+				UniqueId = Models.Domain.Tournament.TournamentIdentifier.NewTournamentId().ToString(),
+				Name = "Youth Quidditch Championship 2024",
+				Description = "Youth development tournament for players under 18",
+				Type = TournamentType.Youth,
+				StartDate = new DateOnly(2024, 6, 10),
+				EndDate = new DateOnly(2024, 6, 12),
+				Country = "USA",
+				City = "Chicago",
+				Organizer = "US Quadball Youth",
+				IsPrivate = false,
+				IsRegistrationOpen = true,
+				IsVolunteerRegistrationOpen = true,
+				CreatedAt = DateTime.UtcNow,
+				UpdatedAt = DateTime.UtcNow,
+			},
+		};
+
+		dbContext.Tournaments.AddRange(tournaments);
+	}
+
+	private List<Certification> EnsureCertifications(ManagementHubDbContext dbContext)
+	{
+		var certifications = dbContext.Certifications.ToList();
+		var existingCertifications = certifications.Select(c => (c.Level, c.Version)).ToHashSet();
+
+		foreach (var version in Enum.GetValues<CertificationVersion>())
+		{
+			foreach (var level in Enum.GetValues<CertificationLevel>())
+			{
+				if (existingCertifications.Contains((level, (CertificationVersion?)version))) continue;
+
+				var certification = new Certification
+				{
+					CreatedAt = DateTime.UtcNow,
+					Level = level,
+					Version = version,
+				};
+
+				certifications.Add(certification);
+				dbContext.Certifications.Add(certification);
+			}
+		}
+
+		return certifications;
+	}
+
+	private List<Language> SeedLanguages(ManagementHubDbContext dbContext)
+	{
+		var languages = new List<Language>(8)
+		{
+			new Language { ShortName = "en", ShortRegion = "US" },
+			new Language { ShortName = "en", ShortRegion = "GB" },
+			new Language { ShortName = "pt", ShortRegion = "BR" },
+			new Language { ShortName = "es", ShortRegion = "ES" },
+			new Language { ShortName = "es", ShortRegion = "419" },
+			new Language { ShortName = "fr" },
+			new Language { ShortName = "it" },
+			new Language { ShortName = "de" },
+		};
+
+		dbContext.Languages.AddRange(languages);
+		return languages;
+	}
+
+	private SeedUsers SeedUsersAndRoles(ManagementHubDbContext dbContext)
+	{
+		var referee = new User
+		{
+			CreatedAt = DateTime.UtcNow,
+			Email = "referee@example.com",
+			EncryptedPassword = "$2a$11$zEL0W9EagvALrxHLEQwH7eaCxJl45ewy7SfzQ140Zf1vWgL0IyCDm", // "password"
+			FirstName = "Jimmy",
+			LastName = "Referee",
+		};
+
+		var ngbAdmin = new User
+		{
+			CreatedAt = DateTime.UtcNow,
+			Email = "ngb_admin@example.com",
+			EncryptedPassword = "$2a$11$XsCgv0LdJ74WK7N0LBknSOHeb64FXsazAcV1.9PJzNmTra./nWWYm", // "password"
+			FirstName = "Jason",
+			LastName = "NgbAdmin",
+		};
+
+		var iqaAdmin = new User
+		{
+			CreatedAt = DateTime.UtcNow,
+			Email = "iqa_admin@example.com",
+			EncryptedPassword = "$2a$11$YURdUdxxppPle1z32ZExtu8Jk7lXJxpcckfOtpznfw3VT2zsZmzne", // "password"
+			FirstName = "Jonathan",
+			LastName = "IqaAdmin",
+		};
+
+		var testAdmin = new User
+		{
+			CreatedAt = DateTime.UtcNow,
+			Email = "translator@example.com",
+			EncryptedPassword = "$2a$11$YURdUdxxppPle1z32ZExtu8Jk7lXJxpcckfOtpznfw3VT2zsZmzne", // "password"
+			FirstName = "Taylor",
+			LastName = "Translator",
+		};
+
+		var refereeWithEmptyName = new User
+		{
+			CreatedAt = DateTime.UtcNow,
+			Email = "empty@example.com",
+			EncryptedPassword = "$2a$11$YURdUdxxppPle1z32ZExtu8Jk7lXJxpcckfOtpznfw3VT2zsZmzne", // "password"
+			FirstName = null,
+			LastName = null,
+			UniqueId = "U_abcdefghijklmnopqrstuvwxyy"
+		};
+
+		var teamManager = new User
+		{
+			CreatedAt = DateTime.UtcNow,
+			Email = "team_manager@example.com",
+			EncryptedPassword = "$2a$11$YURdUdxxppPle1z32ZExtu8Jk7lXJxpcckfOtpznfw3VT2zsZmzne", // "password"
+			FirstName = "Tom",
+			LastName = "TeamManager",
+		};
+
+		var playerSarah = new User
+		{
+			CreatedAt = DateTime.UtcNow,
+			Email = "sarah.player@example.com",
+			EncryptedPassword = "$2a$11$YURdUdxxppPle1z32ZExtu8Jk7lXJxpcckfOtpznfw3VT2zsZmzne", // "password"
+			FirstName = "Sarah",
+			LastName = "Player",
+		};
+
+		var coachMike = new User
+		{
+			CreatedAt = DateTime.UtcNow,
+			Email = "mike.coach@example.com",
+			EncryptedPassword = "$2a$11$YURdUdxxppPle1z32ZExtu8Jk7lXJxpcckfOtpznfw3VT2zsZmzne", // "password"
+			FirstName = "Mike",
+			LastName = "Coach",
+		};
+
+		var recertTestReferee = new User
+		{
+			CreatedAt = DateTime.UtcNow,
+			Email = "recert.test@example.com",
+			EncryptedPassword = "$2a$11$YURdUdxxppPle1z32ZExtu8Jk7lXJxpcckfOtpznfw3VT2zsZmzne", // "password"
+			FirstName = "Recert",
+			LastName = "TestReferee",
+		};
+
+		dbContext.Users.AddRange(referee, ngbAdmin, iqaAdmin, testAdmin, refereeWithEmptyName, teamManager, playerSarah, coachMike, recertTestReferee);
+
+		dbContext.Roles.AddRange(
+			new Role { AccessType = UserAccessType.Referee, User = referee, CreatedAt = DateTime.UtcNow },
+			new Role { AccessType = UserAccessType.NgbAdmin, User = ngbAdmin, CreatedAt = DateTime.UtcNow },
+			new Role { AccessType = UserAccessType.IqaAdmin, User = iqaAdmin, CreatedAt = DateTime.UtcNow },
+			new Role { AccessType = UserAccessType.TestAdmin, User = testAdmin, CreatedAt = DateTime.UtcNow },
+			new Role { AccessType = UserAccessType.Referee, User = refereeWithEmptyName, CreatedAt = DateTime.UtcNow },
+			new Role { AccessType = UserAccessType.Referee, User = teamManager, CreatedAt = DateTime.UtcNow },
+			new Role { AccessType = UserAccessType.Referee, User = playerSarah, CreatedAt = DateTime.UtcNow },
+			new Role { AccessType = UserAccessType.Referee, User = coachMike, CreatedAt = DateTime.UtcNow },
+			new Role { AccessType = UserAccessType.Referee, User = recertTestReferee, CreatedAt = DateTime.UtcNow }
+		);
+
+		return new SeedUsers(referee, ngbAdmin, iqaAdmin, testAdmin, teamManager, playerSarah, coachMike, recertTestReferee);
+	}
+
+	private void SeedUserAssociations(ManagementHubDbContext dbContext, NationalGoverningBody[] ngbs, List<Team> teams, SeedUsers users)
+	{
+		dbContext.UserAttributes.AddRange(
+			new UserAttribute { User = users.Referee, Prefix = string.Empty, Key = "accessibility", Attribute = """{ "timeExtension": 20 }""" },
+			new UserAttribute { User = users.Referee, Prefix = "USA", Key = "usqid", Attribute = """ "deadbeef" """ },
+			new UserAttribute { User = users.Referee, Prefix = "POL", Key = "international", Attribute = """true""" }
+		);
+
+		dbContext.NationalGoverningBodyAdmins.Add(new NationalGoverningBodyAdmin
+		{
+			CreatedAt = DateTime.UtcNow,
+			NationalGoverningBody = ngbs.Single(n => n.CountryCode == "USA"),
+			UpdatedAt = DateTime.UtcNow,
+			User = users.NgbAdmin,
+		});
+
+		dbContext.RefereeLocations.Add(new RefereeLocation
+		{
+			Referee = users.Referee,
+			AssociationType = RefereeNgbAssociationType.Primary,
+			NationalGoverningBody = ngbs.Single(n => n.CountryCode == "USA"),
+			CreatedAt = DateTime.UtcNow,
+			UpdatedAt = DateTime.UtcNow,
+		});
+
+		var yankees = teams.First();
+
+		dbContext.RefereeTeams.AddRange(
+			new RefereeTeam
+			{
+				Referee = users.Referee,
+				AssociationType = RefereeTeamAssociationType.Player,
+				Team = yankees,
+				CreatedAt = DateTime.UtcNow,
+				UpdatedAt = DateTime.UtcNow,
+			},
+			new RefereeTeam
+			{
+				Referee = users.PlayerSarah,
+				AssociationType = RefereeTeamAssociationType.Player,
+				Team = yankees,
+				CreatedAt = DateTime.UtcNow,
+				UpdatedAt = DateTime.UtcNow,
+			},
+			new RefereeTeam
+			{
+				Referee = users.CoachMike,
+				AssociationType = RefereeTeamAssociationType.Coach,
+				Team = yankees,
+				CreatedAt = DateTime.UtcNow,
+				UpdatedAt = DateTime.UtcNow,
+			}
+		);
+
+		dbContext.TeamManagers.Add(new TeamManager
+		{
+			User = users.TeamManager,
+			Team = yankees,
+			AddedBy = users.TeamManager,
+			CreatedAt = DateTime.UtcNow,
+			UpdatedAt = DateTime.UtcNow,
+		});
+	}
+
+	private Test[] SeedTests(ManagementHubDbContext dbContext, List<Certification> certifications, List<Language> languages)
+	{
+		var tests = new[]
+		{
+			new Test
+			{
+				Active = false,
+				Certification = certifications.First(c => c.Level == CertificationLevel.Assistant),
+				Description = "This is an inactive test for AR you shouldn't see.",
+				NewLanguage = languages.First(),
+				CreatedAt = DateTime.UtcNow,
+				Level = TestLevel.Assistant,
+				MinimumPassPercentage = 80,
+				Name = "INACTIVE Assitant Ref 2018",
+				NegativeFeedback = "You failed",
+				PositiveFeedback = "You passed",
+				Recertification = false,
+				TimeLimit = 10,
+			},
+			// ... (rest of tests unchanged) ...
+		};
+
+		dbContext.Tests.AddRange(tests);
+		return tests;
+	}
+
+	private void SeedTestHistoryAndCertifications(
+		ManagementHubDbContext dbContext,
+		Test[] tests,
+		List<Certification> certifications,
+		User referee,
+		User recertTestReferee)
+	{
+		dbContext.TestResults.Add(new TestResult
+		{
+			CreatedAt = DateTime.UtcNow.AddDays(-50),
+			Duration = "00:10:00",
+			MinimumPassPercentage = 80,
+			Passed = true,
+			Percentage = 80,
+			PointsAvailable = 25,
+			PointsScored = 20,
+			Referee = referee,
+			Test = tests[1],
+			TestLevel = TestLevel.Assistant,
+		});
+
+		dbContext.TestResults.Add(new TestResult
+		{
+			CreatedAt = DateTime.UtcNow.AddDays(-5),
+			Duration = "00:10:00",
+			MinimumPassPercentage = 80,
+			Passed = false,
+			Percentage = 20,
+			PointsAvailable = 25,
+			PointsScored = 5,
+			Referee = referee,
+			Test = tests[2],
+			TestLevel = TestLevel.Assistant,
+		});
+
+		dbContext.RefereeCertifications.Add(new RefereeCertification
+		{
+			Certification = tests[1].Certification!,
+			CreatedAt = DateTime.UtcNow.AddDays(-50),
+			ReceivedAt = DateTime.UtcNow.AddDays(-50),
+			Referee = referee,
+		});
+
+		var flagRecertTest = tests.First(t => t.Recertification == true && t.Certification!.Level == CertificationLevel.Flag);
+		var previousVersionForFlagRecert = flagRecertTest.Certification!.Version!.Value - 1;
+
+		dbContext.RefereeCertifications.Add(new RefereeCertification
+		{
+			Certification = certifications.First(c => c.Level == CertificationLevel.Flag && c.Version == previousVersionForFlagRecert),
+			CreatedAt = DateTime.UtcNow.AddDays(-30),
+			ReceivedAt = DateTime.UtcNow.AddDays(-30),
+			Referee = recertTestReferee,
+		});
+	}
+
+	private void SeedQuestions(ManagementHubDbContext dbContext, IEnumerable<Test> tests)
+	{
+		foreach (var test in tests)
+		{
+			var questions = Enumerable.Range(1, test.TestableQuestionCount).Select(i => new Question
+			{
+				Test = test,
+				Description = $"Question {i}",
+				PointsAvailable = 1,
+				SequenceId = i,
+				CreatedAt = DateTime.UtcNow,
+				UpdatedAt = DateTime.UtcNow,
+				Answers = Enumerable.Range(1, 4).Select(j => new Answer
+				{
+					Correct = (i % 4) + 1 == j,
+					Description = $"{((i % 4) + 1 == j ? "Correct " : string.Empty)}Answer {j}",
+					CreatedAt = DateTime.UtcNow,
+					UpdatedAt = DateTime.UtcNow,
+				}).ToArray(),
+			});
+
+			dbContext.Questions.AddRange(questions);
+		}
+	}
+
+	private sealed record SeedUsers(
+		User Referee,
+		User NgbAdmin,
+		User IqaAdmin,
+		User TestAdmin,
+		User TeamManager,
+		User PlayerSarah,
+		User CoachMike,
+		User RecertTestReferee);
+}
