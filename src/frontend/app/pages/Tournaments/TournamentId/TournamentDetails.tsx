@@ -21,6 +21,7 @@ import InviteTeamsModal, {
   InviteTeamsModalRef,
 } from "./InviteTeamsModal";
 import AddTournamentManagerModal from "./AddTournamentManagerModal";
+import TournamentRankingModal from "./TournamentRankingModal";
 import ActionButtonPair from "../../../components/ActionButtonPair";
 import CustomAlert, { AlertType } from "../../../components/CustomAlert";
 import { useAlert } from "../../../hooks/useAlert";
@@ -62,6 +63,8 @@ type ManagerSidebarProps = {
   onOpenAddManager: () => void;
   onDelete: () => void;
   onOpenVolunteerReview: () => void;
+  onOpenRanking: () => void;
+  isTournamentFinished: boolean;
 };
 
 const ManagerSidebar = ({
@@ -74,6 +77,8 @@ const ManagerSidebar = ({
   onOpenAddManager,
   onDelete,
   onOpenVolunteerReview,
+  onOpenRanking,
+  isTournamentFinished,
 }: ManagerSidebarProps) => (
   <>
     <div className="card card-highlighted card-mb card-sticky">
@@ -137,6 +142,21 @@ const ManagerSidebar = ({
       >
         Add Tournament Manager
       </button>
+
+      <button
+        onClick={onOpenRanking}
+        className="btn btn-secondary btn-full-width"
+        style={{ marginTop: "0.75rem" }}
+        disabled={!isTournamentFinished}
+        title={!isTournamentFinished ? "Available after tournament end date" : undefined}
+      >
+        Tournament Ranking
+      </button>
+      {!isTournamentFinished && (
+        <p className="text-xs text-gray-600 mt-2">
+          Ranking becomes available after the tournament end date.
+        </p>
+      )}
 
       <button
         onClick={onDelete}
@@ -372,6 +392,8 @@ type TournamentDetailsContentProps = {
   onRosterSaved: () => void;
   onOpenVolunteerForm: () => void;
   onOpenVolunteerReview: () => void;
+  onOpenRanking: () => void;
+  isTournamentFinished: boolean;
 };
 
 const TournamentDetailsContent = ({
@@ -400,6 +422,8 @@ const TournamentDetailsContent = ({
   onRosterSaved,
   onOpenVolunteerForm,
   onOpenVolunteerReview,
+  onOpenRanking,
+  isTournamentFinished,
 }: TournamentDetailsContentProps) => (
   <>
     {alertState.isVisible && (
@@ -449,6 +473,8 @@ const TournamentDetailsContent = ({
                 onOpenInviteTeams={onOpenInviteTeams}
                 onOpenAddManager={onOpenAddManager}
                 onDelete={onDelete}
+                onOpenRanking={onOpenRanking}
+                isTournamentFinished={isTournamentFinished}
               />
             ) : (
               <UserSidebar
@@ -487,6 +513,31 @@ const TournamentDetailsContent = ({
   </>
 );
 
+const toDateOnlyString = (date: Date): string => {
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, "0");
+  const day = `${date.getDate()}`.padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const extractDateOnlyString = (dateValue?: string | null): string | null => {
+  if (!dateValue) {
+    return null;
+  }
+
+  const match = dateValue.match(/\d{4}-\d{2}-\d{2}/);
+  if (match?.[0]) {
+    return match[0];
+  }
+
+  const parsed = new Date(dateValue);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+
+  return toDateOnlyString(parsed);
+};
+
 const TournamentDetails = () => {
   const { tournamentId } =
     useNavigationParams<"tournamentId">();
@@ -513,6 +564,8 @@ const TournamentDetails = () => {
   const [respondingTo, setRespondingTo] =
     useState<string | null>(null);
   const [isAddManagerModalOpen, setIsAddManagerModalOpen] =
+    useState(false);
+  const [isRankingModalOpen, setIsRankingModalOpen] =
     useState(false);
 
   const { alertState, showAlert, hideAlert } = useAlert();
@@ -828,6 +881,13 @@ const TournamentDetails = () => {
         year: "numeric",
       })}`;
 
+    const todayDateOnly = toDateOnlyString(new Date());
+    const tournamentEndDateOnly =
+      extractDateOnlyString(tournament.endDate) ??
+      extractDateOnlyString(tournament.startDate);
+    const isTournamentFinished =
+      tournamentEndDateOnly !== null && tournamentEndDateOnly <= todayDateOnly;
+
   const handleEdit = () => {
     editModalRef.current?.openEdit({
       id: tournament.id || "",
@@ -912,6 +972,8 @@ const TournamentDetails = () => {
         rosterSectionRef={rosterSectionRef}
         tournamentId={tournamentId || ""}
         onEdit={handleEdit}
+        onOpenRanking={() => setIsRankingModalOpen(true)}
+        isTournamentFinished={isTournamentFinished}
         onOpenRegistrations={() =>
           teamRegistrationsModalRef.current?.open(
             tournament.id || "",
@@ -970,6 +1032,13 @@ const TournamentDetails = () => {
           onClose={() =>
             setIsAddManagerModalOpen(false)
           }
+        />
+      )}
+      {isRankingModalOpen && tournamentId && (
+        <TournamentRankingModal
+          isOpen={isRankingModalOpen}
+          tournamentId={tournamentId}
+          onClose={() => setIsRankingModalOpen(false)}
         />
       )}
     </>

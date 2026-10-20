@@ -37,6 +37,7 @@ const TransferStatusBadge: React.FC<{ status?: TransferApprovalStatus | null }> 
 import { getErrorString } from "../../utils/errorUtils";
 import TeamEditModal from "../../components/modals/TeamEditModal/TeamEditModal";
 import AddManagerModal from "./AddManagerModal";
+import TeamTournamentRankingsSection from "../../components/TeamTournamentRankingsSection";
 import ActionButtonPair from "../../components/ActionButtonPair";
 import Toggle from "../../components/Toggle";
 
@@ -465,6 +466,7 @@ const TeamManagement = () => {
       )}
 
       <TeamManagersSection managers={team.managers} teamId={team.teamId!} />
+      {teamId && <TeamTournamentRankingsSection teamId={teamId} />}
       <TeamMembersSection
         members={team.members}
         groupAffiliation={team.groupAffiliation}
