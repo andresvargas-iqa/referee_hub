@@ -1581,6 +1581,13 @@ public partial class ManagementHubDbContext : DbContext, IDataProtectionKeyConte
 			entity.Property(e => e.IsRegistrationOpen)
 				.HasColumnName("is_registration_open");
 
+			entity.Property(e => e.AllowsIndividualRegistration)
+				.HasColumnName("allows_individual_registration")
+				.HasDefaultValue(false);
+
+			entity.Property(e => e.AllowsTeamRegistration)
+				.HasColumnName("allows_team_registration")
+				.HasDefaultValue(true);
 			entity.Property(e => e.IsVolunteerRegistrationOpen)
 				.HasColumnName("is_volunteer_registration_open");
 

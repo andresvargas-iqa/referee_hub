@@ -948,12 +948,25 @@ public class TournamentsController : ControllerBase
 			response.Approved,
 			this.HttpContext.RequestAborted);
 
-		// Reload to check if fully approved
+		// Reload to check status
 		var updatedInvite = await this.tournamentContextProvider
 			.GetInviteByParticipantIdAsync(tournamentId, parsedParticipantId, this.HttpContext.RequestAborted);
+
+		if (updatedInvite == null)
+		{
+			return this.NotFound(new { error = "Invite not found after update" });
+		}
+
+		// If this is a referee/volunteer invite, never create a team participant.
+		if (updatedInvite.ParticipantType == ParticipantType.Referee)
+		{
+			return this.Ok(MapInviteToViewModel(updatedInvite));
+		}
+
+		// For team invites, add participant when fully approved
 		await this.AddTeamParticipantIfInviteApproved(updatedInvite, tournamentId, parsedTeamId);
 
-		return this.Ok();
+		return this.Ok(MapInviteToViewModel(updatedInvite));
 	}
 
 	/// <summary>
@@ -1470,6 +1483,3 @@ public class TournamentsController : ControllerBase
 		};
 	}
 }
-
-
-
