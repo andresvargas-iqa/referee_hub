@@ -1200,6 +1200,39 @@ public class TournamentApiIntegrationTests : IClassFixture<TestWebApplicationFac
 	}
 
 	[Fact]
+	public async Task FantasyIndividualRegistration_WhenRegistrationClosed_ShouldReturnBadRequest()
+	{
+		await AuthenticationHelper.AuthenticateAsAsync(this._client, "referee@example.com", "password");
+		var createResponse = await this._client.PostAsJsonAsync("/api/v2/tournaments", new TournamentModel
+		{
+			Name = "Fantasy Closed Registration Test",
+			Description = "Individual registration while closed",
+			StartDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(30)),
+			EndDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(32)),
+			Type = TournamentType.Fantasy,
+			Country = "USA",
+			City = "Portland",
+			Organizer = "Test Organizer",
+			IsPrivate = false,
+			IsRegistrationOpen = false,
+			AllowsTeamRegistration = true,
+			AllowsIndividualRegistration = true,
+		});
+		createResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+		var tournamentId = (await createResponse.Content.ReadFromJsonAsync<TournamentIdResponseDto>())!.Id;
+
+		await AuthenticationHelper.AuthenticateAsAsync(this._client, "team_manager@example.com", "password");
+		var currentUser = await (await this._client.GetAsync("/api/v2/users/me")).Content.ReadFromJsonAsync<JsonElement>();
+		var playerId = currentUser.GetProperty("userId").GetString();
+
+		var registrationResponse = await this._client.PostAsJsonAsync(
+			$"/api/v2/tournaments/{tournamentId}/invites",
+			new CreateInviteModel { ParticipantType = ParticipantType.Player, ParticipantId = TournamentParticipantIdentifier.ForPlayer(UserIdentifier.Parse(playerId!)) });
+		registrationResponse.StatusCode.Should().Be(HttpStatusCode.BadRequest,
+			"individual registration should be rejected while tournament registration is closed");
+	}
+
+	[Fact]
 	public async Task FantasyIndividualRegistration_CanBeSubmittedReviewedAndRemoved()
 	{
 		await AuthenticationHelper.AuthenticateAsAsync(this._client, "referee@example.com", "password");
@@ -1214,6 +1247,7 @@ public class TournamentApiIntegrationTests : IClassFixture<TestWebApplicationFac
 			City = "Portland",
 			Organizer = "Test Organizer",
 			IsPrivate = false,
+			IsRegistrationOpen = true,
 			AllowsTeamRegistration = true,
 			AllowsIndividualRegistration = true,
 		});
