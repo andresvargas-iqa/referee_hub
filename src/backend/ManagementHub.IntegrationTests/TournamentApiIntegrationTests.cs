@@ -1158,31 +1158,45 @@ public class TournamentApiIntegrationTests : IClassFixture<TestWebApplicationFac
 	[Fact]
 	public async Task GetFantasyTournament_ShouldReturnRegistrationTypeFields()
 	{
-		// Use the seeded Fantasy tournament
 		await AuthenticationHelper.AuthenticateAsAsync(this._client, "referee@example.com", "password");
 
-		// Get all tournaments and find the Fantasy one
-		var listResponse = await this._client.GetAsync("/api/v2/tournaments");
+		var createModel = new TournamentModel
+		{
+			Name = "Fantasy Registration Fields Test",
+			Description = "Fantasy tournament allowing only individual registration",
+			StartDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(30)),
+			EndDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(32)),
+			Type = TournamentType.Fantasy,
+			Country = "USA",
+			City = "Portland",
+			Organizer = "Test Organizer",
+			IsPrivate = false,
+			AllowsTeamRegistration = false,
+			AllowsIndividualRegistration = true,
+		};
+
+		var createResponse = await this._client.PostAsJsonAsync("/api/v2/tournaments", createModel);
+		createResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+		var tournamentIdResponse = await createResponse.Content.ReadFromJsonAsync<TournamentIdResponseDto>();
+		var fantasyId = tournamentIdResponse!.Id;
+
+		// The tournament should be listed with its Fantasy type
+		var listResponse = await this._client.GetAsync("/api/v2/tournaments?SkipPaging=true");
 		listResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
 		var listJson = await listResponse.Content.ReadFromJsonAsync<JsonElement>();
-		var items = listJson.GetProperty("items").EnumerateArray().ToList();
+		var fantasyTournament = listJson.GetProperty("items").EnumerateArray().FirstOrDefault(t =>
+			t.TryGetProperty("id", out var idEl) && idEl.GetString() == fantasyId);
 
-		var fantasyTournament = items.FirstOrDefault(t =>
-			t.TryGetProperty("type", out var typeEl) &&
-			typeEl.GetString() == "Fantasy");
-
-		fantasyTournament.ValueKind.Should().NotBe(JsonValueKind.Undefined, "seeded Fantasy tournament should be present");
-
-		var fantasyId = fantasyTournament.GetProperty("id").GetString();
-		fantasyId.Should().NotBeNullOrEmpty();
+		fantasyTournament.ValueKind.Should().NotBe(JsonValueKind.Undefined, "created Fantasy tournament should be listed");
+		fantasyTournament.GetProperty("type").GetString().Should().Be("Fantasy");
 
 		var getResponse = await this._client.GetAsync($"/api/v2/tournaments/{fantasyId}");
 		getResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
 		var tournament = await getResponse.Content.ReadFromJsonAsync<TournamentViewModelDto>();
-		tournament!.AllowsTeamRegistration.Should().BeTrue("seeded Fantasy tournament allows team registration");
-		tournament!.AllowsIndividualRegistration.Should().BeTrue("seeded Fantasy tournament allows individual registration");
+		tournament!.AllowsTeamRegistration.Should().BeFalse("tournament was created without team registration");
+		tournament!.AllowsIndividualRegistration.Should().BeTrue("tournament was created with individual registration");
 	}
 
 	[Fact]
