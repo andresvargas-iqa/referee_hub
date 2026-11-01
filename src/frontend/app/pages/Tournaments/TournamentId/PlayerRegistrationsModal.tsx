@@ -109,4 +109,6 @@ const PlayerRegistrationsModal = forwardRef<PlayerRegistrationsModalRef>((_props
   );
 });
 
+PlayerRegistrationsModal.displayName = "PlayerRegistrationsModal";
+
 export default PlayerRegistrationsModal;
