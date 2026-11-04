@@ -39,6 +39,11 @@ public class TournamentParticipantIdentifierJsonConverter : JsonConverter<Tourna
 			{
 				return refereeParticipant;
 			}
+
+			if (TryReadPlayerParticipant(root, out var playerParticipant))
+			{
+				return playerParticipant;
+			}
 		}
 
 		throw new JsonException($"Could not read a {nameof(TournamentParticipantIdentifier)}.");
@@ -97,6 +102,25 @@ public class TournamentParticipantIdentifierJsonConverter : JsonConverter<Tourna
 		if (TryReadUserIdentifier(root, "participantId", out userId))
 		{
 			participantIdentifier = TournamentParticipantIdentifier.ForReferee(userId);
+			return true;
+		}
+
+		return false;
+	}
+
+	private static bool TryReadPlayerParticipant(JsonElement root, out TournamentParticipantIdentifier participantIdentifier)
+	{
+		participantIdentifier = default;
+
+		if (TryReadParticipantType(root, out var participantType) && participantType != ParticipantType.Player)
+		{
+			return false;
+		}
+
+		if (TryReadUserIdentifier(root, "userId", out var userId) ||
+			TryReadUserIdentifier(root, "participantId", out userId))
+		{
+			participantIdentifier = TournamentParticipantIdentifier.ForPlayer(userId);
 			return true;
 		}
 

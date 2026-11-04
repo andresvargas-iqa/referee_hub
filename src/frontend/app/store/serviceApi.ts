@@ -633,6 +633,7 @@ const injectedRtkApi = api
           url: `/api/v2/Tournaments/${queryArg.tournamentId}/invites/${queryArg.participantId}`,
           method: "POST",
           body: queryArg.inviteResponseModel,
+          params: { participantType: queryArg.participantType },
         }),
         invalidatesTags: ["Tournament"],
       }),
@@ -1172,6 +1173,7 @@ export type RespondToInviteApiResponse = /** status 200 Success */ void;
 export type RespondToInviteApiArg = {
   tournamentId: string;
   participantId: string;
+  participantType?: ParticipantType;
   inviteResponseModel: InviteResponseModel;
 };
 export type DeleteInviteApiResponse = /** status 200 Success */ void;
@@ -1724,7 +1726,7 @@ export type TeamMemberViewModelFiltered = {
   metadata?: FilteringMetadata;
   items?: TeamMemberViewModel[] | null;
 };
-export type ParticipantType = "team" | "referee";
+export type ParticipantType = "team" | "referee" | "player";
 export type InviteStatus = "pending" | "approved" | "rejected";
 export type ApprovalStatus = "pending" | "approved" | "rejected";
 export type ApprovalStatusViewModel = {
@@ -1903,6 +1905,8 @@ export type TournamentViewModel = {
   organizer?: string | null;
   isPrivate?: boolean;
   isRegistrationOpen?: boolean;
+  allowsIndividualRegistration?: boolean;
+  allowsTeamRegistration?: boolean;
   isVolunteerRegistrationOpen?: boolean;
   id?: string;
   bannerImageUrl?: string | null;
@@ -1928,6 +1932,8 @@ export type TournamentModel = {
   organizer?: string | null;
   isPrivate?: boolean;
   isRegistrationOpen?: boolean;
+  allowsIndividualRegistration?: boolean;
+  allowsTeamRegistration?: boolean;
   isVolunteerRegistrationOpen?: boolean;
 };
 export type TournamentManagerViewModel = {

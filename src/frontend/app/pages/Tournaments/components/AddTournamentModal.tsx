@@ -25,6 +25,8 @@ interface Tournament {
   organizer?: string;
   isPrivate: boolean;
   isRegistrationOpen?: boolean;
+  allowsIndividualRegistration?: boolean;
+  allowsTeamRegistration?: boolean;
   isVolunteerRegistrationOpen?: boolean;
   bannerImageUrl?: string;
 }
@@ -54,6 +56,8 @@ const AddTournamentModal = forwardRef<AddTournamentModalRef>((_props, ref) => {
     organizer: "",
     isPrivate: false,
     isRegistrationOpen: true,
+    allowsIndividualRegistration: false,
+    allowsTeamRegistration: true,
     isVolunteerRegistrationOpen: true,
     bannerImageUrl: "",
   };
@@ -80,6 +84,10 @@ const AddTournamentModal = forwardRef<AddTournamentModalRef>((_props, ref) => {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (formData.type === "Fantasy" && !formData.allowsTeamRegistration && !formData.allowsIndividualRegistration) {
+      showAlert("A Fantasy tournament must allow team registration, individual registration, or both.", "error");
+      return;
+    }
     try {
       if (isEditMode) {
         if (!formData.id) {
@@ -101,6 +109,8 @@ const AddTournamentModal = forwardRef<AddTournamentModalRef>((_props, ref) => {
             organizer: formData.organizer,
             isPrivate: formData.isPrivate,
             isRegistrationOpen: formData.isRegistrationOpen ?? true,
+            allowsIndividualRegistration: formData.allowsIndividualRegistration ?? false,
+            allowsTeamRegistration: formData.allowsTeamRegistration ?? true,
             isVolunteerRegistrationOpen: formData.isVolunteerRegistrationOpen ?? true,
           },
         }).unwrap();
@@ -119,6 +129,8 @@ const AddTournamentModal = forwardRef<AddTournamentModalRef>((_props, ref) => {
             organizer: formData.organizer,
             isPrivate: formData.isPrivate,
             isRegistrationOpen: formData.isRegistrationOpen ?? true,
+            allowsIndividualRegistration: formData.allowsIndividualRegistration ?? false,
+            allowsTeamRegistration: formData.allowsTeamRegistration ?? true,
             isVolunteerRegistrationOpen: formData.isVolunteerRegistrationOpen ?? true,
           },
         }).unwrap();
@@ -279,12 +291,12 @@ const AddTournamentModal = forwardRef<AddTournamentModalRef>((_props, ref) => {
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Volunteer Registration
                   </label>
-                
+
                   <div className="flex items-center justify-end">
                     <span className="mr-3 text-sm text-gray-600">
                       {formData.isVolunteerRegistrationOpen ? "Open" : "Closed"}
                     </span>
-                
+
                     <Toggle
                       name="isVolunteerRegistrationOpen"
                       checked={formData.isVolunteerRegistrationOpen ?? true}
@@ -296,7 +308,7 @@ const AddTournamentModal = forwardRef<AddTournamentModalRef>((_props, ref) => {
                       }
                     />
                   </div>
-                
+
                   <p className="mt-2 text-xs text-gray-500 text-right">
                     Allow referees and volunteers to register for this tournament
                   </p>
@@ -371,6 +383,32 @@ const AddTournamentModal = forwardRef<AddTournamentModalRef>((_props, ref) => {
                   <option value="Fantasy">Fantasy</option>
                 </select>
               </div>
+
+              {formData.type === "Fantasy" && (
+                <div className="rounded border border-amber-200 bg-amber-50 p-3">
+                  <p className="mb-2 text-xs font-semibold text-amber-900">
+                    Fantasy Registration Types
+                  </p>
+                  <label className="mb-2 flex items-center text-sm text-gray-800">
+                    <input
+                      type="checkbox"
+                      checked={formData.allowsTeamRegistration ?? true}
+                      onChange={(event) => setFormData({ ...formData, allowsTeamRegistration: event.target.checked })}
+                      className="mr-2 h-4 w-4"
+                    />
+                    Allow team registration
+                  </label>
+                  <label className="flex items-center text-sm text-gray-800">
+                    <input
+                      type="checkbox"
+                      checked={formData.allowsIndividualRegistration ?? false}
+                      onChange={(event) => setFormData({ ...formData, allowsIndividualRegistration: event.target.checked })}
+                      className="mr-2 h-4 w-4"
+                    />
+                    Allow individual registration
+                  </label>
+                </div>
+              )}
 
               <div className="grid grid-cols-3 gap-4">
                 <div>

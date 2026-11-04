@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -685,23 +685,6 @@ public class EnsureDatabaseSeededForTesting : DatabaseStartupService
 			new Tournament
 			{
 				UniqueId = Models.Domain.Tournament.TournamentIdentifier.NewTournamentId().ToString(),
-				Name = "World Cup 2024",
-				Description = "International national teams championship",
-				Type = TournamentType.National,
-				StartDate = new DateOnly(2024, 7, 20),
-				EndDate = new DateOnly(2024, 7, 23),
-				Country = "USA",
-				City = "Minneapolis",
-				Organizer = "IQA",
-				IsPrivate = false,
-				IsRegistrationOpen = true,
-				IsVolunteerRegistrationOpen = true,
-				CreatedAt = DateTime.UtcNow,
-				UpdatedAt = DateTime.UtcNow,
-			},
-			new Tournament
-			{
-				UniqueId = Models.Domain.Tournament.TournamentIdentifier.NewTournamentId().ToString(),
 				Name = "Youth Quidditch Championship 2024",
 				Description = "Youth development tournament for players under 18",
 				Type = TournamentType.Youth,
@@ -710,23 +693,6 @@ public class EnsureDatabaseSeededForTesting : DatabaseStartupService
 				Country = "USA",
 				City = "Chicago",
 				Organizer = "US Quadball Youth",
-				IsPrivate = false,
-				IsRegistrationOpen = true,
-				IsVolunteerRegistrationOpen = true,
-				CreatedAt = DateTime.UtcNow,
-				UpdatedAt = DateTime.UtcNow,
-			},
-			new Tournament
-			{
-				UniqueId = Models.Domain.Tournament.TournamentIdentifier.NewTournamentId().ToString(),
-				Name = "Fantasy Tournament 2027",
-				Description = "Fun fantasy league tournament - Future event for testing team registration",
-				Type = TournamentType.Fantasy,
-				StartDate = new DateOnly(2027, 9, 5),
-				EndDate = new DateOnly(2027, 9, 7),
-				Country = "USA",
-				City = "Portland",
-				Organizer = "Fantasy Quadball League",
 				IsPrivate = false,
 				IsRegistrationOpen = true,
 				IsVolunteerRegistrationOpen = true,
