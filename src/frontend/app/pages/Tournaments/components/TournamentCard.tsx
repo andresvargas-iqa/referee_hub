@@ -12,6 +12,7 @@ interface TournamentCardProps {
   location: string;
   bannerImageUrl?: string;
   organizer?: string;
+  hasPublishedRanking?: boolean;
   showVolunteerRegistrationBadge?: boolean;
   onClick?: () => void;
 }
@@ -30,6 +31,7 @@ const TournamentCard: React.FC<TournamentCardProps> = ({
   location,
   bannerImageUrl,
   organizer,
+  hasPublishedRanking,
   showVolunteerRegistrationBadge,
   onClick,
 }) => {
@@ -48,7 +50,10 @@ const TournamentCard: React.FC<TournamentCardProps> = ({
       <div className="card-content">
         <div className="card-header">
           <span className="card-type">{typeName}</span>
-          <span className="card-date">{dateText}</span>
+          <div className="card-header-right">
+            {hasPublishedRanking && <span className="card-ranking-badge">Ranking Published</span>}
+            <span className="card-date">{dateText}</span>
+          </div>
         </div>
         {showVolunteerRegistrationBadge && (
           <div className="card-registration-badge">Searching for volunteers</div>

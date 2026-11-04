@@ -14,6 +14,7 @@ interface SidebarProps {
   onOpenRegistrations: () => void;
   onInviteTeams: () => void;
   onAddManager: () => void;
+  onOpenRanking: () => void;
   onDelete: () => void;
   onContactOrganizer: () => void;
   onRegister: () => void;
@@ -21,6 +22,7 @@ interface SidebarProps {
   totalPlayerCount: number;
   invitesCount: number;
   isPrivate: boolean;
+  isTournamentFinished: boolean;
 }
 
 export const TournamentDetailsSidebar: React.FC<SidebarProps> = ({
@@ -35,6 +37,7 @@ export const TournamentDetailsSidebar: React.FC<SidebarProps> = ({
   onOpenRegistrations,
   onInviteTeams,
   onAddManager,
+  onOpenRanking,
   onDelete,
   onContactOrganizer,
   onRegister,
@@ -42,6 +45,7 @@ export const TournamentDetailsSidebar: React.FC<SidebarProps> = ({
   totalPlayerCount,
   invitesCount,
   isPrivate,
+  isTournamentFinished,
 }) => {
   if (isTournamentManager) {
     return (
@@ -72,6 +76,20 @@ export const TournamentDetailsSidebar: React.FC<SidebarProps> = ({
           <button onClick={onAddManager} className="btn btn-secondary btn-full-width">
             Add Tournament Manager
           </button>
+          <button
+            onClick={onOpenRanking}
+            className="btn btn-secondary btn-full-width"
+            style={{ marginTop: "0.75rem" }}
+            disabled={!isTournamentFinished}
+            title={!isTournamentFinished ? "Available after tournament end date" : undefined}
+          >
+            Tournament Ranking
+          </button>
+          {!isTournamentFinished && (
+            <p className="text-xs text-gray-600 mt-2">
+              Ranking becomes available after the tournament end date.
+            </p>
+          )}
           <button onClick={onDelete} className="btn btn-danger btn-full-width" style={{ marginTop: "0.75rem" }}>
             Delete Tournament
           </button>

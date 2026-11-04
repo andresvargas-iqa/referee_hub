@@ -1890,6 +1890,49 @@ namespace ManagementHub.Storage.Migrations
                     b.ToTable("tournament_team_participants", (string)null);
                 });
 
+            modelBuilder.Entity("ManagementHub.Models.Data.TournamentTeamRanking", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<int>("RankingPosition")
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("ranking_position");
+
+                    b.Property<long>("TeamId")
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("team_id");
+
+                    b.Property<long>("TournamentId")
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("tournament_id");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TeamId");
+
+                    b.HasIndex(new[] { "TournamentId", "RankingPosition" }, "index_tournament_team_rankings_on_tournament_and_position");
+
+                    b.HasIndex(new[] { "TournamentId", "TeamId" }, "index_tournament_team_rankings_on_tournament_and_team")
+                        .IsUnique();
+
+                    b.ToTable("tournament_team_rankings", (string)null);
+                });
+
             modelBuilder.Entity("ManagementHub.Models.Data.TournamentTeamRosterEntry", b =>
                 {
                     b.Property<long>("Id")
@@ -2712,6 +2755,27 @@ namespace ManagementHub.Storage.Migrations
                     b.Navigation("Tournament");
                 });
 
+            modelBuilder.Entity("ManagementHub.Models.Data.TournamentTeamRanking", b =>
+                {
+                    b.HasOne("ManagementHub.Models.Data.Team", "Team")
+                        .WithMany()
+                        .HasForeignKey("TeamId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_tournament_team_rankings_team");
+
+                    b.HasOne("ManagementHub.Models.Data.Tournament", "Tournament")
+                        .WithMany("TournamentTeamRankings")
+                        .HasForeignKey("TournamentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_tournament_team_rankings_tournament");
+
+                    b.Navigation("Team");
+
+                    b.Navigation("Tournament");
+                });
+
             modelBuilder.Entity("ManagementHub.Models.Data.TournamentTeamRosterEntry", b =>
                 {
                     b.HasOne("ManagementHub.Models.Data.TournamentTeamParticipant", "Participant")
@@ -2860,6 +2924,8 @@ namespace ManagementHub.Storage.Migrations
                     b.Navigation("TournamentManagers");
 
                     b.Navigation("TournamentTeamParticipants");
+
+                    b.Navigation("TournamentTeamRankings");
                 });
 
             modelBuilder.Entity("ManagementHub.Models.Data.TournamentTeamParticipant", b =>
