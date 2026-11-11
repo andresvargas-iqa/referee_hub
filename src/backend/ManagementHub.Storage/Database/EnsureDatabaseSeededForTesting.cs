@@ -441,17 +441,17 @@ public class EnsureDatabaseSeededForTesting : DatabaseStartupService
 
 		if (index % 7 == 0)
 		{
-			originApproval.RejectedAt = createdAt.AddMinutes(20 + index % 10);
+			originApproval.RejectedAt = createdAt.AddMinutes(20 + (index % 10));
 			originApproval.ReviewedByUser = users.NgbAdmin;
 		}
 		else
 		{
-			originApproval.ApprovedAt = createdAt.AddMinutes(10 + index % 20);
+			originApproval.ApprovedAt = createdAt.AddMinutes(10 + (index % 20));
 			originApproval.ReviewedByUser = users.NgbAdmin;
 
 			if (index % 2 == 0)
 			{
-				destinationApproval.ApprovedAt = createdAt.AddMinutes(40 + index % 20);
+				destinationApproval.ApprovedAt = createdAt.AddMinutes(40 + (index % 20));
 				destinationApproval.ReviewedByUser = users.NgbAdmin;
 			}
 		}
