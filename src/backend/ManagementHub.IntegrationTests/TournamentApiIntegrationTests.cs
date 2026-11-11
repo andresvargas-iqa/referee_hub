@@ -1170,6 +1170,7 @@ public class TournamentApiIntegrationTests : IClassFixture<TestWebApplicationFac
 			City = "Portland",
 			Organizer = "Test Organizer",
 			IsPrivate = false,
+			IsRegistrationOpen = true,
 			AllowsTeamRegistration = true,
 			AllowsIndividualRegistration = true,
 		});
@@ -1191,7 +1192,8 @@ public class TournamentApiIntegrationTests : IClassFixture<TestWebApplicationFac
 		var registrationResponse = await this._client.PostAsJsonAsync(
 			$"/api/v2/tournaments/{tournamentId}/invites",
 			new CreateInviteModel { ParticipantType = ParticipantType.Player, ParticipantId = TournamentParticipantIdentifier.ForPlayer(UserIdentifier.Parse(playerId!)) });
-		registrationResponse.StatusCode.Should().Be(HttpStatusCode.Created);
+		var registrationError = await registrationResponse.Content.ReadAsStringAsync();
+		registrationResponse.StatusCode.Should().Be(HttpStatusCode.Created, registrationError);
 
 		var ownInvitesResponse = await this._client.GetAsync($"/api/v2/tournaments/{tournamentId}/invites");
 		ownInvitesResponse.StatusCode.Should().Be(HttpStatusCode.OK);

@@ -92,6 +92,7 @@ public class NotificationsApiIntegrationTests : IClassFixture<TestWebApplication
 			City = "Portland",
 			Organizer = "Test Organizer",
 			IsPrivate = false,
+			IsRegistrationOpen = true,
 			AllowsTeamRegistration = true,
 			AllowsIndividualRegistration = true,
 		});
