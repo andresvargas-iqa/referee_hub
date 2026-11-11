@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -103,7 +103,6 @@ public class EnsureDatabaseSeededForTesting : DatabaseStartupService
 			this.additionalSeedTransfers);
 
 		var now = DateTime.UtcNow;
-		var random = new Random(421337);
 		const string passwordHash = "$2a$11$YURdUdxxppPle1z32ZExtu8Jk7lXJxpcckfOtpznfw3VT2zsZmzne";
 
 		var extraReferees = this.CreateExtraReferees(now, passwordHash);
@@ -113,7 +112,7 @@ public class EnsureDatabaseSeededForTesting : DatabaseStartupService
 		var seedData = new AdditionalSeedData(this.additionalSeedTeamInvites, this.additionalSeedTransfers);
 
 		this.SeedAdditionalTeamInvites(dbContext, teams, users, inviteTargets, now, seedData);
-		this.SeedAdditionalTransfers(teams, users, inviteTargets, now, random, seedData);
+		this.SeedAdditionalTransfers(teams, users, inviteTargets, now, seedData);
 
 		dbContext.TeamInvitations.AddRange(seedData.TeamInvitations);
 		dbContext.TeamPlayerActivities.AddRange(seedData.TeamPlayerActivities);
@@ -301,7 +300,6 @@ public class EnsureDatabaseSeededForTesting : DatabaseStartupService
 		SeedUsers users,
 		IReadOnlyList<User> inviteTargets,
 		DateTime now,
-		Random random,
 		AdditionalSeedData seedData)
 	{
 		var eligibleTransferTeams = teams
@@ -375,7 +373,7 @@ public class EnsureDatabaseSeededForTesting : DatabaseStartupService
 				});
 			}
 
-			this.AddTransferApprovalsForInvite(seedData.TransferApprovals, transferInvite, originNgb, destinationNgb, createdAt, random, users, i);
+			this.AddTransferApprovalsForInvite(seedData.TransferApprovals, transferInvite, originNgb, destinationNgb, createdAt, users, i);
 		}
 	}
 
@@ -408,7 +406,6 @@ public class EnsureDatabaseSeededForTesting : DatabaseStartupService
 		NationalGoverningBody originNgb,
 		NationalGoverningBody destinationNgb,
 		DateTime createdAt,
-		Random random,
 		SeedUsers users,
 		int index)
 	{
@@ -444,17 +441,17 @@ public class EnsureDatabaseSeededForTesting : DatabaseStartupService
 
 		if (index % 7 == 0)
 		{
-			originApproval.RejectedAt = createdAt.AddMinutes(20 + random.Next(10));
+			originApproval.RejectedAt = createdAt.AddMinutes(20 + (index % 10));
 			originApproval.ReviewedByUser = users.NgbAdmin;
 		}
 		else
 		{
-			originApproval.ApprovedAt = createdAt.AddMinutes(10 + random.Next(20));
+			originApproval.ApprovedAt = createdAt.AddMinutes(10 + (index % 20));
 			originApproval.ReviewedByUser = users.NgbAdmin;
 
 			if (index % 2 == 0)
 			{
-				destinationApproval.ApprovedAt = createdAt.AddMinutes(40 + random.Next(20));
+				destinationApproval.ApprovedAt = createdAt.AddMinutes(40 + (index % 20));
 				destinationApproval.ReviewedByUser = users.NgbAdmin;
 			}
 		}
@@ -729,6 +726,8 @@ public class EnsureDatabaseSeededForTesting : DatabaseStartupService
 				Organizer = "Fantasy Quadball League",
 				IsPrivate = false,
 				IsRegistrationOpen = true,
+				AllowsTeamRegistration = true,
+				AllowsIndividualRegistration = true,
 				IsVolunteerRegistrationOpen = true,
 				CreatedAt = DateTime.UtcNow,
 				UpdatedAt = DateTime.UtcNow,

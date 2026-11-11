@@ -11,7 +11,7 @@ namespace ManagementHub.Storage.Database;
 /// Base class for <see cref="EnsureDatabaseCreatedService"/> and <see cref="EnsureDatabaseMigratedService"/>
 /// which encapsulates creating the db context for database related operations.
 /// </summary>
-public abstract class DatabaseStartupService : BackgroundService
+public abstract class DatabaseStartupService : IHostedService
 {
 	private readonly IServiceProvider serviceProvider;
 	protected readonly ILogger logger;
@@ -22,12 +22,14 @@ public abstract class DatabaseStartupService : BackgroundService
 		this.logger = logger;
 	}
 
-	protected sealed override async Task ExecuteAsync(CancellationToken stoppingToken)
+	public async Task StartAsync(CancellationToken cancellationToken)
 	{
 		await using var scope = this.serviceProvider.CreateAsyncScope();
 		var dbContext = scope.ServiceProvider.GetRequiredService<ManagementHubDbContext>();
-		await this.ExecuteAsync(dbContext, stoppingToken);
+		await this.ExecuteAsync(dbContext, cancellationToken);
 	}
+
+	public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
 	protected abstract Task ExecuteAsync(ManagementHubDbContext dbContext, CancellationToken stoppingToken);
 }

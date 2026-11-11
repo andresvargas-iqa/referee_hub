@@ -48,7 +48,7 @@ public class TournamentsController : ControllerBase
 	private readonly ISendTournamentInviteEmail sendTournamentInviteEmail;
 	private readonly IRefreshPublicTournamentSnapshotCommand refreshPublicTournamentSnapshotCommand;
 	private readonly INotificationService notificationService;
-	
+
 	private readonly ManagementHubDbContext dbContext;
 	private readonly Microsoft.Extensions.Logging.ILogger<TournamentsController> logger;
 
@@ -63,7 +63,7 @@ public class TournamentsController : ControllerBase
 		ISendTournamentInviteEmail sendTournamentInviteEmail,
 		IRefreshPublicTournamentSnapshotCommand refreshPublicTournamentSnapshotCommand,
 		INotificationService notificationService,
-		
+
 		ManagementHubDbContext dbContext,
 		Microsoft.Extensions.Logging.ILogger<TournamentsController> logger)
 	{
@@ -77,7 +77,7 @@ public class TournamentsController : ControllerBase
 		this.sendTournamentInviteEmail = sendTournamentInviteEmail;
 		this.refreshPublicTournamentSnapshotCommand = refreshPublicTournamentSnapshotCommand;
 		this.notificationService = notificationService;
-		
+
 		this.dbContext = dbContext;
 		this.logger = logger;
 	}
@@ -125,6 +125,8 @@ public class TournamentsController : ControllerBase
 			Organizer = t.Organizer,
 			IsPrivate = t.IsPrivate,
 			IsRegistrationOpen = t.IsRegistrationOpen,
+			AllowsIndividualRegistration = t.AllowsIndividualRegistration,
+			AllowsTeamRegistration = t.AllowsTeamRegistration,
 			IsVolunteerRegistrationOpen = t.IsVolunteerRegistrationOpen,
 			BannerImageUrl = bannerUrls.TryGetValue(t.Id, out var uri) ? uri?.ToString() : null,
 			IsCurrentUserInvolved = t.IsCurrentUserInvolved
@@ -171,6 +173,8 @@ public class TournamentsController : ControllerBase
 			Organizer = tournament.Organizer,
 			IsPrivate = tournament.IsPrivate,
 			IsRegistrationOpen = tournament.IsRegistrationOpen,
+			AllowsIndividualRegistration = tournament.AllowsIndividualRegistration,
+			AllowsTeamRegistration = tournament.AllowsTeamRegistration,
 			IsVolunteerRegistrationOpen = tournament.IsVolunteerRegistrationOpen,
 			BannerImageUrl = bannerUri?.ToString(),
 			IsCurrentUserInvolved = tournament.IsCurrentUserInvolved
@@ -187,6 +191,12 @@ public class TournamentsController : ControllerBase
 	{
 		var userContext = await this.contextAccessor.GetCurrentUserContextAsync();
 
+		if (model.Type == TournamentType.Fantasy &&
+			!model.AllowsTeamRegistration && !model.AllowsIndividualRegistration)
+		{
+			return this.BadRequest(new { error = "A Fantasy tournament must allow at least one registration type (team or individual)" });
+		}
+
 		var tournamentData = new TournamentData
 		{
 			Name = model.Name,
@@ -201,6 +211,8 @@ public class TournamentsController : ControllerBase
 			Organizer = model.Organizer,
 			IsPrivate = model.IsPrivate,
 			IsRegistrationOpen = model.IsRegistrationOpen,
+			AllowsIndividualRegistration = model.AllowsIndividualRegistration,
+			AllowsTeamRegistration = model.AllowsTeamRegistration,
 			IsVolunteerRegistrationOpen = model.IsVolunteerRegistrationOpen
 		};
 
@@ -223,6 +235,12 @@ public class TournamentsController : ControllerBase
 		[FromRoute] TournamentIdentifier tournamentId,
 		[FromBody] TournamentModel model)
 	{
+		if (model.Type == TournamentType.Fantasy &&
+			!model.AllowsTeamRegistration && !model.AllowsIndividualRegistration)
+		{
+			return this.BadRequest(new { error = "A Fantasy tournament must allow at least one registration type (team or individual)" });
+		}
+
 		var tournamentData = new TournamentData
 		{
 			Name = model.Name,
@@ -237,6 +255,8 @@ public class TournamentsController : ControllerBase
 			Organizer = model.Organizer,
 			IsPrivate = model.IsPrivate,
 			IsRegistrationOpen = model.IsRegistrationOpen,
+			AllowsIndividualRegistration = model.AllowsIndividualRegistration,
+			AllowsTeamRegistration = model.AllowsTeamRegistration,
 			IsVolunteerRegistrationOpen = model.IsVolunteerRegistrationOpen
 		};
 
@@ -437,40 +457,24 @@ public class TournamentsController : ControllerBase
 		var isTournamentManager = userContext.Roles.OfType<TournamentManagerRole>()
 			.Any(r => r.Tournament.AppliesTo(tournamentId));
 
-		var isTeamManager = userContext.Roles.OfType<TeamManagerRole>().Any();
-
-		// Only tournament managers or team managers can view invites
-		if (!isTournamentManager && !isTeamManager)
-		{
-			return Array.Empty<TournamentInviteViewModel>();
-		}
-
-		// Managers see all invites, team managers see only their own
+		// Tournament managers see all invites; other users only see their own registration.
 		UserIdentifier? filterByParticipant = isTournamentManager ? null : userContext.UserId;
 
 		var invites = await this.tournamentContextProvider.GetTournamentInvitesAsync(
 			tournamentId, filterByParticipant, this.HttpContext.RequestAborted);
 
-		return invites.Select(i => new TournamentInviteViewModel
+		var result = new List<TournamentInviteViewModel>();
+		foreach (var invite in invites)
 		{
-			ParticipantType = i.ParticipantType,
-			ParticipantId = i.ParticipantId,
-			ParticipantName = i.ParticipantName,
-			Observations = i.Observations,
-			Status = i.GetStatus(),
-			InitiatorUserId = i.InitiatorUserId,
-			CreatedAt = i.CreatedAt,
-			TournamentManagerApproval = new ApprovalStatusViewModel
+			var viewModel = MapInviteToViewModel(invite);
+			if (invite.ParticipantType == ParticipantType.Team && invite.ParticipantId.TeamId.HasValue)
 			{
-				Status = i.TournamentManagerApproval,
-				Date = i.TournamentManagerApprovalDate
-			},
-			ParticipantApproval = new ApprovalStatusViewModel
-			{
-				Status = i.ParticipantApproval,
-				Date = i.ParticipantApprovalDate
+				viewModel.LogoUri = await this.teamContextProvider.GetTeamLogoUriAsync(
+					invite.ParticipantId.TeamId.Value, this.HttpContext.RequestAborted);
 			}
-		});
+			result.Add(viewModel);
+		}
+		return result;
 	}
 
 	/// <summary>
@@ -487,7 +491,6 @@ public class TournamentsController : ControllerBase
 		[FromBody] CreateInviteModel model)
 	{
 		var userContext = await this.contextAccessor.GetCurrentUserContextAsync();
-
 		if (model.ParticipantType != model.ParticipantId.ParticipantType)
 		{
 			return this.BadRequest(new { error = "Participant type does not match participant ID" });
@@ -500,9 +503,28 @@ public class TournamentsController : ControllerBase
 			return tournamentValidation;
 		}
 
+		if (model.ParticipantType == ParticipantType.Player)
+		{
+			return await this.CreatePlayerInviteAsync(tournamentId, model, userContext, tournament);
+		}
+
 		if (model.ParticipantType == ParticipantType.Referee)
 		{
 			return await this.HandleRefereeInviteCreationAsync(tournamentId, model, userContext, tournament);
+		}
+
+		return await this.HandleTeamInviteCreationAsync(tournamentId, model, userContext, tournament);
+	}
+
+	private async Task<ActionResult<TournamentInviteViewModel>> HandleTeamInviteCreationAsync(
+		TournamentIdentifier tournamentId,
+		CreateInviteModel model,
+		IUserContext userContext,
+		ITournamentContext tournament)
+	{
+		if (tournament.Type == TournamentType.Fantasy && !tournament.AllowsTeamRegistration)
+		{
+			return this.BadRequest(new { error = "This Fantasy tournament does not allow team registration" });
 		}
 
 		// Validate and parse participant
@@ -517,6 +539,16 @@ public class TournamentsController : ControllerBase
 		if (authorizationError != null)
 		{
 			return authorizationError;
+		}
+
+		if (isTeamManager && !isTournamentManager)
+		{
+			var individualInvite = await this.tournamentContextProvider
+				.GetPlayerInviteAsync(tournamentId, userContext.UserId, this.HttpContext.RequestAborted);
+			if (individualInvite?.GetStatus() is InviteStatus.Pending or InviteStatus.Approved)
+			{
+				return this.BadRequest(new { error = "You are already registered individually for this tournament" });
+			}
 		}
 
 		// Check for existing participant or invite
@@ -605,6 +637,14 @@ public class TournamentsController : ControllerBase
 				tournamentName,
 				initiatorUserId);
 		}
+		else if (isTournamentManager && !isTeamManager && invite.ParticipantApproval == ApprovalStatus.Pending)
+		{
+			await this.NotifyTeamManagersOfTournamentInviteAsync(
+				tournamentId,
+				teamId,
+				tournamentName,
+				initiatorUserId);
+		}
 
 		await this.SendInviteEmailIfPendingAsync(invite, tournamentId, teamId);
 	}
@@ -643,7 +683,7 @@ public class TournamentsController : ControllerBase
 		IUserContext userContext,
 		ITournamentContext tournament)
 	{
-		if (!model.ParticipantId.UserId.HasValue)
+		if (!model.ParticipantId.UserId.HasValue || model.ParticipantId.ParticipantType != ParticipantType.Referee)
 		{
 			return this.BadRequest(new { error = "Invalid participant ID" });
 		}
@@ -675,6 +715,14 @@ public class TournamentsController : ControllerBase
 			model.Observations,
 			this.HttpContext.RequestAborted);
 
+		if (refereeInvite.TournamentManagerApproval == ApprovalStatus.Pending)
+		{
+			await this.NotifyTournamentManagersOfVolunteerRegistrationAsync(
+				tournamentId,
+				tournament.Name,
+				userContext.UserId);
+		}
+
 		return this.CreateInviteCreatedResponse(tournamentId, refereeInvite);
 	}
 
@@ -698,6 +746,84 @@ public class TournamentsController : ControllerBase
 			nameof(GetTournamentInvites),
 			new { tournamentId = tournamentId.ToString() },
 			viewModel);
+	}
+
+	/// <summary>
+	/// Handles individual-player registration for Fantasy tournaments that allow it.
+	/// The calling user registers themselves; participantId must be their own user ID.
+	/// A player cannot register individually if they already have a team invite, and
+	/// cannot register with a team if they are already registered individually.
+	/// </summary>
+	private async Task<ActionResult<TournamentInviteViewModel>> CreatePlayerInviteAsync(
+		TournamentIdentifier tournamentId,
+		CreateInviteModel model,
+		IUserContext userContext,
+		ITournamentContext tournament)
+	{
+		if (!model.ParticipantId.UserId.HasValue ||
+			!model.ParticipantId.UserId.Value.Equals(userContext.UserId))
+		{
+			return this.BadRequest(new { error = "Player registration requires your own user ID as participant ID" });
+		}
+
+		var registrationValidation = this.ValidatePlayerRegistrationTournament(tournament);
+		if (registrationValidation != null)
+		{
+			return registrationValidation;
+		}
+
+		if (await this.HasExistingPlayerOrTeamInviteAsync(tournamentId, userContext.UserId))
+		{
+			return this.BadRequest(new { error = "You are already registered or have a pending registration for this tournament" });
+		}
+
+		var invite = await this.tournamentContextProvider.CreatePlayerInviteAsync(
+			tournamentId,
+			userContext.UserId,
+			userContext.UserId,
+			this.HttpContext.RequestAborted);
+
+		if (invite.TournamentManagerApproval == ApprovalStatus.Pending)
+		{
+			await this.NotifyTournamentManagersOfPlayerRegistrationAsync(
+				tournamentId,
+				tournament.Name,
+				userContext.UserId);
+		}
+
+		return this.CreateInviteCreatedResponse(tournamentId, invite);
+	}
+
+	private ActionResult? ValidatePlayerRegistrationTournament(ITournamentContext tournament)
+	{
+		if (tournament.Type != TournamentType.Fantasy)
+		{
+			return this.BadRequest(new { error = "Individual registration is only available for Fantasy tournaments" });
+		}
+
+		if (!tournament.AllowsIndividualRegistration)
+		{
+			return this.BadRequest(new { error = "This tournament does not allow individual player registration" });
+		}
+
+		if (!tournament.IsRegistrationOpen ||
+			(tournament.RegistrationEndsDate.HasValue &&
+			 tournament.RegistrationEndsDate.Value < DateOnly.FromDateTime(DateTime.UtcNow)))
+		{
+			return this.BadRequest(new { error = "Individual registration is closed" });
+		}
+
+		return null;
+	}
+
+	private async Task<bool> HasExistingPlayerOrTeamInviteAsync(
+		TournamentIdentifier tournamentId,
+		UserIdentifier userId)
+	{
+		var existingInvites = await this.tournamentContextProvider
+			.GetTournamentInvitesAsync(tournamentId, userId, this.HttpContext.RequestAborted);
+
+		return existingInvites.Any(invite => invite.ParticipantType is ParticipantType.Team or ParticipantType.Player);
 	}
 
 	private ActionResult? ValidateInviteParticipant(CreateInviteModel model, out TeamIdentifier teamId)
@@ -788,17 +914,8 @@ public class TournamentsController : ControllerBase
 		string tournamentName,
 		UserIdentifier initiatorUserId)
 	{
-		var managerRows = await this.dbContext.TournamentManagers
-			.Where(tm => tm.Tournament.UniqueId == tournamentId.ToString())
-			.Select(tm => new { tm.User.UniqueId, tm.User.Id })
-			.ToListAsync(this.HttpContext.RequestAborted);
-
-		foreach (var manager in managerRows)
+		foreach (var managerUserId in await this.GetTournamentManagerUserIdsAsync(tournamentId))
 		{
-			var managerUserId = !string.IsNullOrWhiteSpace(manager.UniqueId)
-				? UserIdentifier.Parse(manager.UniqueId)
-				: UserIdentifier.FromLegacyUserId(manager.Id);
-
 			if (managerUserId.Equals(initiatorUserId))
 			{
 				continue;
@@ -812,6 +929,91 @@ public class TournamentsController : ControllerBase
 				this.HttpContext.RequestAborted);
 		}
 	}
+
+	private async Task NotifyTournamentManagersOfVolunteerRegistrationAsync(
+		TournamentIdentifier tournamentId,
+		string tournamentName,
+		UserIdentifier initiatorUserId)
+	{
+		foreach (var managerUserId in await this.GetTournamentManagerUserIdsAsync(tournamentId))
+		{
+			if (managerUserId.Equals(initiatorUserId))
+			{
+				continue;
+			}
+
+			await this.notificationService.CreateVolunteerRegistrationRequestNotificationAsync(
+				managerUserId,
+				tournamentId,
+				tournamentName,
+				this.HttpContext.RequestAborted);
+		}
+	}
+
+	private async Task NotifyTournamentManagersOfPlayerRegistrationAsync(
+		TournamentIdentifier tournamentId,
+		string tournamentName,
+		UserIdentifier initiatorUserId)
+	{
+		foreach (var managerUserId in await this.GetTournamentManagerUserIdsAsync(tournamentId))
+		{
+			if (managerUserId.Equals(initiatorUserId))
+			{
+				continue;
+			}
+
+			await this.notificationService.CreatePlayerRegistrationRequestNotificationAsync(
+				managerUserId,
+				tournamentId,
+				tournamentName,
+				this.HttpContext.RequestAborted);
+		}
+	}
+
+	private async Task NotifyTeamManagersOfTournamentInviteAsync(
+		TournamentIdentifier tournamentId,
+		TeamIdentifier teamId,
+		string tournamentName,
+		UserIdentifier initiatorUserId)
+	{
+		var managerRows = await this.dbContext.TeamManagers
+			.Where(manager => manager.TeamId == teamId.Id)
+			.Select(manager => new { manager.User.UniqueId, manager.User.Id })
+			.ToListAsync(this.HttpContext.RequestAborted);
+
+		foreach (var manager in managerRows)
+		{
+			var managerUserId = ToUserIdentifier(manager.UniqueId, manager.Id);
+			if (managerUserId.Equals(initiatorUserId))
+			{
+				continue;
+			}
+
+			await this.notificationService.CreateTournamentInviteNotificationAsync(
+				managerUserId,
+				tournamentId,
+				teamId,
+				tournamentName,
+				this.HttpContext.RequestAborted);
+		}
+	}
+
+	private async Task<IReadOnlyList<UserIdentifier>> GetTournamentManagerUserIdsAsync(TournamentIdentifier tournamentId)
+	{
+		var managerRows = await this.dbContext.TournamentManagers
+			.Where(manager => manager.Tournament.UniqueId == tournamentId.ToString())
+			.Select(manager => new { manager.User.UniqueId, manager.User.Id })
+			.ToListAsync(this.HttpContext.RequestAborted);
+
+		return managerRows
+			.Select(manager => ToUserIdentifier(manager.UniqueId, manager.Id))
+			.ToList();
+	}
+
+	private static UserIdentifier ToUserIdentifier(string? uniqueId, long userDbId) =>
+		!string.IsNullOrWhiteSpace(uniqueId)
+			? UserIdentifier.Parse(uniqueId)
+			: UserIdentifier.FromLegacyUserId(userDbId);
 
 	private static bool TryParseParticipantId(string participantId, out TournamentParticipantIdentifier participantIdentifier)
 	{
@@ -901,27 +1103,86 @@ public class TournamentsController : ControllerBase
 	public async Task<IActionResult> RespondToInvite(
 		[FromRoute] TournamentIdentifier tournamentId,
 		[FromRoute] string participantId,
-		[FromBody] InviteResponseModel response)
+		[FromBody] InviteResponseModel response,
+		[FromQuery] ParticipantType? participantType = null)
 	{
 		var userContext = await this.contextAccessor.GetCurrentUserContextAsync();
+		var playerResponse = await this.TryHandlePlayerInviteResponseAsync(
+			tournamentId,
+			participantId,
+			response,
+			participantType,
+			userContext);
+		if (playerResponse != null)
+		{
+			return playerResponse;
+		}
+
+		return await this.HandleOtherInviteResponseAsync(
+			tournamentId,
+			participantId,
+			response,
+			participantType,
+			userContext);
+	}
+
+	private async Task<IActionResult?> TryHandlePlayerInviteResponseAsync(
+		TournamentIdentifier tournamentId,
+		string participantId,
+		InviteResponseModel response,
+		ParticipantType? participantType,
+		IUserContext userContext)
+	{
+		if (participantType.HasValue && participantType.Value != ParticipantType.Player)
+		{
+			return null;
+		}
+
+		if (!UserIdentifier.TryParse(participantId, out var playerId))
+		{
+			return null;
+		}
+
+		var playerInvite = await this.tournamentContextProvider
+			.GetPlayerInviteAsync(tournamentId, playerId, this.HttpContext.RequestAborted);
+		if (playerInvite == null)
+		{
+			return null;
+		}
+
+		return await this.HandlePlayerInviteResponseAsync(
+			tournamentId,
+			playerId,
+			response,
+			IsTournamentManager(userContext, tournamentId),
+			userContext.UserId,
+			this.HttpContext.RequestAborted);
+	}
+
+	private async Task<IActionResult> HandleOtherInviteResponseAsync(
+		TournamentIdentifier tournamentId,
+		string participantId,
+		InviteResponseModel response,
+		ParticipantType? participantType,
+		IUserContext userContext)
+	{
 		if (!TryParseParticipantId(participantId, out var parsedParticipantId))
 		{
 			return this.BadRequest(new { error = "Invalid participant ID" });
 		}
 
-		var parsedTeamId = parsedParticipantId.TeamId;
-		var parsedUserId = parsedParticipantId.UserId;
+		if (participantType.HasValue && participantType.Value != parsedParticipantId.ParticipantType)
+		{
+			return this.BadRequest(new { error = "Participant type does not match participant ID" });
+		}
 
-		// Get pending invite
 		var invite = await this.tournamentContextProvider
 			.GetInviteByParticipantIdAsync(tournamentId, parsedParticipantId, this.HttpContext.RequestAborted);
-
 		if (invite == null || invite.GetStatus() != InviteStatus.Pending)
 		{
 			return this.NotFound(new { error = "No pending invite found" });
 		}
 
-		// Check tournament not archived
 		var tournament = await this.tournamentContextProvider
 			.GetTournamentContextAsync(tournamentId, userContext.UserId, this.HttpContext.RequestAborted);
 		var tournamentValidation = this.ValidateTournamentForInvite(tournament);
@@ -930,17 +1191,15 @@ public class TournamentsController : ControllerBase
 			return tournamentValidation;
 		}
 
-		// Check authorization and determine which approval to update
 		var isTournamentManager = IsTournamentManager(userContext, tournamentId);
-		var isTeamParticipant = IsTeamParticipantManager(userContext, parsedTeamId);
-		var isRefereeParticipant = IsRefereeParticipant(userContext, parsedUserId);
-		var isParticipant = isTeamParticipant || isRefereeParticipant;
-		if (!CanRespondToInvite(invite, isTournamentManager, isParticipant))
+		var isTeamParticipant = IsTeamParticipantManager(userContext, parsedParticipantId.TeamId);
+		var isRefereeParticipant = parsedParticipantId.ParticipantType == ParticipantType.Referee &&
+			IsRefereeParticipant(userContext, parsedParticipantId.UserId);
+		if (!CanRespondToInvite(invite, isTournamentManager, isTeamParticipant || isRefereeParticipant))
 		{
 			return this.Forbid();
 		}
 
-		// Update approval
 		await this.tournamentContextProvider.UpdateInviteApprovalAsync(
 			tournamentId,
 			parsedParticipantId,
@@ -948,12 +1207,53 @@ public class TournamentsController : ControllerBase
 			response.Approved,
 			this.HttpContext.RequestAborted);
 
-		// Reload to check if fully approved
 		var updatedInvite = await this.tournamentContextProvider
 			.GetInviteByParticipantIdAsync(tournamentId, parsedParticipantId, this.HttpContext.RequestAborted);
-		await this.AddTeamParticipantIfInviteApproved(updatedInvite, tournamentId, parsedTeamId);
+		await this.AddTeamParticipantIfInviteApproved(updatedInvite, tournamentId, parsedParticipantId.TeamId);
+		await this.NotifyOtherInviteResponseAsync(invite, tournament, isTournamentManager, response.Approved);
 
 		return this.Ok();
+	}
+
+	private async Task NotifyOtherInviteResponseAsync(
+		InviteInfo invite,
+		ITournamentContext tournament,
+		bool isTournamentManager,
+		bool approved)
+	{
+		switch (invite.ParticipantType)
+		{
+			case ParticipantType.Team when invite.ParticipantId.TeamId.HasValue:
+				if (isTournamentManager)
+				{
+					await this.notificationService.CreateRequestResponseNotificationAsync(
+						invite.InitiatorUserId,
+					invite.TournamentId,
+						invite.ParticipantId.TeamId.Value,
+						tournament.Name,
+						approved,
+						this.HttpContext.RequestAborted);
+				}
+				else
+				{
+					await this.notificationService.CreateInviteResponseNotificationAsync(
+						invite.InitiatorUserId,
+						invite.TournamentId,
+						invite.ParticipantId.TeamId.Value,
+						tournament.Name,
+						approved,
+						this.HttpContext.RequestAborted);
+				}
+				break;
+			case ParticipantType.Referee when isTournamentManager && invite.ParticipantId.UserId.HasValue:
+				await this.notificationService.CreateVolunteerRequestResponseNotificationAsync(
+					invite.ParticipantId.UserId.Value,
+					invite.TournamentId,
+					tournament.Name,
+					approved,
+					this.HttpContext.RequestAborted);
+				break;
+		}
 	}
 
 	/// <summary>
@@ -968,6 +1268,26 @@ public class TournamentsController : ControllerBase
 		[FromRoute] TournamentIdentifier tournamentId,
 		[FromRoute] string participantId)
 	{
+		if (UserIdentifier.TryParse(participantId, out var possiblePlayerId))
+		{
+			var playerInvite = await this.tournamentContextProvider
+				.GetPlayerInviteAsync(tournamentId, possiblePlayerId, this.HttpContext.RequestAborted);
+			if (playerInvite != null)
+			{
+				var playerManagerContext = await this.contextAccessor.GetCurrentUserContextAsync();
+				var playerTournament = await this.tournamentContextProvider
+					.GetTournamentContextAsync(tournamentId, playerManagerContext.UserId, this.HttpContext.RequestAborted);
+				if (this.ValidateTournamentForInvite(playerTournament) is ActionResult validationError)
+				{
+					return validationError;
+				}
+
+				await this.tournamentContextProvider.DeletePlayerInviteAsync(
+					tournamentId, possiblePlayerId, this.HttpContext.RequestAborted);
+				return this.Ok();
+			}
+		}
+
 		if (!TeamIdentifier.TryParse(participantId, out var teamId))
 		{
 			return this.BadRequest(new { error = "Invalid participant ID" });
@@ -986,6 +1306,46 @@ public class TournamentsController : ControllerBase
 			tournamentId,
 			teamId,
 			this.HttpContext.RequestAborted);
+
+		return this.Ok();
+	}
+
+	private async Task<IActionResult> HandlePlayerInviteResponseAsync(
+		TournamentIdentifier tournamentId,
+		UserIdentifier playerId,
+		InviteResponseModel response,
+		bool isTournamentManager,
+		UserIdentifier actingUserId,
+		CancellationToken cancellationToken)
+	{
+		var playerInvite = await this.tournamentContextProvider
+			.GetPlayerInviteAsync(tournamentId, playerId, cancellationToken);
+
+		if (playerInvite == null || playerInvite.GetStatus() != InviteStatus.Pending)
+		{
+			return this.NotFound(new { error = "No pending invite found" });
+		}
+
+		var tournament = await this.tournamentContextProvider
+			.GetTournamentContextAsync(tournamentId, actingUserId, cancellationToken);
+		if (tournament.EndDate < DateOnly.FromDateTime(DateTime.UtcNow))
+		{
+			return this.BadRequest(new { error = "Cannot modify archived tournament" });
+		}
+
+		if (!isTournamentManager || playerInvite.TournamentManagerApproval != ApprovalStatus.Pending)
+		{
+			return this.Forbid();
+		}
+
+		await this.tournamentContextProvider.UpdatePlayerInviteApprovalAsync(
+			tournamentId, playerId, response.Approved, cancellationToken);
+		await this.notificationService.CreatePlayerRegistrationResponseNotificationAsync(
+			playerId,
+			tournamentId,
+			tournament.Name,
+			response.Approved,
+			cancellationToken);
 
 		return this.Ok();
 	}

@@ -25,6 +25,9 @@ public readonly record struct TournamentParticipantIdentifier
 	public static TournamentParticipantIdentifier ForReferee(UserIdentifier userId)
 		=> new(ParticipantType.Referee, null, userId);
 
+	public static TournamentParticipantIdentifier ForPlayer(UserIdentifier userId)
+		=> new(ParticipantType.Player, null, userId);
+
 	public static bool TryParse(ParticipantType participantType, string value, out TournamentParticipantIdentifier participantIdentifier)
 	{
 		participantIdentifier = default;
@@ -38,6 +41,12 @@ public readonly record struct TournamentParticipantIdentifier
 		if (participantType == ParticipantType.Referee && UserIdentifier.TryParse(value, out var userId))
 		{
 			participantIdentifier = ForReferee(userId);
+			return true;
+		}
+
+		if (participantType == ParticipantType.Player && UserIdentifier.TryParse(value, out userId))
+		{
+			participantIdentifier = ForPlayer(userId);
 			return true;
 		}
 
