@@ -109,15 +109,25 @@ const ManagerSidebar = ({
         Edit Tournament Details
       </button>
 
-      <button
-        onClick={onOpenRegistrations}
-        className="btn btn-secondary btn-full-width card-mb"
-      >
-        View Team Registrations (
-        {invites?.filter((invite) => invite.participantType === "team")
-          .length || 0}
-        )
-      </button>
+      {!(tournament.type === "Fantasy" && tournament.allowsTeamRegistration === false) && (
+        <>
+          <button
+            onClick={onOpenRegistrations}
+            className="btn btn-secondary btn-full-width card-mb"
+          >
+            View Team Registrations (
+            {invites?.filter((invite) => invite.participantType === "team")
+              .length || 0}
+            )
+          </button>
+          <button
+            onClick={onOpenInviteTeams}
+            className="btn btn-secondary btn-full-width card-mb"
+          >
+            Invite Teams
+          </button>
+        </>
+      )}
 
       {tournament.type === "Fantasy" && (
         <button
@@ -138,13 +148,6 @@ const ManagerSidebar = ({
         {invites?.filter((invite) => invite.participantType === "referee")
           .length || 0}
         )
-      </button>
-
-      <button
-        onClick={onOpenInviteTeams}
-        className="btn btn-secondary btn-full-width card-mb"
-      >
-        Invite Teams
       </button>
 
       <button
